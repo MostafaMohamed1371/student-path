@@ -1,58 +1,144 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# student-path
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+`student-path` is a Laravel 13 backend project for a mobile-first authentication flow and a web dashboard.
 
-## About Laravel
+It includes:
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- Phone-based OTP authentication API (Iraqi format: 10 national digits, static `+964`)
+- Laravel Sanctum token auth for mobile clients
+- OTP security controls (hashing, expiry, cooldown, attempts, throttling)
+- Standing Tech SMS/WhatsApp integration (configurable)
+- Web dashboard login (phone + password) with sidebar and Users CRUD
+- Arabic/English language switch support for dashboard screens
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Main Features
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### 1) Mobile OTP Authentication API
 
-## Learning Laravel
+API endpoints:
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+- `POST /api/auth/send-otp`
+- `POST /api/auth/verify-otp`
+- `POST /api/auth/logout` (Sanctum protected)
+- `GET /api/auth/me` (Sanctum protected)
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+Behavior highlights:
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+- User enters only **10 digits** (no leading `0`)
+- Server normalizes to canonical phone: `964` + 10 digits
+- OTP is 4 digits, stored hashed in DB
+- Expiry is 5 minutes
+- Resend cooldown is 30 seconds
+- Max attempts per OTP record is enforced
+- User auto-created only after successful verification
 
-## Agentic Development
+### 2) SMS Provider Integration (Standing Tech)
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+Config is handled through `STANDINGTECH_*` variables in `.env`.
+
+Supports:
+
+- Real sending (`STANDINGTECH_MOCK=false`)
+- Log-only mock mode (`STANDINGTECH_MOCK=true`)
+- Sender, type (e.g. `whatsapp`), language, recipient formatting controls
+
+### 3) Web Dashboard
+
+Web routes:
+
+- `GET /login`
+- `GET /dashboard`
+- `GET /dashboard/users`
+- User CRUD:
+  - create user
+  - edit user
+  - delete user
+
+Dashboard includes:
+
+- Sidebar navigation (Overview / Users)
+- Project overview cards (users, active users, OTP records)
+- User management table and forms
+
+## Tech Stack
+
+- PHP 8.3+
+- Laravel 13
+- MySQL
+- Laravel Sanctum
+- Blade views (dashboard)
+
+## Project Structure (important parts)
+
+- `app/Services/Otp/OtpService.php` - OTP generation/verification logic
+- `app/Services/Phone/PhoneNormalizer.php` - Iraqi phone normalization/validation
+- `app/Services/Sms/*` - SMS abstraction + Standing Tech integration
+- `app/Http/Controllers/Api/*` - auth API controllers
+- `app/Http/Controllers/Web/*` - dashboard controllers
+- `app/Http/Requests/*` - validation for API and dashboard forms
+- `resources/views/dashboard/*` - dashboard UI
+- `routes/api.php` - API routes
+- `routes/web.php` - web routes
+
+## Quick Start
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+composer install
+cp .env.example .env
+php artisan key:generate
+php artisan migrate
+php artisan db:seed
+php artisan serve
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Open:
 
-## Contributing
+- Login page: `http://127.0.0.1:8000/login`
+- Dashboard: `http://127.0.0.1:8000/dashboard`
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Default Dashboard Credentials
 
-## Code of Conduct
+Configured by:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+- `DASHBOARD_SEED_PHONE`
+- `DASHBOARD_SEED_PASSWORD`
 
-## Security Vulnerabilities
+Current defaults:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+- phone (10 digits): `7701234567`
+- password: `12345678`
 
-## License
+## Environment Notes
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Important `.env` groups:
+
+- App:
+  - `APP_NAME=student-path`
+- DB:
+  - `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`
+- SMS:
+  - `STANDINGTECH_SMS_URL`
+  - `STANDINGTECH_BEARER_TOKEN`
+  - `STANDINGTECH_SENDER_ID`
+  - `STANDINGTECH_TYPE`
+  - `STANDINGTECH_LANG`
+  - `STANDINGTECH_MOCK`
+- Dashboard seed:
+  - `DASHBOARD_SEED_PHONE`
+  - `DASHBOARD_SEED_PASSWORD`
+
+## Testing
+
+Run all tests:
+
+```bash
+php artisan test
+```
+
+Includes feature tests for:
+
+- OTP flow
+- resend cooldown
+- verification success/failure/expiry
+- logout and me endpoints
+- dashboard login and Users CRUD
