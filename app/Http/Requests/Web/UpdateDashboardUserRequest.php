@@ -1,0 +1,53 @@
+<?php
+
+namespace App\Http\Requests\Web;
+
+use App\Http\Requests\Concerns\PreparesIraqPhoneInput;
+use App\Models\User;
+use App\Services\Phone\PhoneNormalizer;
+use Illuminate\Contracts\Validation\ValidationRule;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
+
+class UpdateDashboardUserRequest extends FormRequest
+{
+    use PreparesIraqPhoneInput;
+
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    /**
+     * @return array<string, list<string|ValidationRule>>
+     */
+    public function rules(): array
+    {
+        return [
+            'name' => ['nullable', 'string', 'max:255'],
+            'phone' => ['required', 'string', 'size:10', 'regex:/^[1-9]\\d{9}$/'],
+            'password' => ['nullable', 'string', 'min:8', 'max:255'],
+            'is_active' => ['nullable', 'boolean'],
+        ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            /** @var User $user */
+            $user = $this->route('user');
+            $phone = app(PhoneNormalizer::class)->normalize((string) $this->input('phone', ''));
+
+            if (User::query()->where('phone', $phone)->where('id', '!=', $user->id)->exists()) {
+                $validator->errors()->add('phone', __('validation.unique', ['attribute' => __('dashboard.phone')]));
+            }
+        });
+    }
+
+    protected function passedValidation(): void
+    {
+        $this->merge([
+            'is_active' => $this->boolean('is_active'),
+        ]);
+    }
+}

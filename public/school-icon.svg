@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Student Path school icon">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#1a2744"/>
+      <stop offset="1" stop-color="#243b66"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <path d="M10 24L32 14l22 10-22 10-22-10z" fill="#fbbf24"/>
+  <path d="M19 30v10c0 4.2 5.8 7.6 13 7.6S45 44.2 45 40V30l-13 5.9L19 30z" fill="#fff"/>
+  <path d="M54 24v13" stroke="#fbbf24" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="54" cy="40" r="3.8" fill="#fbbf24"/>
+</svg>
