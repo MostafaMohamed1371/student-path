@@ -1,64 +1,73 @@
 # student-path
 
-`student-path` is a Laravel 13 backend project for a mobile-first authentication flow and a web dashboard.
+`student-path` is a Laravel 13 backend for a mobile app + admin dashboard.
 
-It includes:
+It provides:
+- OTP login with Iraqi phone rules
+- Sanctum token authentication for mobile APIs
+- User Profile and Bus APIs
+- Standing Tech SMS/WhatsApp integration
+- Admin dashboard for app-level management (users + buses)
+- Arabic/English dashboard localization
 
-- Phone-based OTP authentication API (Iraqi format: 10 national digits, static `+964`)
-- Laravel Sanctum token auth for mobile clients
-- OTP security controls (hashing, expiry, cooldown, attempts, throttling)
-- Standing Tech SMS/WhatsApp integration (configurable)
-- Web dashboard login (phone + password) with sidebar and Users CRUD
-- Arabic/English language switch support for dashboard screens
+## Core Features
 
-## Main Features
+### Mobile Authentication (OTP)
 
-### 1) Mobile OTP Authentication API
-
-API endpoints:
-
+Endpoints:
 - `POST /api/auth/send-otp`
 - `POST /api/auth/verify-otp`
-- `POST /api/auth/logout` (Sanctum protected)
-- `GET /api/auth/me` (Sanctum protected)
+- `POST /api/auth/logout` (auth required)
+- `GET /api/auth/me` (auth required)
 
-Behavior highlights:
+Behavior:
+- Client sends Iraqi national mobile number (10 digits, no leading `0`)
+- Server normalizes to canonical format: `964` + 10 digits
+- OTP is 4 digits and stored as plain text by project requirement
+- Expiry, resend cooldown, attempts limit, and API throttling are enforced
 
-- User enters only **10 digits** (no leading `0`)
-- Server normalizes to canonical phone: `964` + 10 digits
-- OTP is 4 digits, stored hashed in DB
-- Expiry is 5 minutes
-- Resend cooldown is 30 seconds
-- Max attempts per OTP record is enforced
-- User auto-created only after successful verification
+### User Profile APIs
 
-### 2) SMS Provider Integration (Standing Tech)
+Authenticated endpoints:
+- `GET /api/user/profile`
+- `PUT /api/user/profile`
+- `DELETE /api/user/profile`
+- `POST /api/user/language`
 
-Config is handled through `STANDINGTECH_*` variables in `.env`.
+Profile payload supports:
+- `name`
+- `image` (file upload)
+- `phone`
+- `city`
+- `licenceNumber`
+- `votes`
+- `rate`
+- `isVerified`
 
-Supports:
+### Bus APIs (Independent from User Profile)
 
-- Real sending (`STANDINGTECH_MOCK=false`)
-- Log-only mock mode (`STANDINGTECH_MOCK=true`)
-- Sender, type (e.g. `whatsapp`), language, recipient formatting controls
+Authenticated endpoints:
+- `GET /api/bus/my-bus`
+- `POST /api/bus/my-bus`
+- `PUT /api/bus/my-bus`
+- `DELETE /api/bus/my-bus`
 
-### 3) Web Dashboard
+User and Bus are modeled as separate entities for future scalability.
+
+### Admin Dashboard
 
 Web routes:
-
 - `GET /login`
 - `GET /dashboard`
 - `GET /dashboard/users`
-- User CRUD:
-  - create user
-  - edit user
-  - delete user
+- `GET /dashboard/buses`
 
-Dashboard includes:
-
-- Sidebar navigation (Overview / Users)
-- Project overview cards (users, active users, OTP records)
-- User management table and forms
+Admin capabilities:
+- Manage all users (create, edit, delete)
+- Manage all buses (create, edit, delete)
+- Manage user profile fields from dashboard forms
+- Upload profile images
+- Color mode toggle in bus form (`Pick color` / `Type color`)
 
 ## Tech Stack
 
@@ -66,19 +75,19 @@ Dashboard includes:
 - Laravel 13
 - MySQL
 - Laravel Sanctum
-- Blade views (dashboard)
+- Blade (dashboard UI)
 
-## Project Structure (important parts)
+## Important Paths
 
-- `app/Services/Otp/OtpService.php` - OTP generation/verification logic
-- `app/Services/Phone/PhoneNormalizer.php` - Iraqi phone normalization/validation
-- `app/Services/Sms/*` - SMS abstraction + Standing Tech integration
-- `app/Http/Controllers/Api/*` - auth API controllers
-- `app/Http/Controllers/Web/*` - dashboard controllers
-- `app/Http/Requests/*` - validation for API and dashboard forms
-- `resources/views/dashboard/*` - dashboard UI
-- `routes/api.php` - API routes
-- `routes/web.php` - web routes
+- `app/Services/Otp/OtpService.php`
+- `app/Services/Phone/PhoneNormalizer.php`
+- `app/Services/Sms/*`
+- `app/Http/Controllers/Api/*`
+- `app/Http/Controllers/Web/*`
+- `app/Http/Requests/*`
+- `resources/views/dashboard/*`
+- `routes/api.php`
+- `routes/web.php`
 
 ## Quick Start
 
@@ -88,57 +97,51 @@ cp .env.example .env
 php artisan key:generate
 php artisan migrate
 php artisan db:seed
+php artisan storage:link
 php artisan serve
 ```
 
 Open:
-
-- Login page: `http://127.0.0.1:8000/login`
+- Login: `http://127.0.0.1:8000/login`
 - Dashboard: `http://127.0.0.1:8000/dashboard`
 
-## Default Dashboard Credentials
+## Default Admin Credentials
 
 Configured by:
-
 - `DASHBOARD_SEED_PHONE`
 - `DASHBOARD_SEED_PASSWORD`
 
-Current defaults:
+Default values:
+- Phone (10 digits): `7701234567`
+- Password: `12345678`
 
-- phone (10 digits): `7701234567`
-- password: `12345678`
+## Environment Variables
 
-## Environment Notes
+App / DB:
+- `APP_NAME=student-path`
+- `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`
 
-Important `.env` groups:
+Standing Tech:
+- `STANDINGTECH_SMS_URL`
+- `STANDINGTECH_BEARER_TOKEN`
+- `STANDINGTECH_SENDER_ID`
+- `STANDINGTECH_TYPE`
+- `STANDINGTECH_LANG`
+- `STANDINGTECH_RECIPIENT_FORMAT`
+- `STANDINGTECH_RECIPIENT_PREFIX`
+- `STANDINGTECH_MOBILE_TRUNK`
+- `STANDINGTECH_STRIP_INTERNATIONAL_PREFIX`
+- `STANDINGTECH_MOCK`
+- `STANDINGTECH_TIMEOUT`
 
-- App:
-  - `APP_NAME=student-path`
-- DB:
-  - `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`
-- SMS:
-  - `STANDINGTECH_SMS_URL`
-  - `STANDINGTECH_BEARER_TOKEN`
-  - `STANDINGTECH_SENDER_ID`
-  - `STANDINGTECH_TYPE`
-  - `STANDINGTECH_LANG`
-  - `STANDINGTECH_MOCK`
-- Dashboard seed:
-  - `DASHBOARD_SEED_PHONE`
-  - `DASHBOARD_SEED_PASSWORD`
+Dashboard seed:
+- `DASHBOARD_SEED_PHONE`
+- `DASHBOARD_SEED_PASSWORD`
 
 ## Testing
-
-Run all tests:
 
 ```bash
 php artisan test
 ```
 
-Includes feature tests for:
-
-- OTP flow
-- resend cooldown
-- verification success/failure/expiry
-- logout and me endpoints
-- dashboard login and Users CRUD
+Feature tests cover OTP flows, auth-protected endpoints, and dashboard CRUD behavior.
