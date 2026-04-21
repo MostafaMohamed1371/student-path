@@ -2,6 +2,9 @@
 
 `student-path` is a Laravel 13 backend for a mobile app + admin dashboard.
 
+Full documentation:
+- `docs/PROJECT_DOCUMENTATION.md`
+
 It provides:
 - OTP login with Iraqi phone rules
 - Sanctum token authentication for mobile APIs

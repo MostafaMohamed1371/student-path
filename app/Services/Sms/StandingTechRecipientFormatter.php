@@ -17,7 +17,7 @@ final class StandingTechRecipientFormatter
 
         $prefix = (string) config('standingtech.recipient_prefix', '');
         $trunk = (string) config('standingtech.mobile_trunk', '');
-        $strip = (string) config('standingtech.strip_international_prefix', '966');
+        $strip = (string) config('standingtech.strip_international_prefix', '964');
 
         $national = $canonicalDigits;
         if ($strip !== '' && str_starts_with($national, $strip)) {

@@ -34,7 +34,10 @@
                             <td>{{ $user->name ?: '—' }}</td>
                             <td>
                                 @if($user->image)
-                                    <a class="link" target="_blank" href="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($user->image) }}">{{ __('dashboard.image') }}</a>
+                                    @php($imagePath = ltrim((string) $user->image, '/'))
+                                    @php($imagePath = preg_replace('#^(?:student-path/)?storage/app/public/#', '', $imagePath))
+                                    @php($imagePath = preg_replace('#^public/storage/#', '', (string) $imagePath))
+                                    <a class="link" target="_blank" href="{{ \Illuminate\Support\Facades\Storage::disk('public')->url((string) $imagePath) }}">{{ __('dashboard.image') }}</a>
                                 @else
                                     —
                                 @endif

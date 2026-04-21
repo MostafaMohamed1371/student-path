@@ -12,10 +12,17 @@ class UserProfileResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $imagePath = null;
+        if (is_string($this->image) && $this->image !== '') {
+            $imagePath = ltrim($this->image, '/');
+            $imagePath = (string) preg_replace('#^(?:student-path/)?storage/app/public/#', '', $imagePath);
+            $imagePath = (string) preg_replace('#^public/storage/#', '', $imagePath);
+        }
+
         return [
             'id' => (string) $this->id,
             'name' => $this->name,
-            'image' => $this->image ? Storage::disk('public')->url($this->image) : null,
+            'image' => $imagePath ? Storage::disk('public')->url($imagePath) : null,
             'phone' => $this->phone,
             'city' => $this->city,
             'licenceNumber' => $this->licence_number,
