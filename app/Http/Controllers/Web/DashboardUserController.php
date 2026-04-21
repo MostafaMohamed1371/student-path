@@ -8,6 +8,7 @@ use App\Http\Requests\Web\UpdateDashboardUserRequest;
 use App\Models\User;
 use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 class DashboardUserController extends Controller
@@ -27,10 +28,19 @@ class DashboardUserController extends Controller
     public function store(StoreDashboardUserRequest $request, PhoneNormalizer $phoneNormalizer): RedirectResponse
     {
         $validated = $request->validated();
+        $imagePath = $request->hasFile('image')
+            ? $request->file('image')->store('profiles', 'public')
+            : null;
 
         User::query()->create([
             'name' => $validated['name'] ?? null,
+            'image' => $imagePath,
             'phone' => $phoneNormalizer->normalize($validated['phone']),
+            'city' => $validated['city'] ?? null,
+            'licence_number' => $validated['licence_number'] ?? null,
+            'votes' => $validated['votes'],
+            'rate' => $validated['rate'],
+            'is_verified' => $validated['is_verified'] ?? false,
             'password' => $validated['password'],
             'is_active' => $validated['is_active'] ?? true,
             'phone_verified_at' => now(),
@@ -51,8 +61,21 @@ class DashboardUserController extends Controller
         $payload = [
             'name' => $validated['name'] ?? null,
             'phone' => $phoneNormalizer->normalize($validated['phone']),
+            'city' => $validated['city'] ?? null,
+            'licence_number' => $validated['licence_number'] ?? null,
+            'votes' => $validated['votes'],
+            'rate' => $validated['rate'],
+            'is_verified' => $validated['is_verified'] ?? false,
             'is_active' => $validated['is_active'] ?? false,
         ];
+
+        if ($request->hasFile('image')) {
+            $payload['image'] = $request->file('image')->store('profiles', 'public');
+
+            if ($user->image) {
+                Storage::disk('public')->delete($user->image);
+            }
+        }
 
         if (! empty($validated['password'])) {
             $payload['password'] = $validated['password'];

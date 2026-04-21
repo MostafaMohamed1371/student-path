@@ -25,7 +25,13 @@ class StoreDashboardUserRequest extends FormRequest
     {
         return [
             'name' => ['nullable', 'string', 'max:255'],
+            'image' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:1536'],
             'phone' => ['required', 'string', 'size:10', 'regex:/^[1-9]\\d{9}$/'],
+            'city' => ['nullable', 'string', 'max:255'],
+            'licence_number' => ['nullable', 'string', 'max:255'],
+            'votes' => ['required', 'integer', 'min:0'],
+            'rate' => ['required', 'numeric', 'min:0', 'max:5'],
+            'is_verified' => ['nullable', 'boolean'],
             'password' => ['required', 'string', 'min:8', 'max:255'],
             'is_active' => ['nullable', 'boolean'],
         ];
@@ -46,6 +52,7 @@ class StoreDashboardUserRequest extends FormRequest
     {
         $this->merge([
             'is_active' => $this->boolean('is_active'),
+            'is_verified' => $this->boolean('is_verified'),
         ]);
     }
 }

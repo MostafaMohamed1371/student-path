@@ -16,11 +16,47 @@
     </div>
 
     <div>
+        <label class="field-label" for="image">{{ __('dashboard.image') }}</label>
+        <input class="input" id="image" name="image" type="file" accept=".jpg,.jpeg,.png,.webp" />
+        @if(isset($user) && $user->image)
+            <p class="help"><a class="link" target="_blank" href="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($user->image) }}">Current image</a></p>
+        @endif
+    </div>
+
+    <div>
         <label class="field-label" for="password">{{ __('dashboard.password') }}</label>
         <input class="input" id="password" name="password" type="password" {{ ($passwordRequired ?? false) ? 'required' : '' }} />
         @unless($passwordRequired ?? false)
             <p class="help">{{ __('dashboard.password_optional_on_edit') }}</p>
         @endunless
+    </div>
+
+    <div>
+        <label class="field-label" for="city">{{ __('dashboard.city') }}</label>
+        <input class="input" id="city" name="city" value="{{ old('city', $user->city ?? '') }}" />
+    </div>
+
+    <div>
+        <label class="field-label" for="licence_number">{{ __('dashboard.licence_number') }}</label>
+        <input class="input" id="licence_number" name="licence_number" value="{{ old('licence_number', $user->licence_number ?? '') }}" />
+    </div>
+
+    <div>
+        <label class="field-label" for="votes">{{ __('dashboard.votes') }}</label>
+        <input class="input" id="votes" name="votes" type="number" min="0" value="{{ old('votes', $user->votes ?? 0) }}" required />
+    </div>
+
+    <div>
+        <label class="field-label" for="rate">{{ __('dashboard.rate') }}</label>
+        <input class="input" id="rate" name="rate" type="number" min="0" max="5" step="0.1" value="{{ old('rate', $user->rate ?? 0) }}" required />
+    </div>
+
+    <div>
+        <label class="field-label" for="is_verified">{{ __('dashboard.verified') }}</label>
+        <select class="input" id="is_verified" name="is_verified">
+            <option value="1" @selected((string) old('is_verified', (isset($user) ? (int) $user->is_verified : 0)) === '1')>{{ __('dashboard.verified') }}</option>
+            <option value="0" @selected((string) old('is_verified', (isset($user) ? (int) $user->is_verified : 0)) === '0')>{{ __('dashboard.not_verified') }}</option>
+        </select>
     </div>
 
     <div>

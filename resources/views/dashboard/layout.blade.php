@@ -179,6 +179,12 @@
             font-size: 14px;
         }
 
+        .alert-success {
+            border-color: #86efac;
+            background: #dcfce7;
+            color: #166534;
+        }
+
         .dashboard-shell {
             min-height: 100vh;
             display: grid;

@@ -18,11 +18,15 @@
                 <h3>{{ __('dashboard.stats_otp_records') }}</h3>
                 <p>{{ $otpCount }}</p>
             </article>
+            <article class="stat-card">
+                <h3>{{ __('dashboard.stats_verified_users') }}</h3>
+                <p>{{ $verifiedUsersCount }}</p>
+            </article>
+            <article class="stat-card">
+                <h3>{{ __('dashboard.stats_buses') }}</h3>
+                <p>{{ $busesCount }}</p>
+            </article>
         </div>
 
-        <section class="card" style="margin-top: 18px;">
-            <h2>{{ __('dashboard.project_overview_title') }}</h2>
-            <p>{{ __('dashboard.project_overview_text') }}</p>
-        </section>
     @endcomponent
 @endsection

@@ -8,7 +8,6 @@ use App\Models\OtpCode;
 use App\Models\User;
 use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 
@@ -50,11 +49,10 @@ final class OtpService
             );
         }
 
-        // 4-digit numeric OTP — small search space; hashing + rate limits + max attempts reduce risk.
+        // 4-digit numeric OTP stored in plain text by request (visible in DB).
         $plain = str_pad((string) random_int(0, 9999), self::OTP_LENGTH, '0', STR_PAD_LEFT);
-        $hash = Hash::make($plain);
 
-        DB::transaction(function () use ($phone, $purpose, $hash): void {
+        DB::transaction(function () use ($phone, $purpose, $plain): void {
             // Invalidate prior outstanding OTPs so only the newest row can ever verify.
             OtpCode::query()
                 ->forPhoneAndPurpose($phone, $purpose)
@@ -64,7 +62,7 @@ final class OtpService
 
             OtpCode::create([
                 'phone' => $phone,
-                'code' => $hash,
+                'code' => $plain,
                 'purpose' => $purpose,
                 'expires_at' => now()->addMinutes(self::EXPIRE_MINUTES),
                 'resend_available_at' => now()->addSeconds(self::RESEND_SECONDS),
@@ -116,7 +114,7 @@ final class OtpService
                 ]);
             }
 
-            if (! Hash::check($code, $otp->code)) {
+            if (! hash_equals((string) $otp->code, (string) $code)) {
                 $otp->increment('attempts');
 
                 throw ValidationException::withMessages([

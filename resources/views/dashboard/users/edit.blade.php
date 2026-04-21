@@ -10,7 +10,7 @@
         @endif
 
         <section class="card">
-            <form method="post" action="{{ route('dashboard.users.update', $user) }}">
+            <form method="post" action="{{ route('dashboard.users.update', $user) }}" enctype="multipart/form-data">
                 @include('dashboard.users._form', [
                     'user' => $user,
                     'passwordRequired' => false,

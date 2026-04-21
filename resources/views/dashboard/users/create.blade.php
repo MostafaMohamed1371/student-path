@@ -10,7 +10,7 @@
         @endif
 
         <section class="card">
-            <form method="post" action="{{ route('dashboard.users.store') }}">
+            <form method="post" action="{{ route('dashboard.users.store') }}" enctype="multipart/form-data">
                 @include('dashboard.users._form', [
                     'passwordRequired' => true,
                     'submitLabel' => __('dashboard.create'),

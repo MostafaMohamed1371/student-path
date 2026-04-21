@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "Student Path — Phone OTP Auth",
+    "name": "Student Path — Auth, User & Bus APIs",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -9,56 +9,190 @@
   ],
   "item": [
     {
-      "name": "POST /api/auth/send-otp",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "Accept", "value": "application/json" },
-          { "key": "Content-Type", "value": "application/json" }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"phone\": \"7701234567\"\n}"
+      "name": "Auth",
+      "item": [
+        {
+          "name": "POST /api/auth/send-otp",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"7701234567\"\n}"
+            },
+            "url": "{{base_url}}/api/auth/send-otp"
+          }
         },
-        "url": "{{base_url}}/api/auth/send-otp"
-      }
-    },
-    {
-      "name": "POST /api/auth/verify-otp",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "Accept", "value": "application/json" },
-          { "key": "Content-Type", "value": "application/json" }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"phone\": \"7701234567\",\n  \"code\": \"1234\"\n}"
+        {
+          "name": "POST /api/auth/verify-otp",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"7701234567\",\n  \"code\": \"1234\"\n}"
+            },
+            "url": "{{base_url}}/api/auth/verify-otp"
+          }
         },
-        "url": "{{base_url}}/api/auth/verify-otp"
-      }
+        {
+          "name": "GET /api/auth/me",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/auth/me"
+          }
+        },
+        {
+          "name": "POST /api/auth/logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/auth/logout"
+          }
+        }
+      ]
     },
     {
-      "name": "GET /api/auth/me",
-      "request": {
-        "method": "GET",
-        "header": [
-          { "key": "Accept", "value": "application/json" },
-          { "key": "Authorization", "value": "Bearer {{token}}" }
-        ],
-        "url": "{{base_url}}/api/auth/me"
-      }
+      "name": "User Services",
+      "item": [
+        {
+          "name": "GET /api/user/profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/user/profile"
+          }
+        },
+        {
+          "name": "PUT /api/user/profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ahmed Mohammed\",\n  \"city\": \"Baghdad\",\n  \"licenceNumber\": \"ABC123\",\n  \"votes\": 230,\n  \"rate\": 4.9,\n  \"isVerified\": true\n}"
+            },
+            "url": "{{base_url}}/api/user/profile"
+          }
+        },
+        {
+          "name": "POST /api/user/language",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"language\": \"ar\"\n}"
+            },
+            "url": "{{base_url}}/api/user/language"
+          }
+        },
+        {
+          "name": "DELETE /api/user/profile",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/user/profile"
+          }
+        }
+      ]
     },
     {
-      "name": "POST /api/auth/logout",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "Accept", "value": "application/json" },
-          { "key": "Authorization", "value": "Bearer {{token}}" }
-        ],
-        "url": "{{base_url}}/api/auth/logout"
-      }
+      "name": "Bus Services",
+      "item": [
+        {
+          "name": "GET /api/user/bus",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/user/bus"
+          }
+        },
+        {
+          "name": "GET /api/bus/my-bus",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/bus/my-bus"
+          }
+        },
+        {
+          "name": "POST /api/bus/my-bus",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"busName\": \"Toyota Coaster 2024\",\n  \"busType\": \"School Bus\",\n  \"busCity\": \"Baghdad\",\n  \"busNumber\": \"BGD-1234567\",\n  \"busColor\": \"Yellow\",\n  \"busCapacity\": 22,\n  \"fuelType\": \"Diesel\",\n  \"busStatus\": \"Excellent\",\n  \"busAnnualStatus\": true,\n  \"busInsurance\": true\n}"
+            },
+            "url": "{{base_url}}/api/bus/my-bus"
+          }
+        },
+        {
+          "name": "PUT /api/bus/my-bus",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"busStatus\": \"Good\",\n  \"busCapacity\": 24\n}"
+            },
+            "url": "{{base_url}}/api/bus/my-bus"
+          }
+        },
+        {
+          "name": "DELETE /api/bus/my-bus",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/bus/my-bus"
+          }
+        }
+      ]
     }
   ]
 }

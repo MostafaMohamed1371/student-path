@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Controllers\Web\DashboardBusController;
 use App\Http\Controllers\Web\DashboardHomeController;
 use App\Http\Controllers\Web\DashboardLoginController;
+use App\Http\Controllers\Web\DashboardProfileController;
 use App\Http\Controllers\Web\DashboardUserController;
 use Illuminate\Support\Facades\Route;
 
@@ -27,6 +29,17 @@ Route::post('/logout', [DashboardLoginController::class, 'destroy'])->middleware
 
 Route::middleware('auth')->group(function (): void {
     Route::get('/dashboard', [DashboardHomeController::class, 'index'])->name('dashboard');
+
+    Route::get('/dashboard/profile', [DashboardProfileController::class, 'edit'])->name('dashboard.profile.edit');
+    Route::put('/dashboard/profile', [DashboardProfileController::class, 'update'])->name('dashboard.profile.update');
+
+    Route::get('/dashboard/buses', [DashboardBusController::class, 'index'])->name('dashboard.buses.index');
+    Route::get('/dashboard/buses/create', [DashboardBusController::class, 'create'])->name('dashboard.buses.create');
+    Route::post('/dashboard/buses', [DashboardBusController::class, 'store'])->name('dashboard.buses.store');
+    Route::get('/dashboard/buses/{bus}/edit', [DashboardBusController::class, 'edit'])->name('dashboard.buses.edit');
+    Route::put('/dashboard/buses/{bus}', [DashboardBusController::class, 'update'])->name('dashboard.buses.update');
+    Route::delete('/dashboard/buses/{bus}', [DashboardBusController::class, 'destroy'])->name('dashboard.buses.destroy');
+
     Route::get('/dashboard/users', [DashboardUserController::class, 'index'])->name('dashboard.users.index');
     Route::get('/dashboard/users/create', [DashboardUserController::class, 'create'])->name('dashboard.users.create');
     Route::post('/dashboard/users', [DashboardUserController::class, 'store'])->name('dashboard.users.store');

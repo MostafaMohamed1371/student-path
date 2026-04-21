@@ -16,7 +16,13 @@
                     <tr>
                         <th>#</th>
                         <th>{{ __('dashboard.name') }}</th>
+                        <th>{{ __('dashboard.image') }}</th>
                         <th>{{ __('dashboard.phone') }}</th>
+                        <th>{{ __('dashboard.city') }}</th>
+                        <th>{{ __('dashboard.licence_number') }}</th>
+                        <th>{{ __('dashboard.votes') }}</th>
+                        <th>{{ __('dashboard.rate') }}</th>
+                        <th>{{ __('dashboard.verified') }}</th>
                         <th>{{ __('dashboard.status') }}</th>
                         <th>{{ __('dashboard.actions') }}</th>
                     </tr>
@@ -26,7 +32,23 @@
                         <tr>
                             <td>{{ $user->id }}</td>
                             <td>{{ $user->name ?: '—' }}</td>
+                            <td>
+                                @if($user->image)
+                                    <a class="link" target="_blank" href="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($user->image) }}">{{ __('dashboard.image') }}</a>
+                                @else
+                                    —
+                                @endif
+                            </td>
                             <td>{{ $user->phone }}</td>
+                            <td>{{ $user->city ?: '—' }}</td>
+                            <td>{{ $user->licence_number ?: '—' }}</td>
+                            <td>{{ $user->votes ?? 0 }}</td>
+                            <td>{{ number_format((float) ($user->rate ?? 0), 1) }}</td>
+                            <td>
+                                <span class="badge {{ $user->is_verified ? 'ok' : 'off' }}">
+                                    {{ $user->is_verified ? __('dashboard.verified') : __('dashboard.not_verified') }}
+                                </span>
+                            </td>
                             <td>
                                 <span class="badge {{ $user->is_active ? 'ok' : 'off' }}">
                                     {{ $user->is_active ? __('dashboard.active') : __('dashboard.inactive') }}
@@ -44,7 +66,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5">{{ __('dashboard.no_users') }}</td>
+                            <td colspan="10">{{ __('dashboard.no_users') }}</td>
                         </tr>
                     @endforelse
                     </tbody>

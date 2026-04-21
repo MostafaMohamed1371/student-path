@@ -7,7 +7,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class AuthOtpTest extends TestCase
@@ -37,7 +36,7 @@ class AuthOtpTest extends TestCase
 
         $otp = OtpCode::query()->where('phone', self::PHONE_CANONICAL)->first();
         $this->assertNotNull($otp);
-        $this->assertTrue(Hash::isHashed($otp->code));
+        $this->assertMatchesRegularExpression('/^\d{4}$/', (string) $otp->code);
     }
 
     public function test_send_otp_rejects_national_number_starting_with_zero(): void
@@ -66,7 +65,7 @@ class AuthOtpTest extends TestCase
     public function test_verify_otp_success(): void
     {
         $this->postJson('/api/auth/send-otp', ['phone' => self::PHONE_INPUT])->assertOk();
-        $this->replaceLatestOtpHashWithPlainCode('1111');
+        $this->replaceLatestOtpCode('1111');
 
         $verify = $this->postJson('/api/auth/verify-otp', [
             'phone' => self::PHONE_INPUT,
@@ -88,7 +87,7 @@ class AuthOtpTest extends TestCase
     public function test_verify_otp_with_wrong_code(): void
     {
         $this->postJson('/api/auth/send-otp', ['phone' => self::PHONE_INPUT])->assertOk();
-        $this->replaceLatestOtpHashWithPlainCode('2222');
+        $this->replaceLatestOtpCode('2222');
 
         $verify = $this->postJson('/api/auth/verify-otp', [
             'phone' => self::PHONE_INPUT,
@@ -103,7 +102,7 @@ class AuthOtpTest extends TestCase
     public function test_verify_otp_after_expiry(): void
     {
         $this->postJson('/api/auth/send-otp', ['phone' => self::PHONE_INPUT])->assertOk();
-        $this->replaceLatestOtpHashWithPlainCode('3333');
+        $this->replaceLatestOtpCode('3333');
 
         $this->travel(6)->minutes();
 
@@ -119,7 +118,7 @@ class AuthOtpTest extends TestCase
     public function test_logout_success(): void
     {
         $this->postJson('/api/auth/send-otp', ['phone' => self::PHONE_INPUT])->assertOk();
-        $this->replaceLatestOtpHashWithPlainCode('4444');
+        $this->replaceLatestOtpCode('4444');
 
         $verify = $this->postJson('/api/auth/verify-otp', [
             'phone' => self::PHONE_INPUT,
@@ -150,7 +149,7 @@ class AuthOtpTest extends TestCase
     public function test_me_endpoint_success(): void
     {
         $this->postJson('/api/auth/send-otp', ['phone' => self::PHONE_INPUT])->assertOk();
-        $this->replaceLatestOtpHashWithPlainCode('5555');
+        $this->replaceLatestOtpCode('5555');
 
         $verify = $this->postJson('/api/auth/verify-otp', [
             'phone' => self::PHONE_INPUT,
@@ -168,12 +167,12 @@ class AuthOtpTest extends TestCase
     }
 
     /**
-     * The send-otp endpoint does not return the OTP; tests set a known hash on the latest row.
+     * The send-otp endpoint does not return OTP; tests set a known code on latest row.
      */
-    private function replaceLatestOtpHashWithPlainCode(string $plainFourDigits): void
+    private function replaceLatestOtpCode(string $plainFourDigits): void
     {
         $otp = OtpCode::query()->where('phone', self::PHONE_CANONICAL)->latest('id')->first();
         $this->assertNotNull($otp);
-        $otp->forceFill(['code' => Hash::make($plainFourDigits)])->save();
+        $otp->forceFill(['code' => $plainFourDigits])->save();
     }
 }

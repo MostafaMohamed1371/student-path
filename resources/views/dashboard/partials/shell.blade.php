@@ -8,6 +8,7 @@
         <nav class="sidebar-nav">
             <a href="{{ route('dashboard') }}" class="sidebar-link {{ request()->routeIs('dashboard') ? 'is-active' : '' }}">{{ __('dashboard.menu_overview') }}</a>
             <a href="{{ route('dashboard.users.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.users.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_users') }}</a>
+            <a href="{{ route('dashboard.buses.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.buses.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_bus') }}</a>
         </nav>
 
         <div class="sidebar-footer">
@@ -29,7 +30,7 @@
         </header>
 
         @if (session('success'))
-            <div class="alert" style="margin-top: 0; margin-bottom: 16px;">{{ session('success') }}</div>
+            <div class="alert alert-success" style="margin-top: 0; margin-bottom: 16px;">{{ session('success') }}</div>
         @endif
 
         @if (session('error'))
