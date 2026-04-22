@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Bus;
+use App\Models\Driver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -12,19 +13,27 @@ class DashboardBusController extends Controller
 {
     public function index(): View
     {
-        $buses = Bus::query()->with('user')->latest('id')->paginate(12);
+        $buses = Bus::query()->with('driver.school')->latest('id')->paginate(12);
 
         return view('dashboard.buses.index', compact('buses'));
     }
 
-    public function create(): View
+    public function create(): View|RedirectResponse
     {
-        return view('dashboard.buses.create');
+        $drivers = Driver::query()->with('school')->orderBy('id')->get();
+        if ($drivers->isEmpty()) {
+            return redirect()->route('dashboard.drivers.create')
+                ->with('error', __('dashboard.create_driver_first'));
+        }
+
+        return view('dashboard.buses.create', compact('drivers'));
     }
 
     public function edit(Bus $bus): View
     {
-        return view('dashboard.buses.edit', compact('bus'));
+        $drivers = Driver::query()->with('school')->orderBy('id')->get();
+
+        return view('dashboard.buses.edit', compact('bus', 'drivers'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -59,7 +68,7 @@ class DashboardBusController extends Controller
     private function rules(?int $busId = null): array
     {
         return [
-            'user_id' => ['required', 'integer', 'exists:users,id', 'unique:buses,user_id,'.($busId ?? 'NULL').',id'],
+            'driver_id' => ['required', 'integer', 'exists:drivers,id', 'unique:buses,driver_id,'.($busId ?? 'NULL').',id'],
             'name' => ['required', 'string', 'max:255'],
             'type' => ['required', 'string', 'max:255'],
             'city' => ['required', 'string', 'max:255'],

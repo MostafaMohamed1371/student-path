@@ -25,6 +25,7 @@ class StoreDashboardUserRequest extends FormRequest
     {
         return [
             'name' => ['nullable', 'string', 'max:255'],
+            'school_id' => ['required', 'integer', 'exists:schools,id'],
             'image' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:1536'],
             'phone' => ['required', 'string', 'size:10', 'regex:/^[1-9]\\d{9}$/'],
             'city' => ['nullable', 'string', 'max:255'],

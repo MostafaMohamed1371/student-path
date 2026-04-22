@@ -5,6 +5,18 @@
 
 <div class="form-grid">
     <div>
+        <label class="field-label" for="school_id">{{ __('dashboard.school') }}</label>
+        <select class="input" id="school_id" name="school_id" required>
+            <option value="">{{ __('dashboard.select_school') }}</option>
+            @foreach(($schools ?? collect()) as $school)
+                <option value="{{ $school->id }}" @selected((string) old('school_id', $user->school_id ?? '') === (string) $school->id)>
+                    {{ $school->name_en }} @if($school->name_ar) ({{ $school->name_ar }}) @endif
+                </option>
+            @endforeach
+        </select>
+    </div>
+
+    <div>
         <label class="field-label" for="name">{{ __('dashboard.name') }}</label>
         <input class="input" id="name" name="name" value="{{ old('name', $user->name ?? '') }}" />
     </div>

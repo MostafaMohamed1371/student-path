@@ -1,11 +1,9 @@
 <?php
 
 use App\Http\Controllers\Web\DashboardBusController;
-use App\Http\Controllers\Web\DashboardDriverController;
 use App\Http\Controllers\Web\DashboardHomeController;
 use App\Http\Controllers\Web\DashboardLoginController;
 use App\Http\Controllers\Web\DashboardProfileController;
-use App\Http\Controllers\Web\DashboardSchoolController;
 use App\Http\Controllers\Web\DashboardUserController;
 use Illuminate\Support\Facades\Route;
 
@@ -41,20 +39,6 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/dashboard/buses/{bus}/edit', [DashboardBusController::class, 'edit'])->name('dashboard.buses.edit');
     Route::put('/dashboard/buses/{bus}', [DashboardBusController::class, 'update'])->name('dashboard.buses.update');
     Route::delete('/dashboard/buses/{bus}', [DashboardBusController::class, 'destroy'])->name('dashboard.buses.destroy');
-
-    Route::get('/dashboard/schools', [DashboardSchoolController::class, 'index'])->name('dashboard.schools.index');
-    Route::get('/dashboard/schools/create', [DashboardSchoolController::class, 'create'])->name('dashboard.schools.create');
-    Route::post('/dashboard/schools', [DashboardSchoolController::class, 'store'])->name('dashboard.schools.store');
-    Route::get('/dashboard/schools/{school}/edit', [DashboardSchoolController::class, 'edit'])->name('dashboard.schools.edit');
-    Route::put('/dashboard/schools/{school}', [DashboardSchoolController::class, 'update'])->name('dashboard.schools.update');
-    Route::delete('/dashboard/schools/{school}', [DashboardSchoolController::class, 'destroy'])->name('dashboard.schools.destroy');
-
-    Route::get('/dashboard/drivers', [DashboardDriverController::class, 'index'])->name('dashboard.drivers.index');
-    Route::get('/dashboard/drivers/create', [DashboardDriverController::class, 'create'])->name('dashboard.drivers.create');
-    Route::post('/dashboard/drivers', [DashboardDriverController::class, 'store'])->name('dashboard.drivers.store');
-    Route::get('/dashboard/drivers/{driver}/edit', [DashboardDriverController::class, 'edit'])->name('dashboard.drivers.edit');
-    Route::put('/dashboard/drivers/{driver}', [DashboardDriverController::class, 'update'])->name('dashboard.drivers.update');
-    Route::delete('/dashboard/drivers/{driver}', [DashboardDriverController::class, 'destroy'])->name('dashboard.drivers.destroy');
 
     Route::get('/dashboard/users', [DashboardUserController::class, 'index'])->name('dashboard.users.index');
     Route::get('/dashboard/users/create', [DashboardUserController::class, 'create'])->name('dashboard.users.create');

@@ -14,10 +14,11 @@
                 <table class="table">
                     <thead>
                     <tr>
-                        <th>#</th>
+                        <th>ID</th>
                         <th>{{ __('dashboard.bus_name') }}</th>
                         <th>{{ __('dashboard.bus_number') }}</th>
-                        <th>{{ __('dashboard.phone') }}</th>
+                        <th>{{ __('dashboard.driver') }}</th>
+                        <th>{{ __('dashboard.school') }}</th>
                         <th>{{ __('dashboard.bus_city') }}</th>
                         <th>{{ __('dashboard.actions') }}</th>
                     </tr>
@@ -28,7 +29,8 @@
                             <td>{{ $bus->id }}</td>
                             <td>{{ $bus->name }}</td>
                             <td>{{ $bus->number }}</td>
-                            <td>{{ $bus->user?->phone ?: '—' }}</td>
+                            <td>{{ $bus->driver ? $bus->driver->first_name.' '.$bus->driver->last_name : '—' }}</td>
+                            <td>{{ $bus->driver?->school?->name_en ?: '—' }}</td>
                             <td>{{ $bus->city }}</td>
                             <td style="display:flex;gap:8px;">
                                 <a href="{{ route('dashboard.buses.edit', $bus) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.edit') }}</a>
@@ -41,7 +43,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6">{{ __('dashboard.no_buses') }}</td>
+                            <td colspan="7">{{ __('dashboard.no_buses') }}</td>
                         </tr>
                     @endforelse
                     </tbody>

@@ -14,7 +14,8 @@
                 <table class="table">
                     <thead>
                     <tr>
-                        <th>#</th>
+                        <th>ID</th>
+                        <th>{{ __('dashboard.school') }}</th>
                         <th>{{ __('dashboard.name') }}</th>
                         <th>{{ __('dashboard.image') }}</th>
                         <th>{{ __('dashboard.phone') }}</th>
@@ -31,13 +32,14 @@
                     @forelse($users as $user)
                         <tr>
                             <td>{{ $user->id }}</td>
+                            <td>{{ $user->school?->name_en ?: '—' }}</td>
                             <td>{{ $user->name ?: '—' }}</td>
                             <td>
                                 @if($user->image)
                                     @php($imagePath = ltrim((string) $user->image, '/'))
                                     @php($imagePath = preg_replace('#^(?:student-path/)?storage/app/public/#', '', $imagePath))
                                     @php($imagePath = preg_replace('#^public/storage/#', '', (string) $imagePath))
-                                    <a class="link" target="_blank" href="{{ \Illuminate\Support\Facades\Storage::disk('public')->url((string) $imagePath) }}">{{ __('dashboard.image') }}</a>
+                                    <a class="link" target="_blank" href="{{ '/student-path/storage/app/public/'.(string) $imagePath }}">{{ __('dashboard.image') }}</a>
                                 @else
                                     —
                                 @endif
@@ -69,7 +71,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10">{{ __('dashboard.no_users') }}</td>
+                            <td colspan="12">{{ __('dashboard.no_users') }}</td>
                         </tr>
                     @endforelse
                     </tbody>

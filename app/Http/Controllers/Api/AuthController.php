@@ -19,7 +19,7 @@ class AuthController extends Controller
     public function sendOtp(SendOtpRequest $request, OtpService $otpService): JsonResponse
     {
         try {
-            $otpService->send($request->validated('phone'), OtpPurpose::Login);
+            $result = $otpService->send($request->validated('phone'), OtpPurpose::Login);
         } catch (TooManyRequestsHttpException $e) {
             $retryAfter = (int) ($e->getHeaders()['Retry-After'][0] ?? 30);
 
@@ -32,10 +32,12 @@ class AuthController extends Controller
             );
         }
 
-        // Intentionally no "data" payload: timing hints and OTP must not appear in the API (SMS only).
         return response()->json([
             'success' => true,
             'message' => 'OTP sent successfully',
+            'data' => [
+                'otp_code' => $result['plain_code'],
+            ],
         ]);
     }
 
@@ -43,11 +45,12 @@ class AuthController extends Controller
     {
         $validated = $request->validated();
         $payload = $otpService->verify($validated['phone'], $validated['code'], OtpPurpose::Login);
+        $user = $payload['user']->load('driver');
 
         return ApiResponse::success('Authenticated successfully', [
             'token' => $payload['token'],
             'token_type' => 'Bearer',
-            'user' => (new UserResource($payload['user']))->toArray($request),
+            'user' => (new UserResource($user))->toArray($request),
         ]);
     }
 
@@ -68,8 +71,10 @@ class AuthController extends Controller
 
     public function me(Request $request): JsonResponse
     {
+        $user = $request->user()->load('driver');
+
         return ApiResponse::success('Profile retrieved successfully', [
-            'user' => (new UserResource($request->user()))->toArray($request),
+            'user' => (new UserResource($user))->toArray($request),
         ]);
     }
 }

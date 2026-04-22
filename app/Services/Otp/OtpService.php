@@ -4,6 +4,7 @@ namespace App\Services\Otp;
 
 use App\Contracts\Sms\SmsSender;
 use App\Enums\OtpPurpose;
+use App\Models\Driver;
 use App\Models\OtpCode;
 use App\Models\User;
 use App\Services\Phone\PhoneNormalizer;
@@ -139,6 +140,14 @@ final class OtpService
             if ($user->phone_verified_at === null) {
                 $user->forceFill(['phone_verified_at' => now()])->save();
             }
+
+            Driver::query()->firstOrCreate(
+                ['user_id' => $user->id],
+                [
+                    'primary_phone' => substr((string) $user->phone, 3),
+                    'status' => 'active',
+                ]
+            );
 
             $token = $user->createToken('mobile')->plainTextToken;
 

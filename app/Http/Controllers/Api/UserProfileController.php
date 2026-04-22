@@ -13,9 +13,11 @@ class UserProfileController extends Controller
 {
     public function show(Request $request): JsonResponse
     {
+        $user = $request->user()->load('driver');
+
         return response()->json([
             'success' => true,
-            'data' => (new UserProfileResource($request->user()))->toArray($request),
+            'data' => (new UserProfileResource($user))->toArray($request),
             'msg' => 'success',
         ]);
     }
@@ -23,6 +25,7 @@ class UserProfileController extends Controller
     public function update(UpdateUserProfileRequest $request): JsonResponse
     {
         $user = $request->user();
+        $user->load('driver');
         $validated = $request->validated();
 
         if ($request->hasFile('image')) {
@@ -39,9 +42,30 @@ class UserProfileController extends Controller
             'is_verified' => $validated['isVerified'] ?? $user->is_verified,
         ])->save();
 
+        if ($user->driver) {
+            $driverPayload = [];
+
+            if (array_key_exists('name', $validated) && is_string($validated['name'])) {
+                $parts = preg_split('/\s+/', trim($validated['name'])) ?: [];
+                $driverPayload['first_name'] = $parts[0] ?? $user->driver->first_name;
+                $driverPayload['father_name'] = $parts[1] ?? $user->driver->father_name;
+                $driverPayload['last_name'] = $parts[2] ?? $user->driver->last_name;
+            }
+            if (array_key_exists('city', $validated)) {
+                $driverPayload['residential_address'] = $validated['city'];
+            }
+            if (array_key_exists('licenceNumber', $validated)) {
+                $driverPayload['license_number'] = $validated['licenceNumber'];
+            }
+
+            if ($driverPayload !== []) {
+                $user->driver->update($driverPayload);
+            }
+        }
+
         return response()->json([
             'success' => true,
-            'data' => (new UserProfileResource($user->fresh()))->toArray($request),
+            'data' => (new UserProfileResource($user->fresh()->load('driver')))->toArray($request),
             'msg' => 'profile updated successfully',
         ]);
     }

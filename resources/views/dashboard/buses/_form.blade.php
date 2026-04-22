@@ -4,8 +4,15 @@
 
 <div class="form-grid">
     <div>
-        <label class="field-label" for="user_id">{{ __('dashboard.user_id') }}</label>
-        <input class="input" id="user_id" name="user_id" type="number" min="1" value="{{ old('user_id', $bus?->user_id) }}" required>
+        <label class="field-label" for="driver_id">{{ __('dashboard.driver') }}</label>
+        <select class="input" id="driver_id" name="driver_id" required>
+            <option value="">{{ __('dashboard.select_driver') }}</option>
+            @foreach(($drivers ?? collect()) as $driver)
+                <option value="{{ $driver->id }}" @selected((string) old('driver_id', $bus?->driver_id ?? '') === (string) $driver->id)>
+                    {{ $driver->first_name }} {{ $driver->father_name }} {{ $driver->last_name }} @if($driver->school) ({{ $driver->school->name_en }}) @endif
+                </option>
+            @endforeach
+        </select>
     </div>
 
     <div>

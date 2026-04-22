@@ -1,6 +1,6 @@
 # student-path
 
-`student-path` is a Laravel 13 backend for a mobile app + admin dashboard.
+`student-path` is a Laravel 13 backend and admin dashboard for a school transport platform.
 
 Full documentation:
 - `docs/PROJECT_DOCUMENTATION.md`
@@ -8,9 +8,9 @@ Full documentation:
 It provides:
 - OTP login with Iraqi phone rules
 - Sanctum token authentication for mobile APIs
-- User Profile and Bus APIs
+- User, School, Driver, and Bus APIs
 - Standing Tech SMS/WhatsApp integration
-- Admin dashboard for app-level management (users + buses)
+- Admin dashboard for app-level management (schools, drivers, users, buses)
 - Arabic/English dashboard localization
 
 ## Core Features
@@ -36,6 +36,7 @@ Authenticated endpoints:
 - `PUT /api/user/profile`
 - `DELETE /api/user/profile`
 - `POST /api/user/language`
+- `GET /api/user/driver`
 
 Profile payload supports:
 - `name`
@@ -47,7 +48,7 @@ Profile payload supports:
 - `rate`
 - `isVerified`
 
-### Bus APIs (Independent from User Profile)
+### Bus APIs (Driver-Based)
 
 Authenticated endpoints:
 - `GET /api/bus/my-bus`
@@ -55,22 +56,44 @@ Authenticated endpoints:
 - `PUT /api/bus/my-bus`
 - `DELETE /api/bus/my-bus`
 
-User and Bus are modeled as separate entities for future scalability.
+Bus ownership in API flow is linked through the authenticated user's driver record.
+
+### School APIs
+
+Authenticated endpoints:
+- `GET /api/schools`
+- `POST /api/schools`
+- `GET /api/schools/{school}`
+- `PUT /api/schools/{school}`
+- `DELETE /api/schools/{school}`
+
+### Driver APIs
+
+Authenticated endpoints:
+- `GET /api/drivers`
+- `POST /api/drivers`
+- `GET /api/drivers/{driver}`
+- `PUT /api/drivers/{driver}`
+- `DELETE /api/drivers/{driver}`
 
 ### Admin Dashboard
 
 Web routes:
 - `GET /login`
 - `GET /dashboard`
+- `GET /dashboard/schools`
+- `GET /dashboard/drivers`
 - `GET /dashboard/users`
 - `GET /dashboard/buses`
 
 Admin capabilities:
+- Manage all schools (create, edit, delete)
+- Manage all drivers (create, edit, delete)
 - Manage all users (create, edit, delete)
 - Manage all buses (create, edit, delete)
-- Manage user profile fields from dashboard forms
-- Upload profile images
+- Upload user/school/driver files
 - Color mode toggle in bus form (`Pick color` / `Type color`)
+- Overview counters for schools, drivers, users, buses, and OTP records
 
 ## Tech Stack
 
@@ -85,12 +108,15 @@ Admin capabilities:
 - `app/Services/Otp/OtpService.php`
 - `app/Services/Phone/PhoneNormalizer.php`
 - `app/Services/Sms/*`
+- `app/Http/Resources/*`
 - `app/Http/Controllers/Api/*`
 - `app/Http/Controllers/Web/*`
 - `app/Http/Requests/*`
+- `app/Models/*`
 - `resources/views/dashboard/*`
 - `routes/api.php`
 - `routes/web.php`
+- `postman/OTP-Auth.postman_collection.json`
 
 ## Quick Start
 
@@ -141,10 +167,26 @@ Dashboard seed:
 - `DASHBOARD_SEED_PHONE`
 - `DASHBOARD_SEED_PASSWORD`
 
+## File Storage
+
+Public uploads are stored in:
+- `storage/app/public/profiles`
+- `storage/app/public/schools`
+- `storage/app/public/drivers`
+
+API resources normalize file URLs to:
+- `/student-path/storage/app/public/...`
+
 ## Testing
 
 ```bash
 php artisan test
 ```
 
-Feature tests cover OTP flows, auth-protected endpoints, and dashboard CRUD behavior.
+Feature tests cover OTP flows and major auth/profile/bus API behavior.
+
+## Useful Commands
+
+```bash
+php artisan otp:prune-expired
+```

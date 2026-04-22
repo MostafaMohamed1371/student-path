@@ -17,7 +17,8 @@ class UpdateBusRequest extends FormRequest
     /** @return array<string, list<string|ValidationRule>> */
     public function rules(): array
     {
-        $bus = Bus::query()->where('user_id', $this->user()?->id)->first();
+        $driverId = $this->user()?->driver?->id;
+        $bus = $driverId ? Bus::query()->where('driver_id', $driverId)->first() : null;
 
         return [
             'busName' => ['sometimes', 'string', 'max:255'],

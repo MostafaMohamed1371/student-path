@@ -14,7 +14,16 @@ class BusController extends Controller
 {
     public function showMyBus(Request $request): JsonResponse
     {
-        $bus = Bus::query()->where('user_id', $request->user()->id)->first();
+        $driverId = $request->user()?->driver?->id;
+        if (! $driverId) {
+            return response()->json([
+                'success' => false,
+                'data' => (object) [],
+                'msg' => 'driver not found for this account',
+            ], 422);
+        }
+
+        $bus = Bus::query()->where('driver_id', $driverId)->first();
 
         if (! $bus) {
             return response()->json([
@@ -33,11 +42,20 @@ class BusController extends Controller
 
     public function store(StoreBusRequest $request): JsonResponse
     {
-        if (Bus::query()->where('user_id', $request->user()->id)->exists()) {
+        $driverId = $request->user()?->driver?->id;
+        if (! $driverId) {
             return response()->json([
                 'success' => false,
                 'data' => (object) [],
-                'msg' => 'user already has a bus',
+                'msg' => 'driver not found for this account',
+            ], 422);
+        }
+
+        if (Bus::query()->where('driver_id', $driverId)->exists()) {
+            return response()->json([
+                'success' => false,
+                'data' => (object) [],
+                'msg' => 'driver already has a bus',
             ], 422);
         }
 
@@ -45,6 +63,7 @@ class BusController extends Controller
 
         $bus = Bus::query()->create([
             'user_id' => $request->user()->id,
+            'driver_id' => $driverId,
             'name' => $validated['busName'],
             'type' => $validated['busType'],
             'city' => $validated['busCity'],
@@ -66,7 +85,16 @@ class BusController extends Controller
 
     public function update(UpdateBusRequest $request): JsonResponse
     {
-        $bus = Bus::query()->where('user_id', $request->user()->id)->first();
+        $driverId = $request->user()?->driver?->id;
+        if (! $driverId) {
+            return response()->json([
+                'success' => false,
+                'data' => (object) [],
+                'msg' => 'driver not found for this account',
+            ], 422);
+        }
+
+        $bus = Bus::query()->where('driver_id', $driverId)->first();
 
         if (! $bus) {
             return response()->json([
@@ -100,7 +128,16 @@ class BusController extends Controller
 
     public function destroy(Request $request): JsonResponse
     {
-        $bus = Bus::query()->where('user_id', $request->user()->id)->first();
+        $driverId = $request->user()?->driver?->id;
+        if (! $driverId) {
+            return response()->json([
+                'success' => false,
+                'data' => (object) [],
+                'msg' => 'driver not found for this account',
+            ], 422);
+        }
+
+        $bus = Bus::query()->where('driver_id', $driverId)->first();
 
         if (! $bus) {
             return response()->json([

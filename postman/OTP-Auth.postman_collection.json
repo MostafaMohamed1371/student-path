@@ -128,17 +128,6 @@
       "name": "Bus Services",
       "item": [
         {
-          "name": "GET /api/user/bus",
-          "request": {
-            "method": "GET",
-            "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
-            ],
-            "url": "{{base_url}}/api/user/bus"
-          }
-        },
-        {
           "name": "GET /api/bus/my-bus",
           "request": {
             "method": "GET",
@@ -190,6 +179,191 @@
               { "key": "Authorization", "value": "Bearer {{token}}" }
             ],
             "url": "{{base_url}}/api/bus/my-bus"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Driver Services",
+      "item": [
+        {
+          "name": "GET /api/user/driver",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/user/driver"
+          }
+        },
+        {
+          "name": "GET /api/drivers",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/drivers"
+          }
+        },
+        {
+          "name": "GET /api/drivers/{driver}",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/drivers/1"
+          }
+        },
+        {
+          "name": "POST /api/drivers",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "schoolId", "value": "1", "type": "text" },
+                { "key": "firstName", "value": "Ahmed", "type": "text" },
+                { "key": "fatherName", "value": "Ali", "type": "text" },
+                { "key": "grandfatherName", "value": "Hassan", "type": "text" },
+                { "key": "lastName", "value": "Mohammed", "type": "text" },
+                { "key": "age", "value": "35", "type": "text" },
+                { "key": "idCardNumber", "value": "ID123456789", "type": "text" },
+                { "key": "licenseNumber", "value": "LIC987654", "type": "text" },
+                { "key": "primaryPhone", "value": "7701234567", "type": "text" },
+                { "key": "emergencyPhone", "value": "7712345678", "type": "text" },
+                { "key": "residentialAddress", "value": "Baghdad", "type": "text" },
+                { "key": "status", "value": "active", "type": "text" },
+                { "key": "idCardImage", "type": "file", "src": "" },
+                { "key": "licenseImage", "type": "file", "src": "" },
+                { "key": "nonConvictionCertificate", "type": "file", "src": "" }
+              ]
+            },
+            "url": "{{base_url}}/api/drivers"
+          }
+        },
+        {
+          "name": "PUT /api/drivers/{driver}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "status", "value": "inactive", "type": "text" },
+                { "key": "residentialAddress", "value": "Baghdad - Karkh", "type": "text" }
+              ]
+            },
+            "url": "{{base_url}}/api/drivers/1"
+          }
+        },
+        {
+          "name": "DELETE /api/drivers/{driver}",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/drivers/1"
+          }
+        }
+      ]
+    },
+    {
+      "name": "School Services",
+      "item": [
+        {
+          "name": "GET /api/schools",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/schools"
+          }
+        },
+        {
+          "name": "GET /api/schools/{school}",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/schools/1"
+          }
+        },
+        {
+          "name": "POST /api/schools",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "schoolNameAr", "value": "مدرسة النور الابتدائية", "type": "text" },
+                { "key": "schoolNameEn", "value": "Al Noor Primary School", "type": "text" },
+                { "key": "province", "value": "Baghdad", "type": "text" },
+                { "key": "district", "value": "Karkh", "type": "text" },
+                { "key": "address", "value": "Al Mansour, Street 10", "type": "text" },
+                { "key": "latitude", "value": "33.3128", "type": "text" },
+                { "key": "longitude", "value": "44.3615", "type": "text" },
+                { "key": "status", "value": "active", "type": "text" },
+                { "key": "principalName", "value": "Ahmed Mohammed", "type": "text" },
+                { "key": "adminPhone", "value": "7701234567", "type": "text" },
+                { "key": "authorizedPersonName", "value": "Ali Hassan", "type": "text" },
+                { "key": "authorizedPersonPhone", "value": "7712345678", "type": "text" },
+                { "key": "notes", "value": "Main branch", "type": "text" },
+                { "key": "attachment", "type": "file", "src": "" }
+              ]
+            },
+            "url": "{{base_url}}/api/schools"
+          }
+        },
+        {
+          "name": "PUT /api/schools/{school}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "status", "value": "inactive", "type": "text" },
+                { "key": "notes", "value": "Updated school info", "type": "text" },
+                { "key": "attachment", "type": "file", "src": "" }
+              ]
+            },
+            "url": "{{base_url}}/api/schools/1"
+          }
+        },
+        {
+          "name": "DELETE /api/schools/{school}",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/schools/1"
           }
         }
       ]

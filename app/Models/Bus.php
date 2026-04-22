@@ -12,6 +12,7 @@ class Bus extends Model
 
     protected $fillable = [
         'user_id',
+        'driver_id',
         'name',
         'type',
         'city',
@@ -35,5 +36,10 @@ class Bus extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function driver(): BelongsTo
+    {
+        return $this->belongsTo(Driver::class);
     }
 }

@@ -28,7 +28,7 @@
                             @php($imagePath = ltrim((string) $user->image, '/'))
                             @php($imagePath = preg_replace('#^(?:student-path/)?storage/app/public/#', '', $imagePath))
                             @php($imagePath = preg_replace('#^public/storage/#', '', (string) $imagePath))
-                            <p class="help"><a class="link" target="_blank" href="{{ \Illuminate\Support\Facades\Storage::disk('public')->url((string) $imagePath) }}">Current image</a></p>
+                            <p class="help"><a class="link" target="_blank" href="{{ '/student-path/storage/app/public/'.(string) $imagePath }}">Current image</a></p>
                         @endif
                     </div>
 

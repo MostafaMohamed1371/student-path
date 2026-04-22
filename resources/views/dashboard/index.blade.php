@@ -7,6 +7,14 @@
     @component('dashboard.partials.shell', ['title' => $title])
         <div class="stats-grid">
             <article class="stat-card">
+                <h3>{{ __('dashboard.stats_schools') }}</h3>
+                <p>{{ $schoolsCount }}</p>
+            </article>
+            <article class="stat-card">
+                <h3>{{ __('dashboard.stats_drivers') }}</h3>
+                <p>{{ $driversCount }}</p>
+            </article>
+            <article class="stat-card">
                 <h3>{{ __('dashboard.stats_users') }}</h3>
                 <p>{{ $usersCount }}</p>
             </article>
@@ -25,6 +33,10 @@
             <article class="stat-card">
                 <h3>{{ __('dashboard.stats_buses') }}</h3>
                 <p>{{ $busesCount }}</p>
+            </article>
+            <article class="stat-card">
+                <h3>{{ __('dashboard.stats_assigned_buses') }}</h3>
+                <p>{{ $assignedBusesCount }}</p>
             </article>
         </div>
 

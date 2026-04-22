@@ -7,6 +7,8 @@
 
         <nav class="sidebar-nav">
             <a href="{{ route('dashboard') }}" class="sidebar-link {{ request()->routeIs('dashboard') ? 'is-active' : '' }}">{{ __('dashboard.menu_overview') }}</a>
+            <a href="{{ route('dashboard.schools.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.schools.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_schools') }}</a>
+            <a href="{{ route('dashboard.drivers.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.drivers.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_drivers') }}</a>
             <a href="{{ route('dashboard.users.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.users.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_users') }}</a>
             <a href="{{ route('dashboard.buses.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.buses.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_bus') }}</a>
         </nav>
