@@ -7,11 +7,10 @@ Student Path is a Laravel 13 backend + admin dashboard for school transportation
 Current scope includes:
 - OTP mobile login (phone-based)
 - Sanctum-protected APIs
-- School management
-- Driver management
-- Bus management (driver-based)
+- School, student, guardian, driver, and bus management
+- Bus self-service for linked drivers (`/api/bus/my-bus`, separate from admin data entry)
 - User profile management
-- Admin web dashboard modules for all entities
+- Web dashboard modules for all entities, with **role-based write access** (see §3.1)
 
 The platform uses Iraqi phone normalization rules and supports Arabic/English dashboard UI.
 
@@ -21,7 +20,7 @@ Main layers:
 - **Controllers**: API + web request handling
 - **Form Requests**: validation rules and payload mapping
 - **Services**: OTP, phone normalization, SMS gateway
-- **Models**: `User`, `OtpCode`, `School`, `Driver`, `Bus`
+- **Models**: `User`, `OtpCode`, `School`, `Student`, `Guardian`, `Driver`, `Bus`
 - **Resources**: API response DTO shaping
 - **Views**: Blade-based admin dashboard
 
@@ -41,6 +40,29 @@ Main layers:
 ### Auth protection
 - API routes use `auth:sanctum`.
 - Dashboard uses web session auth (phone + password).
+
+### 3.1) Authorization: admin vs school staff (API and dashboard)
+
+Users have `users.is_admin` (boolean). Behavior is aligned between the **web dashboard** and the **JSON API** for org-wide resources.
+
+| Area | Non-admin (school staff / driver-linked scope) | Admin (`is_admin = true`) |
+|------|------------------------------------------------|----------------------------|
+| **Dashboard** — schools, students, guardians, drivers, buses | **Read-only** list views, scoped to their school (where applicable). **No** add/edit/delete. | Full CRUD. |
+| **Dashboard** — users | Typically hidden / restricted to admins (see routes). | Full user management. |
+| **API** — `GET` schools, students, guardians, drivers | **Allowed**, data limited to the user’s effective school (see `AppliesApiSchoolScoping`: `users.school_id` or linked `driver.school_id`). | Sees all rows. |
+| **API** — `POST` / `PUT` / `DELETE` on schools, students, guardians, drivers | **403** `forbidden` | **Allowed** (valid payloads and validation). |
+
+**Not** subject to the above admin-only write rule (still authenticated):
+
+- `GET/PUT/DELETE` **user profile**, `POST` **language**, `GET` **/api/user/driver** — the signed-in user’s own data.
+- **`/api/bus/my-bus`** — the authenticated user’s bus when they have a linked **driver** record (driver self-service, not the admin “buses” list).
+
+Implementation references:
+
+- API: `app/Http/Controllers/Api/Concerns/AppliesApiSchoolScoping.php` — `ensureApiAdminForMutations()`.
+- Web: dashboard controllers `abort_unless($this->isAdmin(), 403)` on `create` / `store` / `edit` / `update` / `destroy` for the same resources.
+
+**Postman**: use one Sanctum token in `{{token}}` for reads, and a separate **`{{admin_token}}`** (from an `is_admin` user) for mutation requests. See `postman/OTP-Auth.postman_collection.json`.
 
 ## 4) Phone Number Rules
 
@@ -77,18 +99,32 @@ Route source:
 - `DELETE /api/bus/my-bus` (auth)
 
 ### School APIs
-- `GET /api/schools` (auth)
-- `POST /api/schools` (auth)
-- `GET /api/schools/{school}` (auth)
-- `PUT /api/schools/{school}` (auth)
-- `DELETE /api/schools/{school}` (auth)
+- `GET /api/schools` (auth) — school-scoped list for non-admins
+- `GET /api/schools/{school}` (auth) — non-admin only if the school is in scope
+- `POST /api/schools` (auth, **admin only**)
+- `PUT /api/schools/{school}` (auth, **admin only**)
+- `DELETE /api/schools/{school}` (auth, **admin only**)
+
+### Student APIs
+- `GET /api/students` (auth) — school-scoped list for non-admins
+- `GET /api/students/{student}` (auth) — non-admin only in scope
+- `POST /api/students` (auth, **admin only**)
+- `PUT /api/students/{student}` (auth, **admin only**)
+- `DELETE /api/students/{student}` (auth, **admin only**)
+
+### Guardian APIs
+- `GET /api/guardians` (auth) — school-scoped list for non-admins
+- `GET /api/guardians/{guardian}` (auth) — non-admin only in scope
+- `POST /api/guardians` (auth, **admin only**)
+- `PUT /api/guardians/{guardian}` (auth, **admin only**)
+- `DELETE /api/guardians/{guardian}` (auth, **admin only**)
 
 ### Driver APIs
-- `GET /api/drivers` (auth)
-- `POST /api/drivers` (auth)
-- `GET /api/drivers/{driver}` (auth)
-- `PUT /api/drivers/{driver}` (auth)
-- `DELETE /api/drivers/{driver}` (auth)
+- `GET /api/drivers` (auth) — school-scoped list for non-admins
+- `GET /api/drivers/{driver}` (auth) — non-admin only in scope
+- `POST /api/drivers` (auth, **admin only**)
+- `PUT /api/drivers/{driver}` (auth, **admin only**)
+- `DELETE /api/drivers/{driver}` (auth, **admin only**)
 
 ## 6) API Response Style
 
@@ -97,14 +133,14 @@ Current API style for newer endpoints:
 - `data`
 - `msg` (or `message` in some auth responses)
 
-For exact request bodies and usage:
-- `postman/OTP-Auth.postman_collection.json`
+For exact request bodies, headers, and which calls use `admin_token` vs `token`:
+- `postman/OTP-Auth.postman_collection.json` (collection description + per-request notes)
 
 ## 7) Data Model
 
 ### User
 Core fields:
-- `id`, `name`, `phone`, `password`, `is_active`
+- `id`, `name`, `phone`, `password`, `is_active`, `is_admin`
 - profile fields: `image`, `city`, `licence_number`, `votes`, `rate`, `is_verified`
 - `preferred_language`
 - optional `school_id`
@@ -127,6 +163,10 @@ Core fields:
 - names (`name_ar`, `name_en`)
 - location/admin/contact fields
 - `attachment`
+
+### Student / Guardian
+- Students belong to a `school` and a `guardian` (and duplicate guardian contact fields for convenience where needed).
+- Guardians belong to a `school`. See migrations under `database/migrations/`.
 
 ### Bus
 Core fields:
@@ -161,16 +201,15 @@ View source:
 
 Modules:
 - Overview (`/dashboard`)
-- Schools (`/dashboard/schools`)
-- Drivers (`/dashboard/drivers`)
-- Users (`/dashboard/users`)
-- Buses (`/dashboard/buses`)
+- Schools, Students, Guardians, Drivers, Buses
+- Users (`/dashboard/users`) — typically **admin** menu / routes only
 - Admin profile (`/dashboard/profile`)
 
 Current behavior:
-- School-first / driver-first workflows enforced where needed.
-- Driver and bus assignment aligned with latest structure.
-- Overview cards summarize schools/drivers/users/buses/OTP metrics.
+- **Admins** (`is_admin`): full create/update/delete for schools, students, guardians, drivers, buses, and users; add buttons and action columns in index tables.
+- **Non-admins**: can open scoped **index** and **view**-style list pages (their school, where applicable); add/edit/delete actions are **hidden in the UI** and return **HTTP 403** if URLs are called directly.
+- School-first / driver-first workflows are enforced in forms where still relevant.
+- Overview cards summarize schools, drivers, users, buses, students, guardians, and OTP-related metrics (see `DashboardHomeController` / views).
 
 ## 10) SMS Integration (Standing Tech)
 
@@ -213,7 +252,7 @@ Default admin credentials:
 php artisan test
 ```
 
-Coverage includes OTP and major API/dashboard flows.
+Coverage includes OTP, API school scoping, admin-only mutation rules for org resources, and key dashboard behavior.
 
 ## 13) Operational Notes
 

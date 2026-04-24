@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\Driver;
+use App\Models\Guardian;
 use App\Models\School;
+use App\Models\Student;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -98,6 +100,93 @@ class ApiSchoolScopingTest extends TestCase
         $this->getJson('/api/schools')
             ->assertOk()
             ->assertJsonCount(2, 'data');
+    }
+
+    public function test_non_admin_cannot_update_school_via_api(): void
+    {
+        $school = $this->makeSchool('To Update');
+        $staff = User::factory()->create([
+            'phone' => '9647906666666',
+            'school_id' => $school->id,
+            'is_admin' => false,
+        ]);
+        Sanctum::actingAs($staff);
+
+        $this->putJson("/api/schools/{$school->id}", ['status' => 'inactive'])
+            ->assertStatus(403)
+            ->assertJsonPath('success', false);
+    }
+
+    public function test_non_admin_cannot_mutate_students_or_guardians_via_api(): void
+    {
+        $school = $this->makeSchool('Scoped S');
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id, 'full_name' => 'Parent P', 'phone' => '7300000000', 'status' => 'active',
+        ]);
+        $student = Student::query()->create([
+            'school_id' => $school->id, 'guardian_id' => $guardian->id, 'full_name' => 'Student S', 'gender' => 'male',
+            'grade' => '1', 'student_phone' => '7400000000', 'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone, 'relationship' => 'father',
+            'district_area' => 'D', 'nearest_landmark' => 'L', 'status' => 'active',
+        ]);
+
+        $staff = User::factory()->create([
+            'phone' => '9647908000000',
+            'school_id' => $school->id,
+            'is_admin' => false,
+        ]);
+        Sanctum::actingAs($staff);
+
+        $this->postJson('/api/guardians', [
+            'schoolId' => $school->id, 'fullName' => 'New G', 'phone' => '7500000000', 'status' => 'active',
+        ])->assertStatus(403);
+        $this->putJson("/api/guardians/{$guardian->id}", ['fullName' => 'Changed'])->assertStatus(403);
+        $this->deleteJson("/api/guardians/{$guardian->id}")->assertStatus(403);
+
+        $this->postJson('/api/students', [
+            'schoolId' => $school->id,
+            'guardianId' => $guardian->id,
+            'fullName' => 'Child C',
+            'gender' => 'male',
+            'grade' => '1',
+            'studentPhone' => '7600000000',
+            'relationship' => 'father',
+            'districtArea' => 'D2',
+            'nearestLandmark' => 'L2',
+            'status' => 'active',
+        ])->assertStatus(403);
+        $this->putJson("/api/students/{$student->id}", ['grade' => '2'])->assertStatus(403);
+        $this->deleteJson("/api/students/{$student->id}")->assertStatus(403);
+    }
+
+    public function test_non_admin_cannot_mutate_drivers_resource_via_api(): void
+    {
+        $school = $this->makeSchool('D School');
+        $u = User::factory()->create(['phone' => '9647909000000']);
+        $driver = Driver::query()->create([
+            'user_id' => $u->id,
+            'school_id' => $school->id,
+            'first_name' => 'A', 'father_name' => 'A', 'grandfather_name' => 'A', 'last_name' => 'A',
+            'age' => 35, 'id_card_number' => 'DID1', 'license_number' => 'LIC1',
+            'primary_phone' => '7700000000', 'emergency_phone' => '7700000001',
+            'residential_address' => 'R', 'status' => 'active',
+        ]);
+        $staff = User::factory()->create([
+            'phone' => '9647909100000',
+            'school_id' => $school->id,
+            'is_admin' => false,
+        ]);
+        Sanctum::actingAs($staff);
+
+        $this->postJson('/api/drivers', [
+            'schoolId' => $school->id,
+            'firstName' => 'N', 'fatherName' => 'N', 'grandfatherName' => 'N', 'lastName' => 'N',
+            'age' => 30, 'idCardNumber' => 'NEW1', 'licenseNumber' => 'LNEW',
+            'primaryPhone' => '7800000000', 'emergencyPhone' => '7800000001',
+            'residentialAddress' => 'A', 'status' => 'active',
+        ])->assertStatus(403);
+        $this->putJson("/api/drivers/{$driver->id}", ['firstName' => 'B'])->assertStatus(403);
+        $this->deleteJson("/api/drivers/{$driver->id}")->assertStatus(403);
     }
 
     private function makeSchool(string $nameEn): School

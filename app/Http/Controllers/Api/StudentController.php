@@ -46,10 +46,10 @@ class StudentController extends Controller
 
     public function store(StoreStudentRequest $request, PhoneNormalizer $phoneNormalizer): JsonResponse
     {
-        $validated = $request->validated();
-        if ($resp = $this->ensureApiTargetsOwnSchoolOrAdmin($request->user(), (int) $validated['schoolId'])) {
+        if ($resp = $this->ensureApiAdminForMutations($request->user())) {
             return $resp;
         }
+        $validated = $request->validated();
         $guardian = Guardian::query()->findOrFail($validated['guardianId']);
         if ((int) $guardian->school_id !== (int) $validated['schoolId']) {
             return $this->apiForbiddenResponse('forbidden');
@@ -88,15 +88,10 @@ class StudentController extends Controller
 
     public function update(UpdateStudentRequest $request, Student $student, PhoneNormalizer $phoneNormalizer): JsonResponse
     {
-        if ($resp = $this->ensureApiTargetsOwnSchoolOrAdmin($request->user(), (int) $student->school_id)) {
+        if ($resp = $this->ensureApiAdminForMutations($request->user())) {
             return $resp;
         }
         $validated = $request->validated();
-        if (array_key_exists('schoolId', $validated)) {
-            if ($r = $this->ensureApiTargetsOwnSchoolOrAdmin($request->user(), (int) $validated['schoolId'])) {
-                return $r;
-            }
-        }
         $targetSchool = (int) ($validated['schoolId'] ?? $student->school_id);
         $guardian = null;
         if (isset($validated['guardianId'])) {
@@ -145,7 +140,7 @@ class StudentController extends Controller
 
     public function destroy(Request $request, Student $student): JsonResponse
     {
-        if ($resp = $this->ensureApiTargetsOwnSchoolOrAdmin($request->user(), (int) $student->school_id)) {
+        if ($resp = $this->ensureApiAdminForMutations($request->user())) {
             return $resp;
         }
         $student->delete();

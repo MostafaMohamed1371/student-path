@@ -8,9 +8,10 @@ Full documentation:
 It provides:
 - OTP login with Iraqi phone rules
 - Sanctum token authentication for mobile APIs
-- User, School, Driver, and Bus APIs
+- User, school, student, guardian, driver, and bus APIs (see **Authorization** below)
+- Driver self-service bus record under `/api/bus/my-bus` (separate from admin data entry)
 - Standing Tech SMS/WhatsApp integration
-- Admin dashboard for app-level management (schools, drivers, users, buses)
+- Web dashboard with **admin vs school-staff** permissions (read-only lists for non-admins on org data)
 - Arabic/English dashboard localization
 
 ## Core Features
@@ -28,6 +29,18 @@ Behavior:
 - Server normalizes to canonical format: `964` + 10 digits
 - OTP is 4 digits and stored as plain text by project requirement
 - Expiry, resend cooldown, attempts limit, and API throttling are enforced
+
+### Authorization (API and dashboard)
+
+`users.is_admin` controls who may **create, update, or delete** org-wide data (schools, students, guardians, drivers) in both the **JSON API** and the **web dashboard**.
+
+| | Non-admin | Admin |
+|---|-----------|--------|
+| **Dashboard** | Scoped **read-only** index pages (no add/edit/delete UI; direct write URLs return **403**) | Full CRUD where implemented |
+| **API** `GET` schools, students, guardians, drivers | **Allowed** — results scoped to the user’s school (or linked driver’s school) | All rows |
+| **API** `POST` / `PUT` / `DELETE` those resources | **403** `forbidden` | **Allowed** (valid requests) |
+
+Unchanged for any authenticated user (not admin-gated in the same way): **user profile**, **language**, **`GET /api/user/driver`**, and **`/api/bus/my-bus`** (linked driver’s bus). See `docs/PROJECT_DOCUMENTATION.md` §3.1 and `postman/OTP-Auth.postman_collection.json` (use `{{admin_token}}` for mutation calls).
 
 ### User Profile APIs
 
@@ -58,42 +71,35 @@ Authenticated endpoints:
 
 Bus ownership in API flow is linked through the authenticated user's driver record.
 
-### School APIs
+### School APIs (auth)
 
-Authenticated endpoints:
-- `GET /api/schools`
-- `POST /api/schools`
-- `GET /api/schools/{school}`
-- `PUT /api/schools/{school}`
-- `DELETE /api/schools/{school}`
+- `GET /api/schools` — list (school-scoped for non-admins)
+- `GET /api/schools/{school}` — show (in scope for non-admins)
+- `POST`, `PUT`, `DELETE` — **admin only** (403 otherwise)
 
-### Driver APIs
+### Student APIs (auth)
 
-Authenticated endpoints:
-- `GET /api/drivers`
-- `POST /api/drivers`
-- `GET /api/drivers/{driver}`
-- `PUT /api/drivers/{driver}`
-- `DELETE /api/drivers/{driver}`
+- `GET /api/students`, `GET /api/students/{student}` — **read**, school-scoped for non-admins
+- `POST`, `PUT`, `DELETE` — **admin only**
 
-### Admin Dashboard
+### Guardian APIs (auth)
 
-Web routes:
-- `GET /login`
-- `GET /dashboard`
-- `GET /dashboard/schools`
-- `GET /dashboard/drivers`
-- `GET /dashboard/users`
-- `GET /dashboard/buses`
+- `GET /api/guardians`, `GET /api/guardians/{guardian}` — **read**, school-scoped for non-admins
+- `POST`, `PUT`, `DELETE` — **admin only**
 
-Admin capabilities:
-- Manage all schools (create, edit, delete)
-- Manage all drivers (create, edit, delete)
-- Manage all users (create, edit, delete)
-- Manage all buses (create, edit, delete)
-- Upload user/school/driver files
-- Color mode toggle in bus form (`Pick color` / `Type color`)
-- Overview counters for schools, drivers, users, buses, and OTP records
+### Driver APIs (auth)
+
+- `GET /api/drivers`, `GET /api/drivers/{driver}` — **read**, school-scoped for non-admins
+- `POST`, `PUT`, `DELETE` — **admin only**
+
+### Web dashboard
+
+Routes include `/login`, `/dashboard`, and modules for schools, students, guardians, drivers, buses, users, and profile (see `routes/web.php`).
+
+- **Admins** — full create/update/delete for the resources above, plus user management (UI is often admin-only for users)
+- **Non-admins** — can open **list** pages for their school; **no** add/edit/delete (server returns **403** on writes)
+
+Other dashboard features: file uploads, bus color helpers, overview counters (schools, students, guardians, drivers, users, buses, OTP-related), localized UI
 
 ## Tech Stack
 
@@ -183,7 +189,7 @@ API resources normalize file URLs to:
 php artisan test
 ```
 
-Feature tests cover OTP flows and major auth/profile/bus API behavior.
+Feature tests cover OTP flows, auth/profile/bus API behavior, and API scoping (including admin-only mutations for schools, students, guardians, drivers).
 
 ## Useful Commands
 

@@ -46,10 +46,10 @@ class GuardianController extends Controller
 
     public function store(StoreGuardianRequest $request, PhoneNormalizer $phoneNormalizer): JsonResponse
     {
-        $validated = $request->validated();
-        if ($resp = $this->ensureApiTargetsOwnSchoolOrAdmin($request->user(), (int) $validated['schoolId'])) {
+        if ($resp = $this->ensureApiAdminForMutations($request->user())) {
             return $resp;
         }
+        $validated = $request->validated();
 
         $guardian = Guardian::query()->create([
             'school_id' => $validated['schoolId'],
@@ -70,15 +70,10 @@ class GuardianController extends Controller
 
     public function update(UpdateGuardianRequest $request, Guardian $guardian, PhoneNormalizer $phoneNormalizer): JsonResponse
     {
-        if ($resp = $this->ensureApiTargetsOwnSchoolOrAdmin($request->user(), (int) $guardian->school_id)) {
+        if ($resp = $this->ensureApiAdminForMutations($request->user())) {
             return $resp;
         }
         $validated = $request->validated();
-        if (array_key_exists('schoolId', $validated)) {
-            if ($r = $this->ensureApiTargetsOwnSchoolOrAdmin($request->user(), (int) $validated['schoolId'])) {
-                return $r;
-            }
-        }
 
         $guardian->update([
             'school_id' => $validated['schoolId'] ?? $guardian->school_id,
@@ -99,7 +94,7 @@ class GuardianController extends Controller
 
     public function destroy(Request $request, Guardian $guardian): JsonResponse
     {
-        if ($resp = $this->ensureApiTargetsOwnSchoolOrAdmin($request->user(), (int) $guardian->school_id)) {
+        if ($resp = $this->ensureApiAdminForMutations($request->user())) {
             return $resp;
         }
         $guardian->delete();

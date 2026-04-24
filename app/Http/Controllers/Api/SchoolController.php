@@ -80,7 +80,7 @@ class SchoolController extends Controller
 
     public function update(UpdateSchoolRequest $request, School $school, PhoneNormalizer $phoneNormalizer): JsonResponse
     {
-        if ($resp = $this->ensureApiCanAccessSchoolId($request->user(), (int) $school->id)) {
+        if ($resp = $this->ensureApiAdminForMutations($request->user())) {
             return $resp;
         }
         $validated = $request->validated();

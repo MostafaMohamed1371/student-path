@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Student Path — Auth, User & Bus APIs",
-    "description": "## Tokens & scoping (matches dashboard)\n\n| Variable | When to use |\n|----------|-------------|\n| `token` | Default. After **verify-otp**, the test script stores the Sanctum token here. Use for most requests. For **school staff** or **driver** users, list/detail CRUD is limited to that user’s school (driver scope uses `users.school_id` or linked `driver.school_id`). |\n| `admin_token` | **Required** for `POST /api/schools` and `DELETE /api/schools/{id}`. Must be a token for a user with `is_admin: true` (e.g. seed admin, or create token in tinker). **PUT** a school and **GET** list/detail can use a non-admin token when the target is their own school. |\n| `school_id`, `driver_id`, `student_id`, `guardian_id` | Use in path segments for `GET/PUT/DELETE` so you are not hardcoding `1`. Set them from a previous list response. |\n\n## 403 responses\n\nWhen a token is not allowed to act on a resource, the API returns HTTP **403** with body shape:\n\n```json\n{ \"success\": false, \"data\": {}, \"msg\": \"forbidden\" }\n```\n\nor, if the account has no school scope:\n\n```json\n{ \"msg\": \"A school must be linked to this account to perform this action.\" }\n```\n",
+    "description": "## Tokens & scoping (matches web dashboard)\n\n| Variable | When to use |\n|----------|-------------|\n| `token` | After **verify-otp**, the test script stores the Sanctum token here. Use for **read** requests: `GET` list/show on schools, students, guardians, and drivers. Non-admins are **school-scoped** (via `users.school_id` or linked `driver.school_id`). Also use for **user profile**, **language**, and **`/api/bus/my-bus`** (driver’s own bus — not the same as admin bus CRUD). |\n| `admin_token` | **Required** for any **write** to schools/students/guardians/drivers: `POST`, `PUT`, `DELETE` on `/api/schools…`, `/api/students…`, `/api/guardians…`, `/api/drivers…`. Token must be for a user with `is_admin: true` (seed admin, tinker, or personal access token). If you use `token` for these, you will get **403** `forbidden` for non-admins. |\n| `school_id`, `driver_id`, `student_id`, `guardian_id` | Set from a `GET` list response; used in paths and bodies. |\n\n## 403 (admin-only writes)\n\nNon-admins who call a mutation on schools/students/guardians/drivers receive **403**:\n\n```json\n{ \"success\": false, \"data\": {}, \"msg\": \"forbidden\" }\n```\n\nSome **GET** cases (e.g. resource from another school) return the same. If the account has no school scope, you may see:\n\n`\"A school must be linked to this account to perform this action.\"` (on scoped reads when scope is missing).\n",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -16,7 +16,7 @@
   "item": [
     {
       "name": "Auth",
-      "description": "On **200** from `verify-otp`, the test script stores `data.token` into the collection variable `token` for `Bearer` auth on other folders. For **admin** flows, also paste a Sanctum token from an `is_admin` user into the `admin_token` variable (OTP users are usually not admins).",
+      "description": "On **200** from `verify-otp`, the test script stores `data.token` into `token`. Use that for **GET** (read) on schools/students/guardians/drivers. For **POST/PUT/DELETE** on those same APIs, set `admin_token` to a Sanctum token for an `is_admin` user and select the requests that use `Bearer {{admin_token}}` (see collection description).",
       "item": [
         {
           "name": "POST /api/auth/send-otp",
@@ -212,7 +212,7 @@
     },
     {
       "name": "Driver Services",
-      "description": "List and CRUD are **school-scoped** for non-admins. `schoolId` in **POST/PUT** must match the token user’s school (or use an admin token for any school). **GET /api/user/driver** is always the authenticated user’s own driver record.",
+      "description": "**GET** `/api/drivers` and `GET /api/drivers/{id}`: use `{{token}}` — list/detail are **school-scoped** for non-admins. **POST/PUT/DELETE** `/api/drivers` require `{{admin_token}}` (admin only). **GET** `/api/user/driver` is the current user’s own driver row (still `{{token}}`).",
       "item": [
         {
           "name": "GET /api/user/driver",
@@ -248,12 +248,13 @@
           }
         },
         {
-          "name": "POST /api/drivers",
+          "name": "POST /api/drivers (admin only)",
+          "description": "Use `Authorization: Bearer {{admin_token}}`. Non-admin `{{token}}` returns **403**.",
           "request": {
             "method": "POST",
             "header": [
               { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
             ],
             "body": {
               "mode": "formdata",
@@ -279,12 +280,13 @@
           }
         },
         {
-          "name": "PUT /api/drivers/{driver}",
+          "name": "PUT /api/drivers/{driver} (admin only)",
+          "description": "Use `Bearer {{admin_token}}`.",
           "request": {
             "method": "PUT",
             "header": [
               { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
             ],
             "body": {
               "mode": "formdata",
@@ -297,12 +299,13 @@
           }
         },
         {
-          "name": "DELETE /api/drivers/{driver}",
+          "name": "DELETE /api/drivers/{driver} (admin only)",
+          "description": "Use `Bearer {{admin_token}}`.",
           "request": {
             "method": "DELETE",
             "header": [
               { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
             ],
             "url": "{{base_url}}/api/drivers/{{driver_id}}"
           }
@@ -311,7 +314,7 @@
     },
     {
       "name": "School Services",
-      "description": "**Create & delete** schools: use header `Authorization: Bearer {{admin_token}}` and set `admin_token` to a **Sanctum** token for an `is_admin` user. **List / show / update** a school: non-admins only see and may update **their** school; admins see all. After **verify-otp**, the collection saves `{{token}}` (not `admin_token`). Paste an admin token into `admin_token` manually, or use `php artisan tinker` / Personal Access Token for the seeded admin.",
+      "description": "**GET** list/show: `Bearer {{token}}` (non-admins see only their school). **POST, PUT, DELETE** schools: `Bearer {{admin_token}}` (admin only). Set `admin_token` from tinker, seeded admin, or PAT. After **verify-otp**, `token` is saved automatically — you must set `admin_token` manually for writes.",
       "item": [
         {
           "name": "GET /api/schools",
@@ -367,12 +370,13 @@
           }
         },
         {
-          "name": "PUT /api/schools/{school}",
+          "name": "PUT /api/schools/{school} (admin only)",
+          "description": "Use `Bearer {{admin_token}}`. Non-admin `{{token}}` returns **403**.",
           "request": {
             "method": "PUT",
             "header": [
               { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
             ],
             "body": {
               "mode": "formdata",
@@ -401,7 +405,7 @@
     },
     {
       "name": "Student Services",
-      "description": "All operations are **school-scoped** for non-admins. `schoolId` and `guardianId` must refer to the same school the user is allowed to manage. Use `{{token}}` for school staff; admin can use any school.",
+      "description": "**GET** list/show: `{{token}}` — non-admins see only their school. **POST/PUT/DELETE** students: `{{admin_token}}` (admin only). Bodies: `schoolId` / `guardianId` must be consistent; admins can use any school.",
       "item": [
         {
           "name": "GET /api/students",
@@ -426,12 +430,13 @@
           }
         },
         {
-          "name": "POST /api/students",
+          "name": "POST /api/students (admin only)",
+          "description": "Use `Bearer {{admin_token}}`.",
           "request": {
             "method": "POST",
             "header": [
               { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
             ],
             "body": {
               "mode": "formdata",
@@ -457,12 +462,13 @@
           }
         },
         {
-          "name": "PUT /api/students/{student}",
+          "name": "PUT /api/students/{student} (admin only)",
+          "description": "Use `Bearer {{admin_token}}`.",
           "request": {
             "method": "PUT",
             "header": [
               { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
             ],
             "body": {
               "mode": "formdata",
@@ -476,12 +482,13 @@
           }
         },
         {
-          "name": "DELETE /api/students/{student}",
+          "name": "DELETE /api/students/{student} (admin only)",
+          "description": "Use `Bearer {{admin_token}}`.",
           "request": {
             "method": "DELETE",
             "header": [
               { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
             ],
             "url": "{{base_url}}/api/students/{{student_id}}"
           }
@@ -490,7 +497,7 @@
     },
     {
       "name": "Guardian Services",
-      "description": "CRUD is **school-scoped**: `schoolId` must be the user’s school unless the user is an admin. Cross-school access returns 403.",
+      "description": "**GET** list/show: `{{token}}` (school-scoped). **POST/PUT/DELETE**: `{{admin_token}}` (admin only).",
       "item": [
         {
           "name": "GET /api/guardians",
@@ -515,13 +522,14 @@
           }
         },
         {
-          "name": "POST /api/guardians",
+          "name": "POST /api/guardians (admin only)",
+          "description": "Use `Bearer {{admin_token}}`.",
           "request": {
             "method": "POST",
             "header": [
               { "key": "Accept", "value": "application/json" },
               { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
             ],
             "body": {
               "mode": "raw",
@@ -531,13 +539,14 @@
           }
         },
         {
-          "name": "PUT /api/guardians/{guardian}",
+          "name": "PUT /api/guardians/{guardian} (admin only)",
+          "description": "Use `Bearer {{admin_token}}`.",
           "request": {
             "method": "PUT",
             "header": [
               { "key": "Accept", "value": "application/json" },
               { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
             ],
             "body": {
               "mode": "raw",
@@ -547,12 +556,13 @@
           }
         },
         {
-          "name": "DELETE /api/guardians/{guardian}",
+          "name": "DELETE /api/guardians/{guardian} (admin only)",
+          "description": "Use `Bearer {{admin_token}}`.",
           "request": {
             "method": "DELETE",
             "header": [
               { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
             ],
             "url": "{{base_url}}/api/guardians/{{guardian_id}}"
           }
