@@ -22,7 +22,9 @@
                         <th>{{ __('dashboard.phone') }}</th>
                         <th>{{ __('dashboard.buses') }}</th>
                         <th>{{ __('dashboard.status') }}</th>
-                        <th>{{ __('dashboard.actions') }}</th>
+                        @if(auth()->user()?->is_admin)
+                            <th>{{ __('dashboard.actions') }}</th>
+                        @endif
                     </tr>
                     </thead>
                     <tbody>
@@ -38,20 +40,20 @@
                                     {{ $school->status === 'active' ? __('dashboard.active') : __('dashboard.inactive') }}
                                 </span>
                             </td>
+                            @if(auth()->user()?->is_admin)
                             <td style="display:flex;gap:8px;flex-wrap:wrap;">
                                 <a href="{{ route('dashboard.schools.edit', $school) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.edit') }}</a>
-                                @if(auth()->user()?->is_admin)
-                                    <form method="post" action="{{ route('dashboard.schools.destroy', $school) }}" onsubmit="return confirm('{{ __('dashboard.confirm_delete') }}')">
-                                        @csrf
-                                        @method('delete')
-                                        <button type="submit" class="btn-muted">{{ __('dashboard.delete') }}</button>
-                                    </form>
-                                @endif
+                                <form method="post" action="{{ route('dashboard.schools.destroy', $school) }}" onsubmit="return confirm('{{ __('dashboard.confirm_delete') }}')">
+                                    @csrf
+                                    @method('delete')
+                                    <button type="submit" class="btn-muted">{{ __('dashboard.delete') }}</button>
+                                </form>
                             </td>
+                            @endif
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7">{{ __('dashboard.no_schools') }}</td>
+                            <td colspan="{{ auth()->user()?->is_admin ? 7 : 6 }}">{{ __('dashboard.no_schools') }}</td>
                         </tr>
                     @endforelse
                     </tbody>

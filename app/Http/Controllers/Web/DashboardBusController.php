@@ -28,9 +28,9 @@ class DashboardBusController extends Controller
 
     public function create(): View|RedirectResponse
     {
+        abort_unless($this->isAdmin(), 403);
         $drivers = Driver::query()
             ->with('school')
-            ->tap(fn (Builder $q) => $this->constrainToScopingSchool($q))
             ->orderBy('id')
             ->get();
         if ($drivers->isEmpty()) {
@@ -43,10 +43,9 @@ class DashboardBusController extends Controller
 
     public function edit(Bus $bus): View
     {
-        $this->authorizeBus($bus);
+        abort_unless($this->isAdmin(), 403);
         $drivers = Driver::query()
             ->with('school')
-            ->tap(fn (Builder $q) => $this->constrainToScopingSchool($q))
             ->orderBy('id')
             ->get();
 
@@ -55,11 +54,8 @@ class DashboardBusController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        abort_unless($this->isAdmin(), 403);
         $validated = $request->validate($this->rules());
-        if (! $this->isAdmin()) {
-            $driver = Driver::query()->findOrFail($validated['driver_id']);
-            abort_unless((int) $driver->school_id === (int) auth()->user()->scopingSchoolId(), 403);
-        }
         $validated['annual_status'] = $request->boolean('annual_status');
         $validated['insurance'] = $request->boolean('insurance');
 
@@ -70,12 +66,8 @@ class DashboardBusController extends Controller
 
     public function update(Request $request, Bus $bus): RedirectResponse
     {
-        $this->authorizeBus($bus);
+        abort_unless($this->isAdmin(), 403);
         $validated = $request->validate($this->rules($bus->id));
-        if (! $this->isAdmin()) {
-            $driver = Driver::query()->findOrFail($validated['driver_id']);
-            abort_unless((int) $driver->school_id === (int) auth()->user()->scopingSchoolId(), 403);
-        }
         $validated['annual_status'] = $request->boolean('annual_status');
         $validated['insurance'] = $request->boolean('insurance');
 
@@ -86,7 +78,7 @@ class DashboardBusController extends Controller
 
     public function destroy(Bus $bus): RedirectResponse
     {
-        $this->authorizeBus($bus);
+        abort_unless($this->isAdmin(), 403);
         $bus->delete();
 
         return redirect()->route('dashboard.buses.index')->with('success', __('dashboard.bus_deleted'));
@@ -112,15 +104,5 @@ class DashboardBusController extends Controller
     private function isAdmin(): bool
     {
         return (bool) auth()->user()?->is_admin;
-    }
-
-    private function authorizeBus(Bus $bus): void
-    {
-        if ($this->isAdmin()) {
-            return;
-        }
-
-        $bus->loadMissing('driver');
-        abort_unless((int) $bus->driver?->school_id === (int) auth()->user()->scopingSchoolId(), 403);
     }
 }

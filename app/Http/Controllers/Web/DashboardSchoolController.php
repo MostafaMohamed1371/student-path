@@ -50,13 +50,13 @@ class DashboardSchoolController extends Controller
 
     public function edit(School $school): View
     {
-        $this->authorizeSchool($school);
+        abort_unless($this->isAdmin(), 403);
         return view('dashboard.schools.edit', compact('school'));
     }
 
     public function update(Request $request, School $school, PhoneNormalizer $phoneNormalizer): RedirectResponse
     {
-        $this->authorizeSchool($school);
+        abort_unless($this->isAdmin(), 403);
         $payload = $this->validated($request);
 
         if ($request->hasFile('attachment')) {
@@ -121,14 +121,5 @@ class DashboardSchoolController extends Controller
     private function isAdmin(): bool
     {
         return (bool) auth()->user()?->is_admin;
-    }
-
-    private function authorizeSchool(School $school): void
-    {
-        if ($this->isAdmin()) {
-            return;
-        }
-
-        abort_unless((int) auth()->user()->scopingSchoolId() === (int) $school->id, 403);
     }
 }

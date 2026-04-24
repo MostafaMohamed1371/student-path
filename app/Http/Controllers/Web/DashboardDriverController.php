@@ -33,10 +33,8 @@ class DashboardDriverController extends Controller
 
     public function create(): View|RedirectResponse
     {
-        $schools = School::query()
-            ->tap(fn (Builder $q) => $this->constrainToScopingSchoolRow($q))
-            ->orderBy('name_en')
-            ->get();
+        abort_unless($this->isAdmin(), 403);
+        $schools = School::query()->orderBy('name_en')->get();
         if ($schools->isEmpty()) {
             return $this->redirectToSchoolCreateForAdminsOrHomeForStaff('dashboard.create_school_first');
         }
@@ -46,10 +44,8 @@ class DashboardDriverController extends Controller
 
     public function store(StoreDashboardDriverRequest $request, PhoneNormalizer $phoneNormalizer): RedirectResponse
     {
+        abort_unless($this->isAdmin(), 403);
         $validated = $request->validated();
-        if (! $this->isAdmin()) {
-            abort_unless((int) ($validated['school_id'] ?? 0) === (int) auth()->user()->scopingSchoolId(), 403);
-        }
         $user = $this->resolveDriverUser($validated, $phoneNormalizer);
 
         Driver::query()->create([
@@ -65,22 +61,16 @@ class DashboardDriverController extends Controller
 
     public function edit(Driver $driver): View
     {
-        $this->authorizeDriver($driver);
-        $schools = School::query()
-            ->tap(fn (Builder $q) => $this->constrainToScopingSchoolRow($q))
-            ->orderBy('name_en')
-            ->get();
+        abort_unless($this->isAdmin(), 403);
+        $schools = School::query()->orderBy('name_en')->get();
 
         return view('dashboard.drivers.edit', compact('driver', 'schools'));
     }
 
     public function update(UpdateDashboardDriverRequest $request, Driver $driver, PhoneNormalizer $phoneNormalizer): RedirectResponse
     {
-        $this->authorizeDriver($driver);
+        abort_unless($this->isAdmin(), 403);
         $validated = $request->validated();
-        if (! $this->isAdmin()) {
-            abort_unless((int) ($validated['school_id'] ?? 0) === (int) auth()->user()->scopingSchoolId(), 403);
-        }
         $user = $this->resolveDriverUser($validated, $phoneNormalizer);
 
         $payload = [...$validated];
@@ -96,7 +86,7 @@ class DashboardDriverController extends Controller
 
     public function destroy(Driver $driver): RedirectResponse
     {
-        $this->authorizeDriver($driver);
+        abort_unless($this->isAdmin(), 403);
         foreach (['id_card_image', 'license_image', 'non_conviction_certificate'] as $fileField) {
             if ($driver->{$fileField}) {
                 Storage::disk('public')->delete((string) $driver->{$fileField});
@@ -155,14 +145,5 @@ class DashboardDriverController extends Controller
     private function isAdmin(): bool
     {
         return (bool) auth()->user()?->is_admin;
-    }
-
-    private function authorizeDriver(Driver $driver): void
-    {
-        if ($this->isAdmin()) {
-            return;
-        }
-
-        abort_unless((int) $driver->school_id === (int) auth()->user()->scopingSchoolId(), 403);
     }
 }

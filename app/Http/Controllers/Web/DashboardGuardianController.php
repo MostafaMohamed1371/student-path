@@ -10,7 +10,6 @@ use App\Models\Guardian;
 use App\Models\School;
 use App\Models\User;
 use App\Services\Phone\PhoneNormalizer;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 
@@ -32,10 +31,8 @@ class DashboardGuardianController extends Controller
 
     public function create(): View|RedirectResponse
     {
-        $schools = School::query()
-            ->tap(fn (Builder $q) => $this->constrainToScopingSchoolRow($q))
-            ->orderBy('name_en')
-            ->get();
+        abort_unless($this->isAdmin(), 403);
+        $schools = School::query()->orderBy('name_en')->get();
         if ($schools->isEmpty()) {
             return $this->redirectToSchoolCreateForAdminsOrHomeForStaff('dashboard.create_school_first_guardians');
         }
@@ -45,10 +42,8 @@ class DashboardGuardianController extends Controller
 
     public function store(StoreDashboardGuardianRequest $request, PhoneNormalizer $phoneNormalizer): RedirectResponse
     {
+        abort_unless($this->isAdmin(), 403);
         $validated = $request->validated();
-        if (! $this->isAdmin()) {
-            abort_unless((int) ($validated['school_id'] ?? 0) === (int) auth()->user()->scopingSchoolId(), 403);
-        }
 
         $guardian = Guardian::query()->create($validated);
         $this->syncGuardianUser($guardian, $phoneNormalizer);
@@ -59,22 +54,16 @@ class DashboardGuardianController extends Controller
 
     public function edit(Guardian $guardian): View
     {
-        $this->authorizeGuardian($guardian);
-        $schools = School::query()
-            ->tap(fn (Builder $q) => $this->constrainToScopingSchoolRow($q))
-            ->orderBy('name_en')
-            ->get();
+        abort_unless($this->isAdmin(), 403);
+        $schools = School::query()->orderBy('name_en')->get();
 
         return view('dashboard.guardians.edit', compact('guardian', 'schools'));
     }
 
     public function update(UpdateDashboardGuardianRequest $request, Guardian $guardian, PhoneNormalizer $phoneNormalizer): RedirectResponse
     {
-        $this->authorizeGuardian($guardian);
+        abort_unless($this->isAdmin(), 403);
         $validated = $request->validated();
-        if (! $this->isAdmin()) {
-            abort_unless((int) ($validated['school_id'] ?? 0) === (int) auth()->user()->scopingSchoolId(), 403);
-        }
         $guardian->update($validated);
         $this->syncGuardianUser($guardian->fresh(), $phoneNormalizer);
 
@@ -84,7 +73,7 @@ class DashboardGuardianController extends Controller
 
     public function destroy(Guardian $guardian): RedirectResponse
     {
-        $this->authorizeGuardian($guardian);
+        abort_unless($this->isAdmin(), 403);
         $guardian->delete();
 
         return redirect()->route('dashboard.guardians.index')
@@ -116,12 +105,4 @@ class DashboardGuardianController extends Controller
         return (bool) auth()->user()?->is_admin;
     }
 
-    private function authorizeGuardian(Guardian $guardian): void
-    {
-        if ($this->isAdmin()) {
-            return;
-        }
-
-        abort_unless((int) $guardian->school_id === (int) auth()->user()->scopingSchoolId(), 403);
-    }
 }

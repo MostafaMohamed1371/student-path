@@ -34,18 +34,9 @@ class DashboardStudentController extends Controller
 
     public function create(): View|RedirectResponse
     {
+        abort_unless($this->isAdmin(), 403);
         $schools = School::query()->orderBy('name_en')->get();
-        if (! $this->isAdmin()) {
-            $sid = auth()->user()->scopingSchoolId();
-            $schools = $sid === null
-                ? $schools->whereIn('id', [])
-                : $schools->where('id', $sid);
-        }
-
-        $guardians = Guardian::query()
-            ->tap(fn (Builder $q) => $this->constrainToScopingSchool($q))
-            ->orderBy('full_name')
-            ->get();
+        $guardians = Guardian::query()->orderBy('full_name')->get();
 
         if ($schools->isEmpty()) {
             return $this->redirectToSchoolCreateForAdminsOrHomeForStaff('dashboard.create_school_first_students');
@@ -61,14 +52,9 @@ class DashboardStudentController extends Controller
 
     public function store(StoreDashboardStudentRequest $request, PhoneNormalizer $phoneNormalizer): RedirectResponse
     {
+        abort_unless($this->isAdmin(), 403);
         $validated = $request->validated();
-        if (! $this->isAdmin()) {
-            abort_unless((int) ($validated['school_id'] ?? 0) === (int) auth()->user()->scopingSchoolId(), 403);
-        }
         $guardian = Guardian::query()->findOrFail($validated['guardian_id']);
-        if (! $this->isAdmin()) {
-            abort_unless((int) $guardian->school_id === (int) auth()->user()->scopingSchoolId(), 403);
-        }
         $validated['guardian_name'] = $guardian->full_name;
         $validated['guardian_primary_phone'] = $guardian->phone;
         $validated['guardian_backup_phone'] = $guardian->backup_phone;
@@ -83,30 +69,18 @@ class DashboardStudentController extends Controller
 
     public function edit(Student $student): View
     {
-        $this->authorizeStudent($student);
-        $schools = School::query()
-            ->tap(fn (Builder $q) => $this->constrainToScopingSchoolRow($q))
-            ->orderBy('name_en')
-            ->get();
-        $guardians = Guardian::query()
-            ->tap(fn (Builder $q) => $this->constrainToScopingSchool($q))
-            ->orderBy('full_name')
-            ->get();
+        abort_unless($this->isAdmin(), 403);
+        $schools = School::query()->orderBy('name_en')->get();
+        $guardians = Guardian::query()->orderBy('full_name')->get();
 
         return view('dashboard.students.edit', compact('student', 'schools', 'guardians'));
     }
 
     public function update(UpdateDashboardStudentRequest $request, Student $student, PhoneNormalizer $phoneNormalizer): RedirectResponse
     {
-        $this->authorizeStudent($student);
+        abort_unless($this->isAdmin(), 403);
         $validated = $request->validated();
-        if (! $this->isAdmin()) {
-            abort_unless((int) ($validated['school_id'] ?? 0) === (int) auth()->user()->scopingSchoolId(), 403);
-        }
         $guardian = Guardian::query()->findOrFail($validated['guardian_id']);
-        if (! $this->isAdmin()) {
-            abort_unless((int) $guardian->school_id === (int) auth()->user()->scopingSchoolId(), 403);
-        }
         $validated['guardian_name'] = $guardian->full_name;
         $validated['guardian_primary_phone'] = $guardian->phone;
         $validated['guardian_backup_phone'] = $guardian->backup_phone;
@@ -121,7 +95,7 @@ class DashboardStudentController extends Controller
 
     public function destroy(Student $student): RedirectResponse
     {
-        $this->authorizeStudent($student);
+        abort_unless($this->isAdmin(), 403);
         if ($student->profile_photo) {
             Storage::disk('public')->delete($student->profile_photo);
         }
@@ -173,14 +147,5 @@ class DashboardStudentController extends Controller
     private function isAdmin(): bool
     {
         return (bool) auth()->user()?->is_admin;
-    }
-
-    private function authorizeStudent(Student $student): void
-    {
-        if ($this->isAdmin()) {
-            return;
-        }
-
-        abort_unless((int) $student->school_id === (int) auth()->user()->scopingSchoolId(), 403);
     }
 }

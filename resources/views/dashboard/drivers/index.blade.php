@@ -5,9 +5,11 @@
 @section('content')
     @php($title = __('dashboard.menu_drivers'))
     @component('dashboard.partials.shell', ['title' => $title])
+        @if(auth()->user()?->is_admin)
         <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
             <a href="{{ route('dashboard.drivers.create') }}" class="btn-primary" style="width:auto;padding:10px 14px;text-decoration:none;">{{ __('dashboard.add_driver') }}</a>
         </div>
+        @endif
 
         <section class="card">
             <div style="overflow:auto;">
@@ -21,7 +23,9 @@
                         <th>{{ __('dashboard.vehicle') }}</th>
                         <th>{{ __('dashboard.phone') }}</th>
                         <th>{{ __('dashboard.status') }}</th>
-                        <th>{{ __('dashboard.actions') }}</th>
+                        @if(auth()->user()?->is_admin)
+                            <th>{{ __('dashboard.actions') }}</th>
+                        @endif
                     </tr>
                     </thead>
                     <tbody>
@@ -38,6 +42,7 @@
                                     {{ $driver->status === 'active' ? __('dashboard.active') : __('dashboard.inactive') }}
                                 </span>
                             </td>
+                            @if(auth()->user()?->is_admin)
                             <td style="display:flex;gap:8px;">
                                 <a href="{{ route('dashboard.drivers.edit', $driver) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.edit') }}</a>
                                 <form method="post" action="{{ route('dashboard.drivers.destroy', $driver) }}" onsubmit="return confirm('{{ __('dashboard.confirm_delete') }}')">
@@ -46,10 +51,11 @@
                                     <button type="submit" class="btn-muted">{{ __('dashboard.delete') }}</button>
                                 </form>
                             </td>
+                            @endif
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8">{{ __('dashboard.no_drivers') }}</td>
+                            <td colspan="{{ auth()->user()?->is_admin ? 8 : 7 }}">{{ __('dashboard.no_drivers') }}</td>
                         </tr>
                     @endforelse
                     </tbody>
