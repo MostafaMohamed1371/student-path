@@ -7,7 +7,6 @@ use App\Enums\OtpPurpose;
 use App\Models\Driver;
 use App\Models\OtpCode;
 use App\Models\User;
-use App\Services\Driver\UserDriverProfileSynchronizer;
 use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -26,7 +25,6 @@ final class OtpService
     public function __construct(
         private readonly PhoneNormalizer $phoneNormalizer,
         private readonly SmsSender $smsSender,
-        private readonly UserDriverProfileSynchronizer $userDriverProfileSynchronizer,
     ) {}
 
     /**
@@ -150,8 +148,6 @@ final class OtpService
                     'status' => 'active',
                 ]
             );
-
-            $this->userDriverProfileSynchronizer->syncFromUser($user->fresh(), true);
 
             $token = $user->createToken('mobile')->plainTextToken;
 

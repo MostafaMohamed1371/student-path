@@ -25,14 +25,13 @@ class UserProfileController extends Controller
     public function update(UpdateUserProfileRequest $request): JsonResponse
     {
         $user = $request->user();
-        $user->load('driver');
         $validated = $request->validated();
 
         if ($request->hasFile('image')) {
             $validated['image'] = $request->file('image')->store('profiles', 'public');
         }
 
-        $user->fill([
+        $attrs = [
             'name' => $validated['name'] ?? $user->name,
             'image' => $validated['image'] ?? $user->image,
             'city' => $validated['city'] ?? $user->city,
@@ -40,28 +39,12 @@ class UserProfileController extends Controller
             'votes' => $validated['votes'] ?? $user->votes,
             'rate' => $validated['rate'] ?? $user->rate,
             'is_verified' => $validated['isVerified'] ?? $user->is_verified,
-        ])->save();
-
-        if ($user->driver) {
-            $driverPayload = [];
-
-            if (array_key_exists('name', $validated) && is_string($validated['name'])) {
-                $parts = preg_split('/\s+/', trim($validated['name'])) ?: [];
-                $driverPayload['first_name'] = $parts[0] ?? $user->driver->first_name;
-                $driverPayload['father_name'] = $parts[1] ?? $user->driver->father_name;
-                $driverPayload['last_name'] = $parts[2] ?? $user->driver->last_name;
-            }
-            if (array_key_exists('city', $validated)) {
-                $driverPayload['residential_address'] = $validated['city'];
-            }
-            if (array_key_exists('licenceNumber', $validated)) {
-                $driverPayload['license_number'] = $validated['licenceNumber'];
-            }
-
-            if ($driverPayload !== []) {
-                $user->driver->update($driverPayload);
-            }
+        ];
+        if (array_key_exists('schoolId', $validated)) {
+            $attrs['school_id'] = $validated['schoolId'];
         }
+
+        $user->fill($attrs)->save();
 
         return response()->json([
             'success' => true,

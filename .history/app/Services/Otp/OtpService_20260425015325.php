@@ -7,7 +7,6 @@ use App\Enums\OtpPurpose;
 use App\Models\Driver;
 use App\Models\OtpCode;
 use App\Models\User;
-use App\Services\Driver\UserDriverProfileSynchronizer;
 use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -26,7 +25,6 @@ final class OtpService
     public function __construct(
         private readonly PhoneNormalizer $phoneNormalizer,
         private readonly SmsSender $smsSender,
-        private readonly UserDriverProfileSynchronizer $userDriverProfileSynchronizer,
     ) {}
 
     /**
@@ -143,15 +141,8 @@ final class OtpService
                 $user->forceFill(['phone_verified_at' => now()])->save();
             }
 
-            Driver::query()->firstOrCreate(
-                ['user_id' => $user->id],
-                [
-                    'primary_phone' => substr((string) $user->phone, 3),
-                    'status' => 'active',
-                ]
-            );
-
-            $this->userDriverProfileSynchronizer->syncFromUser($user->fresh(), true);
+            $user = $user->fresh();
+            $this->syncDriverWithUser($user);
 
             $token = $user->createToken('mobile')->plainTextToken;
 
@@ -160,5 +151,37 @@ final class OtpService
                 'token' => $token,
             ];
         });
+    }
+
+    /**
+     * Keep the mobile-login driver in line with the user: same school and name
+     * (name split the same way as API profile update: first, father, last from words).
+     */
+    private function syncDriverWithUser(User $user): void
+    {
+        $nationalPhone = substr((string) $user->phone, 3);
+        $driver = Driver::query()->firstOrCreate(
+            ['user_id' => $user->id],
+            [
+                'primary_phone' => $nationalPhone,
+                'status' => 'active',
+            ]
+        );
+
+        $payload = [
+            'primary_phone' => $nationalPhone,
+            'status' => 'active',
+            'school_id' => $user->school_id,
+        ];
+
+        if (filled($user->name)) {
+            $parts = preg_split('/\s+/', trim((string) $user->name)) ?: [];
+            $payload['first_name'] = $parts[0] ?? null;
+            $payload['father_name'] = $parts[1] ?? null;
+            $payload['last_name'] = $parts[2] ?? null;
+        }
+
+        $driver->fill($payload);
+        $driver->save();
     }
 }

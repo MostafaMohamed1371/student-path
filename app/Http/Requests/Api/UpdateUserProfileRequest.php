@@ -17,6 +17,7 @@ class UpdateUserProfileRequest extends FormRequest
     {
         return [
             'name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'schoolId' => ['sometimes', 'nullable', 'integer', 'exists:schools,id'],
             'image' => ['sometimes', 'nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:1536'],
             'city' => ['sometimes', 'nullable', 'string', 'max:255'],
             'licenceNumber' => ['sometimes', 'nullable', 'string', 'max:255'],

@@ -27,7 +27,9 @@
                         <th>{{ __('dashboard.rate') }}</th>
                         <th>{{ __('dashboard.verified') }}</th>
                         <th>{{ __('dashboard.status') }}</th>
-                        <th>{{ __('dashboard.actions') }}</th>
+                        @if(auth()->user()?->is_admin)
+                            <th>{{ __('dashboard.actions') }}</th>
+                        @endif
                     </tr>
                     </thead>
                     <tbody>
@@ -61,22 +63,20 @@
                                     {{ $user->is_active ? __('dashboard.active') : __('dashboard.inactive') }}
                                 </span>
                             </td>
-                            <td style="display:flex;gap:8px;flex-wrap:wrap;">
-                                @if(auth()->user()?->is_admin)
+                            @if(auth()->user()?->is_admin)
+                                <td style="display:flex;gap:8px;flex-wrap:wrap;">
                                     <a href="{{ route('dashboard.users.edit', $user) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.edit') }}</a>
                                     <form method="post" action="{{ route('dashboard.users.destroy', $user) }}" onsubmit="return confirm('{{ __('dashboard.confirm_delete') }}')">
                                         @csrf
                                         @method('delete')
                                         <button type="submit" class="btn-muted">{{ __('dashboard.delete') }}</button>
                                     </form>
-                                @else
-                                    —
-                                @endif
-                            </td>
+                                </td>
+                            @endif
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="12">{{ __('dashboard.no_users') }}</td>
+                            <td colspan="{{ auth()->user()?->is_admin ? 12 : 11 }}">{{ __('dashboard.no_users') }}</td>
                         </tr>
                     @endforelse
                     </tbody>

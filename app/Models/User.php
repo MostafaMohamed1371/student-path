@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Driver\UserDriverProfileSynchronizer;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -33,6 +34,18 @@ class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
+
+    protected static function booted(): void
+    {
+        parent::booted();
+
+        self::updated(function (User $user) {
+            if (! $user->wasChanged(['name', 'school_id', 'phone', 'city', 'licence_number'])) {
+                return;
+            }
+            app(UserDriverProfileSynchronizer::class)->syncFromUser($user, false);
+        });
+    }
 
     protected function casts(): array
     {
