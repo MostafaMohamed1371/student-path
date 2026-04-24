@@ -2,27 +2,23 @@
 
 namespace App\Http\Controllers\Web;
 
-use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Web\StoreDashboardUserRequest;
 use App\Http\Requests\Web\UpdateDashboardUserRequest;
 use App\Models\School;
 use App\Models\User;
 use App\Services\Phone\PhoneNormalizer;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 class DashboardUserController extends Controller
 {
-    use ManagesDashboardScoping;
-
     public function index(): View
     {
+        abort_unless($this->isAdmin(), 403);
         $users = User::query()
             ->with('school')
-            ->tap(fn (Builder $q) => $this->constrainToScopingSchool($q))
             ->latest('id')
             ->paginate(12);
 

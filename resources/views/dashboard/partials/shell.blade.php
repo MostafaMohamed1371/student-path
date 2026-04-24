@@ -11,7 +11,9 @@
             <a href="{{ route('dashboard.students.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.students.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_students') }}</a>
             <a href="{{ route('dashboard.guardians.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.guardians.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_guardians') }}</a>
             <a href="{{ route('dashboard.drivers.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.drivers.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_drivers') }}</a>
-            <a href="{{ route('dashboard.users.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.users.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_users') }}</a>
+            @if(auth()->user()?->is_admin)
+                <a href="{{ route('dashboard.users.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.users.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_users') }}</a>
+            @endif
             <a href="{{ route('dashboard.buses.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.buses.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_bus') }}</a>
         </nav>
 
