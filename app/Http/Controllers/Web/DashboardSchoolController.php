@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
 use App\Http\Controllers\Controller;
 use App\Models\School;
 use App\Models\User;
@@ -13,11 +14,13 @@ use Illuminate\View\View;
 
 class DashboardSchoolController extends Controller
 {
+    use ManagesDashboardScoping;
+
     public function index(): View
     {
         $schools = School::query()
             ->withCount(['buses'])
-            ->when(! $this->isAdmin(), fn (Builder $query) => $query->where('id', auth()->user()?->school_id))
+            ->tap(fn (Builder $q) => $this->constrainToScopingSchoolRow($q))
             ->latest('id')
             ->paginate(10);
 
@@ -126,6 +129,6 @@ class DashboardSchoolController extends Controller
             return;
         }
 
-        abort_unless((int) auth()->user()?->school_id === (int) $school->id, 403);
+        abort_unless((int) auth()->user()->scopingSchoolId() === (int) $school->id, 403);
     }
 }

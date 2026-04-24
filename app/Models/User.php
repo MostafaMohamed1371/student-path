@@ -61,4 +61,21 @@ class User extends Authenticatable
     {
         return $this->hasOne(Driver::class);
     }
+
+    /**
+     * For non-admin dashboard scoping: use {@see $school_id} when set; otherwise the linked
+     * driver's school (e.g. accounts created only via OTP + driver).
+     */
+    public function scopingSchoolId(): ?int
+    {
+        if ($this->school_id) {
+            return (int) $this->school_id;
+        }
+        $this->loadMissing('driver');
+        if ($this->driver?->school_id) {
+            return (int) $this->driver->school_id;
+        }
+
+        return null;
+    }
 }

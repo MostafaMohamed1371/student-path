@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Web\StoreDashboardDriverRequest;
 use App\Http\Requests\Web\UpdateDashboardDriverRequest;
@@ -17,11 +18,13 @@ use Illuminate\View\View;
 
 class DashboardDriverController extends Controller
 {
+    use ManagesDashboardScoping;
+
     public function index(): View
     {
         $drivers = Driver::query()
             ->with(['user', 'school', 'bus'])
-            ->when(! $this->isAdmin(), fn (Builder $query) => $query->where('school_id', auth()->user()?->school_id))
+            ->tap(fn (Builder $q) => $this->constrainToScopingSchool($q))
             ->latest('id')
             ->paginate(12);
 
@@ -31,12 +34,11 @@ class DashboardDriverController extends Controller
     public function create(): View|RedirectResponse
     {
         $schools = School::query()
-            ->when(! $this->isAdmin(), fn (Builder $query) => $query->where('id', auth()->user()?->school_id))
+            ->tap(fn (Builder $q) => $this->constrainToScopingSchoolRow($q))
             ->orderBy('name_en')
             ->get();
         if ($schools->isEmpty()) {
-            return redirect()->route('dashboard.schools.create')
-                ->with('error', __('dashboard.create_school_first'));
+            return $this->redirectToSchoolCreateForAdminsOrHomeForStaff('dashboard.create_school_first');
         }
 
         return view('dashboard.drivers.create', compact('schools'));
@@ -46,7 +48,7 @@ class DashboardDriverController extends Controller
     {
         $validated = $request->validated();
         if (! $this->isAdmin()) {
-            abort_unless((int) ($validated['school_id'] ?? 0) === (int) auth()->user()?->school_id, 403);
+            abort_unless((int) ($validated['school_id'] ?? 0) === (int) auth()->user()->scopingSchoolId(), 403);
         }
         $user = $this->resolveDriverUser($validated, $phoneNormalizer);
 
@@ -65,7 +67,7 @@ class DashboardDriverController extends Controller
     {
         $this->authorizeDriver($driver);
         $schools = School::query()
-            ->when(! $this->isAdmin(), fn (Builder $query) => $query->where('id', auth()->user()?->school_id))
+            ->tap(fn (Builder $q) => $this->constrainToScopingSchoolRow($q))
             ->orderBy('name_en')
             ->get();
 
@@ -77,7 +79,7 @@ class DashboardDriverController extends Controller
         $this->authorizeDriver($driver);
         $validated = $request->validated();
         if (! $this->isAdmin()) {
-            abort_unless((int) ($validated['school_id'] ?? 0) === (int) auth()->user()?->school_id, 403);
+            abort_unless((int) ($validated['school_id'] ?? 0) === (int) auth()->user()->scopingSchoolId(), 403);
         }
         $user = $this->resolveDriverUser($validated, $phoneNormalizer);
 
@@ -161,6 +163,6 @@ class DashboardDriverController extends Controller
             return;
         }
 
-        abort_unless((int) $driver->school_id === (int) auth()->user()?->school_id, 403);
+        abort_unless((int) $driver->school_id === (int) auth()->user()->scopingSchoolId(), 403);
     }
 }

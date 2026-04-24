@@ -18,7 +18,7 @@ class DashboardHomeController extends Controller
     {
         $authUser = auth()->user();
         $isAdmin = (bool) $authUser?->is_admin;
-        $schoolId = $authUser?->school_id;
+        $schoolId = $authUser?->scopingSchoolId();
 
         if ($isAdmin) {
             return view('dashboard.index', [
@@ -35,9 +35,9 @@ class DashboardHomeController extends Controller
             ]);
         }
 
-        $driverIds = Driver::query()
-            ->when($schoolId, fn ($query) => $query->where('school_id', $schoolId))
-            ->pluck('id');
+        $driverIds = $schoolId === null
+            ? collect()
+            : Driver::query()->where('school_id', $schoolId)->pluck('id');
 
         return view('dashboard.index', [
             'schoolsCount' => $schoolId ? 1 : 0,

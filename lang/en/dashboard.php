@@ -141,6 +141,7 @@ return [
     'create_school_first' => 'Please create a school first before adding drivers.',
     'create_school_first_students' => 'Please create a school first before adding students.',
     'create_school_first_guardians' => 'Please create a school first before adding guardians.',
+    'school_scope_required_for_staff' => 'Your account is not linked to a school, or the school record is missing. Ask an administrator to assign your user to a school, or (for drivers) ensure your driver profile has a school. You cannot add a new school with this account.',
     'create_guardian_first_students' => 'Please create a guardian first before adding students.',
 
     'driver_created' => 'Driver created successfully.',

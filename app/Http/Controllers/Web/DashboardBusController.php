@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
 use App\Http\Controllers\Controller;
 use App\Models\Bus;
 use App\Models\Driver;
@@ -12,11 +13,13 @@ use Illuminate\View\View;
 
 class DashboardBusController extends Controller
 {
+    use ManagesDashboardScoping;
+
     public function index(): View
     {
         $buses = Bus::query()
             ->with('driver.school')
-            ->when(! $this->isAdmin(), fn (Builder $query) => $query->whereHas('driver', fn (Builder $q) => $q->where('school_id', auth()->user()?->school_id)))
+            ->tap(fn (Builder $q) => $this->constrainBusesToScopingDriverSchool($q))
             ->latest('id')
             ->paginate(12);
 
@@ -27,7 +30,7 @@ class DashboardBusController extends Controller
     {
         $drivers = Driver::query()
             ->with('school')
-            ->when(! $this->isAdmin(), fn (Builder $query) => $query->where('school_id', auth()->user()?->school_id))
+            ->tap(fn (Builder $q) => $this->constrainToScopingSchool($q))
             ->orderBy('id')
             ->get();
         if ($drivers->isEmpty()) {
@@ -43,7 +46,7 @@ class DashboardBusController extends Controller
         $this->authorizeBus($bus);
         $drivers = Driver::query()
             ->with('school')
-            ->when(! $this->isAdmin(), fn (Builder $query) => $query->where('school_id', auth()->user()?->school_id))
+            ->tap(fn (Builder $q) => $this->constrainToScopingSchool($q))
             ->orderBy('id')
             ->get();
 
@@ -55,7 +58,7 @@ class DashboardBusController extends Controller
         $validated = $request->validate($this->rules());
         if (! $this->isAdmin()) {
             $driver = Driver::query()->findOrFail($validated['driver_id']);
-            abort_unless((int) $driver->school_id === (int) auth()->user()?->school_id, 403);
+            abort_unless((int) $driver->school_id === (int) auth()->user()->scopingSchoolId(), 403);
         }
         $validated['annual_status'] = $request->boolean('annual_status');
         $validated['insurance'] = $request->boolean('insurance');
@@ -71,7 +74,7 @@ class DashboardBusController extends Controller
         $validated = $request->validate($this->rules($bus->id));
         if (! $this->isAdmin()) {
             $driver = Driver::query()->findOrFail($validated['driver_id']);
-            abort_unless((int) $driver->school_id === (int) auth()->user()?->school_id, 403);
+            abort_unless((int) $driver->school_id === (int) auth()->user()->scopingSchoolId(), 403);
         }
         $validated['annual_status'] = $request->boolean('annual_status');
         $validated['insurance'] = $request->boolean('insurance');
@@ -118,6 +121,6 @@ class DashboardBusController extends Controller
         }
 
         $bus->loadMissing('driver');
-        abort_unless((int) $bus->driver?->school_id === (int) auth()->user()?->school_id, 403);
+        abort_unless((int) $bus->driver?->school_id === (int) auth()->user()->scopingSchoolId(), 403);
     }
 }

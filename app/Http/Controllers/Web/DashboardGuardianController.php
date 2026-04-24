@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Web\StoreDashboardGuardianRequest;
 use App\Http\Requests\Web\UpdateDashboardGuardianRequest;
@@ -15,12 +16,14 @@ use Illuminate\View\View;
 
 class DashboardGuardianController extends Controller
 {
+    use ManagesDashboardScoping;
+
     public function index(): View
     {
         $guardians = Guardian::query()
             ->with('school')
             ->withCount('students')
-            ->when(! $this->isAdmin(), fn (Builder $query) => $query->where('school_id', auth()->user()?->school_id))
+            ->tap(fn (Builder $q) => $this->constrainToScopingSchool($q))
             ->latest('id')
             ->paginate(12);
 
@@ -30,12 +33,11 @@ class DashboardGuardianController extends Controller
     public function create(): View|RedirectResponse
     {
         $schools = School::query()
-            ->when(! $this->isAdmin(), fn (Builder $query) => $query->where('id', auth()->user()?->school_id))
+            ->tap(fn (Builder $q) => $this->constrainToScopingSchoolRow($q))
             ->orderBy('name_en')
             ->get();
         if ($schools->isEmpty()) {
-            return redirect()->route('dashboard.schools.create')
-                ->with('error', __('dashboard.create_school_first_guardians'));
+            return $this->redirectToSchoolCreateForAdminsOrHomeForStaff('dashboard.create_school_first_guardians');
         }
 
         return view('dashboard.guardians.create', compact('schools'));
@@ -45,7 +47,7 @@ class DashboardGuardianController extends Controller
     {
         $validated = $request->validated();
         if (! $this->isAdmin()) {
-            abort_unless((int) ($validated['school_id'] ?? 0) === (int) auth()->user()?->school_id, 403);
+            abort_unless((int) ($validated['school_id'] ?? 0) === (int) auth()->user()->scopingSchoolId(), 403);
         }
 
         $guardian = Guardian::query()->create($validated);
@@ -59,7 +61,7 @@ class DashboardGuardianController extends Controller
     {
         $this->authorizeGuardian($guardian);
         $schools = School::query()
-            ->when(! $this->isAdmin(), fn (Builder $query) => $query->where('id', auth()->user()?->school_id))
+            ->tap(fn (Builder $q) => $this->constrainToScopingSchoolRow($q))
             ->orderBy('name_en')
             ->get();
 
@@ -71,7 +73,7 @@ class DashboardGuardianController extends Controller
         $this->authorizeGuardian($guardian);
         $validated = $request->validated();
         if (! $this->isAdmin()) {
-            abort_unless((int) ($validated['school_id'] ?? 0) === (int) auth()->user()?->school_id, 403);
+            abort_unless((int) ($validated['school_id'] ?? 0) === (int) auth()->user()->scopingSchoolId(), 403);
         }
         $guardian->update($validated);
         $this->syncGuardianUser($guardian->fresh(), $phoneNormalizer);
@@ -120,6 +122,6 @@ class DashboardGuardianController extends Controller
             return;
         }
 
-        abort_unless((int) $guardian->school_id === (int) auth()->user()?->school_id, 403);
+        abort_unless((int) $guardian->school_id === (int) auth()->user()->scopingSchoolId(), 403);
     }
 }

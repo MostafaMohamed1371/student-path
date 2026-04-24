@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Web\StoreDashboardStudentRequest;
 use App\Http\Requests\Web\UpdateDashboardStudentRequest;
@@ -18,11 +19,13 @@ use Illuminate\View\View;
 
 class DashboardStudentController extends Controller
 {
+    use ManagesDashboardScoping;
+
     public function index(): View
     {
         $students = Student::query()
             ->with(['school', 'guardian'])
-            ->when(! $this->isAdmin(), fn (Builder $query) => $query->where('school_id', auth()->user()?->school_id))
+            ->tap(fn (Builder $q) => $this->constrainToScopingSchool($q))
             ->latest('id')
             ->paginate(12);
 
@@ -33,17 +36,19 @@ class DashboardStudentController extends Controller
     {
         $schools = School::query()->orderBy('name_en')->get();
         if (! $this->isAdmin()) {
-            $schools = $schools->where('id', auth()->user()?->school_id);
+            $sid = auth()->user()->scopingSchoolId();
+            $schools = $sid === null
+                ? $schools->whereIn('id', [])
+                : $schools->where('id', $sid);
         }
 
         $guardians = Guardian::query()
-            ->when(! $this->isAdmin(), fn (Builder $query) => $query->where('school_id', auth()->user()?->school_id))
+            ->tap(fn (Builder $q) => $this->constrainToScopingSchool($q))
             ->orderBy('full_name')
             ->get();
 
         if ($schools->isEmpty()) {
-            return redirect()->route('dashboard.schools.create')
-                ->with('error', __('dashboard.create_school_first_students'));
+            return $this->redirectToSchoolCreateForAdminsOrHomeForStaff('dashboard.create_school_first_students');
         }
 
         if ($guardians->isEmpty()) {
@@ -58,11 +63,11 @@ class DashboardStudentController extends Controller
     {
         $validated = $request->validated();
         if (! $this->isAdmin()) {
-            abort_unless((int) ($validated['school_id'] ?? 0) === (int) auth()->user()?->school_id, 403);
+            abort_unless((int) ($validated['school_id'] ?? 0) === (int) auth()->user()->scopingSchoolId(), 403);
         }
         $guardian = Guardian::query()->findOrFail($validated['guardian_id']);
         if (! $this->isAdmin()) {
-            abort_unless((int) $guardian->school_id === (int) auth()->user()?->school_id, 403);
+            abort_unless((int) $guardian->school_id === (int) auth()->user()->scopingSchoolId(), 403);
         }
         $validated['guardian_name'] = $guardian->full_name;
         $validated['guardian_primary_phone'] = $guardian->phone;
@@ -80,11 +85,11 @@ class DashboardStudentController extends Controller
     {
         $this->authorizeStudent($student);
         $schools = School::query()
-            ->when(! $this->isAdmin(), fn (Builder $query) => $query->where('id', auth()->user()?->school_id))
+            ->tap(fn (Builder $q) => $this->constrainToScopingSchoolRow($q))
             ->orderBy('name_en')
             ->get();
         $guardians = Guardian::query()
-            ->when(! $this->isAdmin(), fn (Builder $query) => $query->where('school_id', auth()->user()?->school_id))
+            ->tap(fn (Builder $q) => $this->constrainToScopingSchool($q))
             ->orderBy('full_name')
             ->get();
 
@@ -96,11 +101,11 @@ class DashboardStudentController extends Controller
         $this->authorizeStudent($student);
         $validated = $request->validated();
         if (! $this->isAdmin()) {
-            abort_unless((int) ($validated['school_id'] ?? 0) === (int) auth()->user()?->school_id, 403);
+            abort_unless((int) ($validated['school_id'] ?? 0) === (int) auth()->user()->scopingSchoolId(), 403);
         }
         $guardian = Guardian::query()->findOrFail($validated['guardian_id']);
         if (! $this->isAdmin()) {
-            abort_unless((int) $guardian->school_id === (int) auth()->user()?->school_id, 403);
+            abort_unless((int) $guardian->school_id === (int) auth()->user()->scopingSchoolId(), 403);
         }
         $validated['guardian_name'] = $guardian->full_name;
         $validated['guardian_primary_phone'] = $guardian->phone;
@@ -176,6 +181,6 @@ class DashboardStudentController extends Controller
             return;
         }
 
-        abort_unless((int) $student->school_id === (int) auth()->user()?->school_id, 403);
+        abort_unless((int) $student->school_id === (int) auth()->user()->scopingSchoolId(), 403);
     }
 }

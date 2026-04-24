@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Web\StoreDashboardUserRequest;
 use App\Http\Requests\Web\UpdateDashboardUserRequest;
@@ -15,11 +16,13 @@ use Illuminate\View\View;
 
 class DashboardUserController extends Controller
 {
+    use ManagesDashboardScoping;
+
     public function index(): View
     {
         $users = User::query()
             ->with('school')
-            ->when(! $this->isAdmin(), fn (Builder $query) => $query->where('school_id', auth()->user()?->school_id))
+            ->tap(fn (Builder $q) => $this->constrainToScopingSchool($q))
             ->latest('id')
             ->paginate(12);
 
