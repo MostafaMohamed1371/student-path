@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\AppliesApiSchoolScoping;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\StoreDriverRequest;
 use App\Http\Requests\Api\UpdateDriverRequest;
@@ -14,9 +15,14 @@ use Illuminate\Http\Request;
 
 class DriverController extends Controller
 {
-    public function index(): JsonResponse
+    use AppliesApiSchoolScoping;
+
+    public function index(Request $request): JsonResponse
     {
-        $drivers = Driver::query()->with('bus')->latest('id')->get();
+        $user = $request->user();
+        $q = Driver::query()->with('bus');
+        $this->applyApiScopeBySchoolIdColumn($q, $user);
+        $drivers = $q->latest('id')->get();
 
         return response()->json([
             'success' => true,
@@ -25,8 +31,12 @@ class DriverController extends Controller
         ]);
     }
 
-    public function show(Driver $driver): JsonResponse
+    public function show(Request $request, Driver $driver): JsonResponse
     {
+        if ($resp = $this->ensureApiCanAccessDriver($request->user(), $driver)) {
+            return $resp;
+        }
+
         return response()->json([
             'success' => true,
             'data' => (new DriverResource($driver->load('bus')))->toArray(request()),
@@ -55,6 +65,9 @@ class DriverController extends Controller
     public function store(StoreDriverRequest $request, PhoneNormalizer $phoneNormalizer): JsonResponse
     {
         $validated = $request->validated();
+        if ($resp = $this->ensureApiTargetsOwnSchoolOrAdmin($request->user(), (int) $validated['schoolId'])) {
+            return $resp;
+        }
         $user = $this->resolveDriverUser($validated, $phoneNormalizer);
 
         $driver = Driver::query()->create([
@@ -85,7 +98,15 @@ class DriverController extends Controller
 
     public function update(UpdateDriverRequest $request, Driver $driver, PhoneNormalizer $phoneNormalizer): JsonResponse
     {
+        if ($resp = $this->ensureApiCanAccessDriver($request->user(), $driver)) {
+            return $resp;
+        }
         $validated = $request->validated();
+        if (array_key_exists('schoolId', $validated)) {
+            if ($r = $this->ensureApiTargetsOwnSchoolOrAdmin($request->user(), (int) $validated['schoolId'])) {
+                return $r;
+            }
+        }
 
         $payload = [
             'school_id' => $validated['schoolId'] ?? $driver->school_id,
@@ -126,8 +147,11 @@ class DriverController extends Controller
         ]);
     }
 
-    public function destroy(Driver $driver): JsonResponse
+    public function destroy(Request $request, Driver $driver): JsonResponse
     {
+        if ($resp = $this->ensureApiCanAccessDriver($request->user(), $driver)) {
+            return $resp;
+        }
         $driver->delete();
 
         return response()->json([
@@ -151,9 +175,15 @@ class DriverController extends Controller
             ['phone' => $phone],
             [
                 'name' => $name !== '' ? $name : null,
+                'password' => config('dashboard.seed_password'),
                 'is_active' => true,
                 'phone_verified_at' => now(),
             ]
         );
+    }
+
+    private function ensureApiCanAccessDriver(User $user, Driver $driver): ?JsonResponse
+    {
+        return $this->ensureApiTargetsOwnSchoolOrAdmin($user, (int) $driver->school_id);
     }
 }

@@ -14,14 +14,21 @@
 <div class="form-grid">
     <div>
         <label class="field-label" for="school_id">{{ __('dashboard.school') }}</label>
-        <select class="input" id="school_id" name="school_id" required>
-            <option value="">{{ __('dashboard.select_school') }}</option>
-            @foreach(($schools ?? collect()) as $school)
-                <option value="{{ $school->id }}" @selected((string) old('school_id', $driver->school_id ?? '') === (string) $school->id)>
-                    {{ $school->name_en }} @if($school->name_ar) ({{ $school->name_ar }}) @endif
-                </option>
-            @endforeach
-        </select>
+        @if(auth()->user()?->is_admin)
+            <select class="input" id="school_id" name="school_id" required>
+                <option value="">{{ __('dashboard.select_school') }}</option>
+                @foreach(($schools ?? collect()) as $school)
+                    <option value="{{ $school->id }}" @selected((string) old('school_id', $driver->school_id ?? '') === (string) $school->id)>
+                        {{ $school->name_en }} @if($school->name_ar) ({{ $school->name_ar }}) @endif
+                    </option>
+                @endforeach
+            </select>
+        @else
+            @php($fixedSchoolId = (string) old('school_id', $driver->school_id ?? auth()->user()?->school_id))
+            @php($fixedSchool = ($schools ?? collect())->firstWhere('id', (int) $fixedSchoolId))
+            <input type="hidden" name="school_id" value="{{ $fixedSchoolId }}">
+            <input class="input" value="{{ $fixedSchool?->name_en ?: '—' }}" disabled />
+        @endif
     </div>
     <div></div>
 

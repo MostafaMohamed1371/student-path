@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\School;
+use App\Models\User;
+use App\Services\Phone\PhoneNormalizer;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -14,6 +17,7 @@ class DashboardSchoolController extends Controller
     {
         $schools = School::query()
             ->withCount(['buses'])
+            ->when(! $this->isAdmin(), fn (Builder $query) => $query->where('id', auth()->user()?->school_id))
             ->latest('id')
             ->paginate(10);
 
@@ -22,29 +26,34 @@ class DashboardSchoolController extends Controller
 
     public function create(): View
     {
+        abort_unless($this->isAdmin(), 403);
         return view('dashboard.schools.create');
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, PhoneNormalizer $phoneNormalizer): RedirectResponse
     {
+        abort_unless($this->isAdmin(), 403);
         $payload = $this->validated($request);
 
         if ($request->hasFile('attachment')) {
             $payload['attachment'] = $request->file('attachment')->store('schools', 'public');
         }
 
-        School::query()->create($payload);
+        $school = School::query()->create($payload);
+        $this->syncSchoolAdminUser($school, $phoneNormalizer);
 
         return redirect()->route('dashboard.schools.index')->with('success', __('dashboard.school_created'));
     }
 
     public function edit(School $school): View
     {
+        $this->authorizeSchool($school);
         return view('dashboard.schools.edit', compact('school'));
     }
 
-    public function update(Request $request, School $school): RedirectResponse
+    public function update(Request $request, School $school, PhoneNormalizer $phoneNormalizer): RedirectResponse
     {
+        $this->authorizeSchool($school);
         $payload = $this->validated($request);
 
         if ($request->hasFile('attachment')) {
@@ -52,12 +61,14 @@ class DashboardSchoolController extends Controller
         }
 
         $school->update($payload);
+        $this->syncSchoolAdminUser($school->fresh(), $phoneNormalizer);
 
         return redirect()->route('dashboard.schools.index')->with('success', __('dashboard.school_updated'));
     }
 
     public function destroy(School $school): RedirectResponse
     {
+        abort_unless($this->isAdmin(), 403);
         $school->delete();
 
         return redirect()->route('dashboard.schools.index')->with('success', __('dashboard.school_deleted'));
@@ -75,11 +86,46 @@ class DashboardSchoolController extends Controller
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'status' => ['required', 'string', 'max:32'],
             'principal_name' => ['nullable', 'string', 'max:255'],
-            'admin_phone' => ['nullable', 'string', 'max:20'],
+            'admin_phone' => ['nullable', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
             'authorized_person_name' => ['nullable', 'string', 'max:255'],
-            'authorized_person_phone' => ['nullable', 'string', 'max:20'],
+            'authorized_person_phone' => ['nullable', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
             'notes' => ['nullable', 'string'],
             'attachment' => ['nullable', 'file', 'max:4096'],
         ]);
+    }
+
+    private function syncSchoolAdminUser(School $school, PhoneNormalizer $phoneNormalizer): void
+    {
+        if (! $school->admin_phone || ! $phoneNormalizer->isValidIraqiMobile((string) $school->admin_phone)) {
+            return;
+        }
+
+        $phone = $phoneNormalizer->normalize((string) $school->admin_phone);
+        $name = $school->principal_name ?: $school->name_en ?: $school->name_ar;
+
+        User::query()->firstOrCreate(
+            ['phone' => $phone],
+            [
+                'name' => $name,
+                'school_id' => $school->id,
+                'password' => config('dashboard.seed_password'),
+                'is_active' => $school->status === 'active',
+                'phone_verified_at' => now(),
+            ]
+        );
+    }
+
+    private function isAdmin(): bool
+    {
+        return (bool) auth()->user()?->is_admin;
+    }
+
+    private function authorizeSchool(School $school): void
+    {
+        if ($this->isAdmin()) {
+            return;
+        }
+
+        abort_unless((int) auth()->user()?->school_id === (int) $school->id, 403);
     }
 }

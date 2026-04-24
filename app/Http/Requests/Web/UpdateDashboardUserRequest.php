@@ -33,6 +33,7 @@ class UpdateDashboardUserRequest extends FormRequest
             'votes' => ['required', 'integer', 'min:0'],
             'rate' => ['required', 'numeric', 'min:0', 'max:5'],
             'is_verified' => ['nullable', 'boolean'],
+            'is_admin' => ['nullable', 'boolean'],
             'password' => ['nullable', 'string', 'min:8', 'max:255'],
             'is_active' => ['nullable', 'boolean'],
         ];
@@ -56,6 +57,7 @@ class UpdateDashboardUserRequest extends FormRequest
         $this->merge([
             'is_active' => $this->boolean('is_active'),
             'is_verified' => $this->boolean('is_verified'),
+            'is_admin' => $this->boolean('is_admin'),
         ]);
     }
 }

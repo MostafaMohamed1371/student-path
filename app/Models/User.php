@@ -25,6 +25,7 @@ use Laravel\Sanctum\HasApiTokens;
     'preferred_language',
     'phone_verified_at',
     'is_active',
+    'is_admin',
     'password',
 ])]
 #[Hidden(['password'])]
@@ -38,6 +39,7 @@ class User extends Authenticatable
         return [
             'phone_verified_at' => 'datetime',
             'is_active' => 'boolean',
+            'is_admin' => 'boolean',
             'is_verified' => 'boolean',
             'votes' => 'integer',
             'rate' => 'float',

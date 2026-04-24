@@ -43,6 +43,23 @@ class School extends Model
         return $this->hasMany(Driver::class);
     }
 
+    public function students(): HasMany
+    {
+        return $this->hasMany(Student::class);
+    }
+
+    public function guardians(): HasManyThrough
+    {
+        return $this->hasManyThrough(
+            Guardian::class,
+            Student::class,
+            'school_id',
+            'id',
+            'id',
+            'guardian_id'
+        );
+    }
+
     public function buses(): HasManyThrough
     {
         return $this->hasManyThrough(

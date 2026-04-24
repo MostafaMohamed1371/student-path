@@ -2,18 +2,27 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\AppliesApiSchoolScoping;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\StoreSchoolRequest;
 use App\Http\Requests\Api\UpdateSchoolRequest;
 use App\Http\Resources\SchoolResource;
 use App\Models\School;
+use App\Models\User;
+use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class SchoolController extends Controller
 {
-    public function index(): JsonResponse
+    use AppliesApiSchoolScoping;
+
+    public function index(Request $request): JsonResponse
     {
-        $schools = School::query()->latest('id')->get();
+        $user = $request->user();
+        $q = School::query();
+        $this->applyApiScopeToSchoolsQuery($q, $user);
+        $schools = $q->latest('id')->get();
 
         return response()->json([
             'success' => true,
@@ -22,8 +31,12 @@ class SchoolController extends Controller
         ]);
     }
 
-    public function show(School $school): JsonResponse
+    public function show(Request $request, School $school): JsonResponse
     {
+        if ($resp = $this->ensureApiCanAccessSchoolId($request->user(), (int) $school->id)) {
+            return $resp;
+        }
+
         return response()->json([
             'success' => true,
             'data' => (new SchoolResource($school))->toArray(request()),
@@ -31,8 +44,11 @@ class SchoolController extends Controller
         ]);
     }
 
-    public function store(StoreSchoolRequest $request): JsonResponse
+    public function store(StoreSchoolRequest $request, PhoneNormalizer $phoneNormalizer): JsonResponse
     {
+        if (! $this->isApiAdmin($request->user())) {
+            return $this->apiForbiddenResponse('forbidden');
+        }
         $validated = $request->validated();
 
         $school = School::query()->create([
@@ -53,6 +69,7 @@ class SchoolController extends Controller
                 ? $request->file('attachment')->store('schools', 'public')
                 : null,
         ]);
+        $this->syncSchoolAdminUser($school, $phoneNormalizer);
 
         return response()->json([
             'success' => true,
@@ -61,8 +78,11 @@ class SchoolController extends Controller
         ], 201);
     }
 
-    public function update(UpdateSchoolRequest $request, School $school): JsonResponse
+    public function update(UpdateSchoolRequest $request, School $school, PhoneNormalizer $phoneNormalizer): JsonResponse
     {
+        if ($resp = $this->ensureApiCanAccessSchoolId($request->user(), (int) $school->id)) {
+            return $resp;
+        }
         $validated = $request->validated();
 
         $payload = [
@@ -86,6 +106,7 @@ class SchoolController extends Controller
         }
 
         $school->update($payload);
+        $this->syncSchoolAdminUser($school->fresh(), $phoneNormalizer);
 
         return response()->json([
             'success' => true,
@@ -94,8 +115,11 @@ class SchoolController extends Controller
         ]);
     }
 
-    public function destroy(School $school): JsonResponse
+    public function destroy(Request $request, School $school): JsonResponse
     {
+        if (! $this->isApiAdmin($request->user())) {
+            return $this->apiForbiddenResponse('forbidden');
+        }
         $school->delete();
 
         return response()->json([
@@ -103,5 +127,23 @@ class SchoolController extends Controller
             'data' => (object) [],
             'msg' => 'school deleted successfully',
         ]);
+    }
+
+    private function syncSchoolAdminUser(School $school, PhoneNormalizer $phoneNormalizer): void
+    {
+        if (! $school->admin_phone || ! $phoneNormalizer->isValidIraqiMobile((string) $school->admin_phone)) {
+            return;
+        }
+
+        User::query()->firstOrCreate(
+            ['phone' => $phoneNormalizer->normalize((string) $school->admin_phone)],
+            [
+                'name' => $school->principal_name ?: $school->name_en ?: $school->name_ar,
+                'school_id' => $school->id,
+                'password' => config('dashboard.seed_password'),
+                'is_active' => $school->status === 'active',
+                'phone_verified_at' => now(),
+            ]
+        );
     }
 }

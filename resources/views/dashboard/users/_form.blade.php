@@ -78,6 +78,14 @@
             <option value="0" @selected((string) old('is_active', (isset($user) ? (int) $user->is_active : 1)) === '0')>{{ __('dashboard.inactive') }}</option>
         </select>
     </div>
+
+    <div>
+        <label class="field-label" for="is_admin">{{ __('dashboard.role') }}</label>
+        <select class="input" id="is_admin" name="is_admin">
+            <option value="1" @selected((string) old('is_admin', (isset($user) ? (int) $user->is_admin : 0)) === '1')>{{ __('dashboard.admin') }}</option>
+            <option value="0" @selected((string) old('is_admin', (isset($user) ? (int) $user->is_admin : 0)) === '0')>{{ __('dashboard.user') }}</option>
+        </select>
+    </div>
 </div>
 
 <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">

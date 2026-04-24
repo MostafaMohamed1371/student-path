@@ -25,9 +25,9 @@ class UpdateSchoolRequest extends FormRequest
             'longitude' => ['sometimes', 'nullable', 'numeric', 'between:-180,180'],
             'status' => ['sometimes', 'string', 'max:32'],
             'principalName' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'adminPhone' => ['sometimes', 'nullable', 'string', 'max:20'],
+            'adminPhone' => ['sometimes', 'nullable', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
             'authorizedPersonName' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'authorizedPersonPhone' => ['sometimes', 'nullable', 'string', 'max:20'],
+            'authorizedPersonPhone' => ['sometimes', 'nullable', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
             'notes' => ['sometimes', 'nullable', 'string'],
             'attachment' => ['sometimes', 'nullable', 'file', 'max:4096'],
         ];

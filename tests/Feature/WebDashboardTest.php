@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\School;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -40,18 +41,32 @@ class WebDashboardTest extends TestCase
 
     public function test_dashboard_user_can_create_update_and_delete_user(): void
     {
+        $school = School::query()->create([
+            'name_ar' => 'مدرسة',
+            'name_en' => 'Test School',
+            'province' => 'Baghdad',
+            'district' => '1',
+            'address' => 'St',
+            'status' => 'active',
+        ]);
+
         $admin = User::factory()->create([
             'phone' => '9647900000001',
             'password' => 'dashboard-secret',
+            'is_admin' => true,
+            'school_id' => $school->id,
         ]);
 
         $this->actingAs($admin);
 
         $this->post(route('dashboard.users.store'), [
             'name' => 'Test User',
+            'school_id' => $school->id,
             'phone' => '7901234567',
             'password' => '12345678',
             'is_active' => 1,
+            'votes' => 0,
+            'rate' => 0,
         ])->assertRedirect(route('dashboard.users.index'));
 
         $created = User::query()->where('phone', '9647901234567')->first();
@@ -59,9 +74,12 @@ class WebDashboardTest extends TestCase
 
         $this->put(route('dashboard.users.update', $created), [
             'name' => 'Test User 2',
+            'school_id' => $school->id,
             'phone' => '7901234567',
             'is_active' => 0,
             'password' => '',
+            'votes' => 0,
+            'rate' => 0,
         ])->assertRedirect(route('dashboard.users.index'));
 
         $this->assertDatabaseHas('users', [

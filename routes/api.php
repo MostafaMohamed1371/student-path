@@ -3,7 +3,9 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BusController;
 use App\Http\Controllers\Api\DriverController;
+use App\Http\Controllers\Api\GuardianController;
 use App\Http\Controllers\Api\SchoolController;
+use App\Http\Controllers\Api\StudentController;
 use App\Http\Controllers\Api\UserProfileController;
 use Illuminate\Support\Facades\Route;
 
@@ -50,5 +52,21 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('{driver}', [DriverController::class, 'show']);
         Route::put('{driver}', [DriverController::class, 'update']);
         Route::delete('{driver}', [DriverController::class, 'destroy']);
+    });
+
+    Route::prefix('students')->group(function (): void {
+        Route::get('/', [StudentController::class, 'index']);
+        Route::post('/', [StudentController::class, 'store']);
+        Route::get('{student}', [StudentController::class, 'show']);
+        Route::put('{student}', [StudentController::class, 'update']);
+        Route::delete('{student}', [StudentController::class, 'destroy']);
+    });
+
+    Route::prefix('guardians')->group(function (): void {
+        Route::get('/', [GuardianController::class, 'index']);
+        Route::post('/', [GuardianController::class, 'store']);
+        Route::get('{guardian}', [GuardianController::class, 'show']);
+        Route::put('{guardian}', [GuardianController::class, 'update']);
+        Route::delete('{guardian}', [GuardianController::class, 'destroy']);
     });
 });

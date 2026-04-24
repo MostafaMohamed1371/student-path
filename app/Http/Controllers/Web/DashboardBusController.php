@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\Bus;
 use App\Models\Driver;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -13,14 +14,22 @@ class DashboardBusController extends Controller
 {
     public function index(): View
     {
-        $buses = Bus::query()->with('driver.school')->latest('id')->paginate(12);
+        $buses = Bus::query()
+            ->with('driver.school')
+            ->when(! $this->isAdmin(), fn (Builder $query) => $query->whereHas('driver', fn (Builder $q) => $q->where('school_id', auth()->user()?->school_id)))
+            ->latest('id')
+            ->paginate(12);
 
         return view('dashboard.buses.index', compact('buses'));
     }
 
     public function create(): View|RedirectResponse
     {
-        $drivers = Driver::query()->with('school')->orderBy('id')->get();
+        $drivers = Driver::query()
+            ->with('school')
+            ->when(! $this->isAdmin(), fn (Builder $query) => $query->where('school_id', auth()->user()?->school_id))
+            ->orderBy('id')
+            ->get();
         if ($drivers->isEmpty()) {
             return redirect()->route('dashboard.drivers.create')
                 ->with('error', __('dashboard.create_driver_first'));
@@ -31,7 +40,12 @@ class DashboardBusController extends Controller
 
     public function edit(Bus $bus): View
     {
-        $drivers = Driver::query()->with('school')->orderBy('id')->get();
+        $this->authorizeBus($bus);
+        $drivers = Driver::query()
+            ->with('school')
+            ->when(! $this->isAdmin(), fn (Builder $query) => $query->where('school_id', auth()->user()?->school_id))
+            ->orderBy('id')
+            ->get();
 
         return view('dashboard.buses.edit', compact('bus', 'drivers'));
     }
@@ -39,6 +53,10 @@ class DashboardBusController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate($this->rules());
+        if (! $this->isAdmin()) {
+            $driver = Driver::query()->findOrFail($validated['driver_id']);
+            abort_unless((int) $driver->school_id === (int) auth()->user()?->school_id, 403);
+        }
         $validated['annual_status'] = $request->boolean('annual_status');
         $validated['insurance'] = $request->boolean('insurance');
 
@@ -49,7 +67,12 @@ class DashboardBusController extends Controller
 
     public function update(Request $request, Bus $bus): RedirectResponse
     {
+        $this->authorizeBus($bus);
         $validated = $request->validate($this->rules($bus->id));
+        if (! $this->isAdmin()) {
+            $driver = Driver::query()->findOrFail($validated['driver_id']);
+            abort_unless((int) $driver->school_id === (int) auth()->user()?->school_id, 403);
+        }
         $validated['annual_status'] = $request->boolean('annual_status');
         $validated['insurance'] = $request->boolean('insurance');
 
@@ -60,6 +83,7 @@ class DashboardBusController extends Controller
 
     public function destroy(Bus $bus): RedirectResponse
     {
+        $this->authorizeBus($bus);
         $bus->delete();
 
         return redirect()->route('dashboard.buses.index')->with('success', __('dashboard.bus_deleted'));
@@ -80,5 +104,20 @@ class DashboardBusController extends Controller
             'annual_status' => ['nullable', 'boolean'],
             'insurance' => ['nullable', 'boolean'],
         ];
+    }
+
+    private function isAdmin(): bool
+    {
+        return (bool) auth()->user()?->is_admin;
+    }
+
+    private function authorizeBus(Bus $bus): void
+    {
+        if ($this->isAdmin()) {
+            return;
+        }
+
+        $bus->loadMissing('driver');
+        abort_unless((int) $bus->driver?->school_id === (int) auth()->user()?->school_id, 403);
     }
 }

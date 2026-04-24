@@ -26,6 +26,7 @@ class DatabaseSeeder extends Seeder
                 'password' => (string) config('dashboard.seed_password'),
                 'phone_verified_at' => now(),
                 'is_active' => true,
+                'is_admin' => true,
             ]
         );
     }

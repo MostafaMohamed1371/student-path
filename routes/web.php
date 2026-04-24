@@ -2,10 +2,12 @@
 
 use App\Http\Controllers\Web\DashboardBusController;
 use App\Http\Controllers\Web\DashboardDriverController;
+use App\Http\Controllers\Web\DashboardGuardianController;
 use App\Http\Controllers\Web\DashboardHomeController;
 use App\Http\Controllers\Web\DashboardLoginController;
 use App\Http\Controllers\Web\DashboardProfileController;
 use App\Http\Controllers\Web\DashboardSchoolController;
+use App\Http\Controllers\Web\DashboardStudentController;
 use App\Http\Controllers\Web\DashboardUserController;
 use Illuminate\Support\Facades\Route;
 
@@ -55,6 +57,20 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/dashboard/drivers/{driver}/edit', [DashboardDriverController::class, 'edit'])->name('dashboard.drivers.edit');
     Route::put('/dashboard/drivers/{driver}', [DashboardDriverController::class, 'update'])->name('dashboard.drivers.update');
     Route::delete('/dashboard/drivers/{driver}', [DashboardDriverController::class, 'destroy'])->name('dashboard.drivers.destroy');
+
+    Route::get('/dashboard/students', [DashboardStudentController::class, 'index'])->name('dashboard.students.index');
+    Route::get('/dashboard/students/create', [DashboardStudentController::class, 'create'])->name('dashboard.students.create');
+    Route::post('/dashboard/students', [DashboardStudentController::class, 'store'])->name('dashboard.students.store');
+    Route::get('/dashboard/students/{student}/edit', [DashboardStudentController::class, 'edit'])->name('dashboard.students.edit');
+    Route::put('/dashboard/students/{student}', [DashboardStudentController::class, 'update'])->name('dashboard.students.update');
+    Route::delete('/dashboard/students/{student}', [DashboardStudentController::class, 'destroy'])->name('dashboard.students.destroy');
+
+    Route::get('/dashboard/guardians', [DashboardGuardianController::class, 'index'])->name('dashboard.guardians.index');
+    Route::get('/dashboard/guardians/create', [DashboardGuardianController::class, 'create'])->name('dashboard.guardians.create');
+    Route::post('/dashboard/guardians', [DashboardGuardianController::class, 'store'])->name('dashboard.guardians.store');
+    Route::get('/dashboard/guardians/{guardian}/edit', [DashboardGuardianController::class, 'edit'])->name('dashboard.guardians.edit');
+    Route::put('/dashboard/guardians/{guardian}', [DashboardGuardianController::class, 'update'])->name('dashboard.guardians.update');
+    Route::delete('/dashboard/guardians/{guardian}', [DashboardGuardianController::class, 'destroy'])->name('dashboard.guardians.destroy');
 
     Route::get('/dashboard/users', [DashboardUserController::class, 'index'])->name('dashboard.users.index');
     Route::get('/dashboard/users/create', [DashboardUserController::class, 'create'])->name('dashboard.users.create');

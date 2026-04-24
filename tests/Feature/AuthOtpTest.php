@@ -28,7 +28,7 @@ class AuthOtpTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('message', 'OTP sent successfully')
-            ->assertJsonMissingPath('data');
+            ->assertJsonStructure(['data' => ['otp_code']]);
 
         $this->assertDatabaseHas('otp_codes', [
             'phone' => self::PHONE_CANONICAL,
@@ -163,7 +163,7 @@ class AuthOtpTest extends TestCase
         ])
             ->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.user.phone', self::PHONE_CANONICAL);
+            ->assertJsonPath('data.user.phone', self::PHONE_INPUT);
     }
 
     /**

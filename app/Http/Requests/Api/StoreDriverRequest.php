@@ -25,7 +25,7 @@ class StoreDriverRequest extends FormRequest
             'idCardNumber' => ['required', 'string', 'max:255'],
             'licenseNumber' => ['required', 'string', 'max:255'],
             'primaryPhone' => ['required', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
-            'emergencyPhone' => ['required', 'string', 'max:20'],
+            'emergencyPhone' => ['required', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
             'residentialAddress' => ['required', 'string', 'max:255'],
             'status' => ['required', 'in:active,inactive'],
             'idCardImage' => ['nullable', 'file', 'image', 'max:4096'],

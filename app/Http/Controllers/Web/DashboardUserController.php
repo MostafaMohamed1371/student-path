@@ -5,10 +5,10 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Web\StoreDashboardUserRequest;
 use App\Http\Requests\Web\UpdateDashboardUserRequest;
-use App\Models\Driver;
 use App\Models\School;
 use App\Models\User;
 use App\Services\Phone\PhoneNormalizer;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
@@ -17,13 +17,18 @@ class DashboardUserController extends Controller
 {
     public function index(): View
     {
-        $users = User::query()->with('school')->latest('id')->paginate(12);
+        $users = User::query()
+            ->with('school')
+            ->when(! $this->isAdmin(), fn (Builder $query) => $query->where('school_id', auth()->user()?->school_id))
+            ->latest('id')
+            ->paginate(12);
 
         return view('dashboard.users.index', compact('users'));
     }
 
     public function create(): View
     {
+        abort_unless($this->isAdmin(), 403);
         $schools = School::query()->orderBy('name_en')->get();
 
         return view('dashboard.users.create', compact('schools'));
@@ -31,6 +36,7 @@ class DashboardUserController extends Controller
 
     public function store(StoreDashboardUserRequest $request, PhoneNormalizer $phoneNormalizer): RedirectResponse
     {
+        abort_unless($this->isAdmin(), 403);
         $validated = $request->validated();
         $imagePath = $request->hasFile('image')
             ? $request->file('image')->store('profiles', 'public')
@@ -46,18 +52,18 @@ class DashboardUserController extends Controller
             'votes' => $validated['votes'],
             'rate' => $validated['rate'],
             'is_verified' => $validated['is_verified'] ?? false,
+            'is_admin' => $validated['is_admin'] ?? false,
             'password' => $validated['password'],
             'is_active' => $validated['is_active'] ?? true,
             'phone_verified_at' => now(),
         ]);
-
-        $this->syncDriverForUser($user, $validated);
 
         return redirect()->route('dashboard.users.index')->with('success', __('dashboard.user_created'));
     }
 
     public function edit(User $user): View
     {
+        abort_unless($this->isAdmin(), 403);
         $schools = School::query()->orderBy('name_en')->get();
 
         return view('dashboard.users.edit', compact('user', 'schools'));
@@ -65,6 +71,7 @@ class DashboardUserController extends Controller
 
     public function update(UpdateDashboardUserRequest $request, User $user, PhoneNormalizer $phoneNormalizer): RedirectResponse
     {
+        abort_unless($this->isAdmin(), 403);
         $validated = $request->validated();
 
         $payload = [
@@ -76,6 +83,7 @@ class DashboardUserController extends Controller
             'votes' => $validated['votes'],
             'rate' => $validated['rate'],
             'is_verified' => $validated['is_verified'] ?? false,
+            'is_admin' => $validated['is_admin'] ?? false,
             'is_active' => $validated['is_active'] ?? false,
         ];
 
@@ -92,13 +100,13 @@ class DashboardUserController extends Controller
         }
 
         $user->update($payload);
-        $this->syncDriverForUser($user->fresh(), $validated);
 
         return redirect()->route('dashboard.users.index')->with('success', __('dashboard.user_updated'));
     }
 
     public function destroy(User $user): RedirectResponse
     {
+        abort_unless($this->isAdmin(), 403);
         if (auth()->id() === $user->id) {
             return redirect()->route('dashboard.users.index')->with('error', __('dashboard.cannot_delete_self'));
         }
@@ -108,22 +116,8 @@ class DashboardUserController extends Controller
         return redirect()->route('dashboard.users.index')->with('success', __('dashboard.user_deleted'));
     }
 
-    private function syncDriverForUser(User $user, array $validated): void
+    private function isAdmin(): bool
     {
-        $name = (string) ($validated['name'] ?? $user->name ?? '');
-        $parts = preg_split('/\s+/', trim($name)) ?: [];
-
-        Driver::query()->updateOrCreate(
-            ['user_id' => $user->id],
-            [
-                'school_id' => $validated['school_id'] ?? $user->school_id,
-                'first_name' => $parts[0] ?? null,
-                'father_name' => $parts[1] ?? null,
-                'grandfather_name' => $parts[2] ?? null,
-                'last_name' => $parts[3] ?? ($parts[2] ?? null),
-                'primary_phone' => $validated['phone'] ?? substr((string) $user->phone, 3),
-                'status' => ($validated['is_active'] ?? $user->is_active) ? 'active' : 'inactive',
-            ]
-        );
+        return (bool) auth()->user()?->is_admin;
     }
 }

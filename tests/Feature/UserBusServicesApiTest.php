@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Driver;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -56,10 +57,14 @@ class UserBusServicesApiTest extends TestCase
     public function test_bus_crud_flow_for_authenticated_user(): void
     {
         $user = User::factory()->create(['phone' => '9647901234567']);
+        $driver = Driver::query()->create([
+            'user_id' => $user->id,
+            'status' => 'active',
+        ]);
 
         Sanctum::actingAs($user);
 
-        $this->getJson('/api/user/bus')->assertStatus(404);
+        $this->getJson('/api/bus/my-bus')->assertStatus(404);
 
         $this->postJson('/api/bus/my-bus', [
             'busName' => 'Toyota Coaster',
@@ -91,6 +96,6 @@ class UserBusServicesApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('success', true);
 
-        $this->assertDatabaseMissing('buses', ['user_id' => $user->id]);
+        $this->assertDatabaseMissing('buses', ['driver_id' => $driver->id]);
     }
 }

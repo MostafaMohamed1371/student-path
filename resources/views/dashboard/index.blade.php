@@ -15,6 +15,14 @@
                 <p>{{ $driversCount }}</p>
             </article>
             <article class="stat-card">
+                <h3>{{ __('dashboard.stats_students') }}</h3>
+                <p>{{ $studentsCount }}</p>
+            </article>
+            <article class="stat-card">
+                <h3>{{ __('dashboard.stats_guardians') }}</h3>
+                <p>{{ $guardiansCount }}</p>
+            </article>
+            <article class="stat-card">
                 <h3>{{ __('dashboard.stats_users') }}</h3>
                 <p>{{ $usersCount }}</p>
             </article>

@@ -25,7 +25,7 @@ class UpdateDriverRequest extends FormRequest
             'idCardNumber' => ['sometimes', 'string', 'max:255'],
             'licenseNumber' => ['sometimes', 'string', 'max:255'],
             'primaryPhone' => ['sometimes', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
-            'emergencyPhone' => ['sometimes', 'string', 'max:20'],
+            'emergencyPhone' => ['sometimes', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
             'residentialAddress' => ['sometimes', 'string', 'max:255'],
             'status' => ['sometimes', 'in:active,inactive'],
             'idCardImage' => ['sometimes', 'nullable', 'file', 'image', 'max:4096'],
