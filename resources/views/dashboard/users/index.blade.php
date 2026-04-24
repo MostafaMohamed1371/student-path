@@ -5,9 +5,11 @@
 @section('content')
     @php($title = __('dashboard.menu_users'))
     @component('dashboard.partials.shell', ['title' => $title])
-        <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
-            <a href="{{ route('dashboard.users.create') }}" class="btn-primary" style="width:auto;padding:10px 14px;text-decoration:none;">{{ __('dashboard.add_user') }}</a>
-        </div>
+        @if(auth()->user()?->is_admin)
+            <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
+                <a href="{{ route('dashboard.users.create') }}" class="btn-primary" style="width:auto;padding:10px 14px;text-decoration:none;">{{ __('dashboard.add_user') }}</a>
+            </div>
+        @endif
 
         <section class="card">
             <div style="overflow:auto;">
@@ -59,14 +61,17 @@
                                     {{ $user->is_active ? __('dashboard.active') : __('dashboard.inactive') }}
                                 </span>
                             </td>
-                            <td style="display:flex;gap:8px;">
-                                <a href="{{ route('dashboard.users.edit', $user) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.edit') }}</a>
-
-                                <form method="post" action="{{ route('dashboard.users.destroy', $user) }}" onsubmit="return confirm('{{ __('dashboard.confirm_delete') }}')">
-                                    @csrf
-                                    @method('delete')
-                                    <button type="submit" class="btn-muted">{{ __('dashboard.delete') }}</button>
-                                </form>
+                            <td style="display:flex;gap:8px;flex-wrap:wrap;">
+                                @if(auth()->user()?->is_admin)
+                                    <a href="{{ route('dashboard.users.edit', $user) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.edit') }}</a>
+                                    <form method="post" action="{{ route('dashboard.users.destroy', $user) }}" onsubmit="return confirm('{{ __('dashboard.confirm_delete') }}')">
+                                        @csrf
+                                        @method('delete')
+                                        <button type="submit" class="btn-muted">{{ __('dashboard.delete') }}</button>
+                                    </form>
+                                @else
+                                    —
+                                @endif
                             </td>
                         </tr>
                     @empty

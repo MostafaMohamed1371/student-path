@@ -5,9 +5,11 @@
 @section('content')
     @php($title = __('dashboard.menu_schools'))
     @component('dashboard.partials.shell', ['title' => $title])
-        <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
-            <a href="{{ route('dashboard.schools.create') }}" class="btn-primary" style="width:auto;padding:10px 14px;text-decoration:none;">{{ __('dashboard.add_school') }}</a>
-        </div>
+        @if(auth()->user()?->is_admin)
+            <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
+                <a href="{{ route('dashboard.schools.create') }}" class="btn-primary" style="width:auto;padding:10px 14px;text-decoration:none;">{{ __('dashboard.add_school') }}</a>
+            </div>
+        @endif
 
         <section class="card">
             <div style="overflow:auto;">
@@ -36,13 +38,15 @@
                                     {{ $school->status === 'active' ? __('dashboard.active') : __('dashboard.inactive') }}
                                 </span>
                             </td>
-                            <td style="display:flex;gap:8px;">
+                            <td style="display:flex;gap:8px;flex-wrap:wrap;">
                                 <a href="{{ route('dashboard.schools.edit', $school) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.edit') }}</a>
-                                <form method="post" action="{{ route('dashboard.schools.destroy', $school) }}" onsubmit="return confirm('{{ __('dashboard.confirm_delete') }}')">
-                                    @csrf
-                                    @method('delete')
-                                    <button type="submit" class="btn-muted">{{ __('dashboard.delete') }}</button>
-                                </form>
+                                @if(auth()->user()?->is_admin)
+                                    <form method="post" action="{{ route('dashboard.schools.destroy', $school) }}" onsubmit="return confirm('{{ __('dashboard.confirm_delete') }}')">
+                                        @csrf
+                                        @method('delete')
+                                        <button type="submit" class="btn-muted">{{ __('dashboard.delete') }}</button>
+                                    </form>
+                                @endif
                             </td>
                         </tr>
                     @empty
