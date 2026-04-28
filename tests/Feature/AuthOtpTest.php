@@ -17,6 +17,16 @@ class AuthOtpTest extends TestCase
 
     private const string PHONE_CANONICAL = '9647701234567';
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        User::factory()->create([
+            'phone' => self::PHONE_CANONICAL,
+            'is_active' => true,
+        ]);
+    }
+
     public function test_send_otp_success(): void
     {
         Config::set('app.debug', false);
@@ -43,6 +53,16 @@ class AuthOtpTest extends TestCase
     {
         $this->postJson('/api/auth/send-otp', [
             'phone' => '0701234567',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('success', false)
+            ->assertJsonStructure(['errors' => ['phone']]);
+    }
+
+    public function test_send_otp_fails_for_unregistered_phone(): void
+    {
+        $this->postJson('/api/auth/send-otp', [
+            'phone' => '7711111111',
         ])
             ->assertStatus(422)
             ->assertJsonPath('success', false)
@@ -163,7 +183,7 @@ class AuthOtpTest extends TestCase
         ])
             ->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.user.phone', self::PHONE_INPUT);
+            ->assertJsonPath('data.user.phone', self::PHONE_CANONICAL);
     }
 
     /**

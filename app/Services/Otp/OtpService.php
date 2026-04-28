@@ -4,10 +4,8 @@ namespace App\Services\Otp;
 
 use App\Contracts\Sms\SmsSender;
 use App\Enums\OtpPurpose;
-use App\Models\Driver;
 use App\Models\OtpCode;
 use App\Models\User;
-use App\Services\Driver\UserDriverProfileSynchronizer;
 use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -26,7 +24,6 @@ final class OtpService
     public function __construct(
         private readonly PhoneNormalizer $phoneNormalizer,
         private readonly SmsSender $smsSender,
-        private readonly UserDriverProfileSynchronizer $userDriverProfileSynchronizer,
     ) {}
 
     /**
@@ -35,6 +32,20 @@ final class OtpService
     public function send(string $rawPhone, OtpPurpose $purpose): array
     {
         $phone = $this->phoneNormalizer->normalize($rawPhone);
+        $user = User::query()->where('phone', $phone)->first();
+
+        // Login-only OTP: do not send a code for unknown phones.
+        if (! $user) {
+            throw ValidationException::withMessages([
+                'phone' => ['This phone number is not registered.'],
+            ]);
+        }
+
+        if (! $user->is_active) {
+            throw ValidationException::withMessages([
+                'phone' => ['This account is disabled.'],
+            ]);
+        }
 
         $latest = OtpCode::query()
             ->forPhoneAndPurpose($phone, $purpose)
@@ -128,10 +139,12 @@ final class OtpService
             // One-time use: mark verified so this OTP can never authenticate again.
             $otp->forceFill(['verified_at' => now()])->save();
 
-            $user = User::query()->firstOrCreate(
-                ['phone' => $phone],
-                ['name' => null, 'is_active' => true]
-            );
+            $user = User::query()->where('phone', $phone)->lockForUpdate()->first();
+            if (! $user) {
+                throw ValidationException::withMessages([
+                    'phone' => ['This phone number is not registered.'],
+                ]);
+            }
 
             if (! $user->is_active) {
                 throw ValidationException::withMessages([
@@ -142,16 +155,6 @@ final class OtpService
             if ($user->phone_verified_at === null) {
                 $user->forceFill(['phone_verified_at' => now()])->save();
             }
-
-            Driver::query()->firstOrCreate(
-                ['user_id' => $user->id],
-                [
-                    'primary_phone' => substr((string) $user->phone, 3),
-                    'status' => 'active',
-                ]
-            );
-
-            $this->userDriverProfileSynchronizer->syncFromUser($user->fresh(), true);
 
             $token = $user->createToken('mobile')->plainTextToken;
 

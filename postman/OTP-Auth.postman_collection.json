@@ -1,37 +1,65 @@
 {
   "info": {
     "name": "Student Path — Auth, User & Bus APIs",
-    "description": "## Tokens & scoping (matches web dashboard)\n\n| Variable | When to use |\n|----------|-------------|\n| `token` | After **verify-otp**, the test script stores the Sanctum token here. Use for **read** requests: `GET` list/show on schools, students, guardians, and drivers. Non-admins are **school-scoped** (via `users.school_id` or linked `driver.school_id`). Also use for **user profile**, **language**, and **`/api/bus/my-bus`** (driver’s own bus — not the same as admin bus CRUD). |\n| `admin_token` | **Required** for any **write** to schools/students/guardians/drivers: `POST`, `PUT`, `DELETE` on `/api/schools…`, `/api/students…`, `/api/guardians…`, `/api/drivers…`. Token must be for a user with `is_admin: true` (seed admin, tinker, or personal access token). If you use `token` for these, you will get **403** `forbidden` for non-admins. |\n| `school_id`, `driver_id`, `student_id`, `guardian_id` | Set from a `GET` list response; used in paths and bodies. |\n\n## 403 (admin-only writes)\n\nNon-admins who call a mutation on schools/students/guardians/drivers receive **403**:\n\n```json\n{ \"success\": false, \"data\": {}, \"msg\": \"forbidden\" }\n```\n\nSome **GET** cases (e.g. resource from another school) return the same. If the account has no school scope, you may see:\n\n`\"A school must be linked to this account to perform this action.\"` (on scoped reads when scope is missing).\n",
+    "description": "## OTP login policy\n\n- OTP is **login-only**.\n- Phone must already exist in `users.phone` (existing account).\n- **No registration flow** is performed by `send-otp` or `verify-otp`.\n- If phone is not registered, auth endpoints return validation error (422).\n\n## Tokens & scoping (matches web dashboard)\n\n| Variable | When to use |\n|----------|-------------|\n| `token` | After **verify-otp**, the test script stores the Sanctum token here. Use for **read** requests: `GET` list/show on schools, students, guardians, and drivers. Non-admins are **school-scoped** (via `users.school_id` or linked `driver.school_id`). Also use for **user profile**, **language**, and **`/api/bus/my-bus`** (driver’s own bus — not the same as admin bus CRUD). |\n| `admin_token` | **Required** for any **write** to schools/students/guardians/drivers: `POST`, `PUT`, `DELETE` on `/api/schools…`, `/api/students…`, `/api/guardians…`, `/api/drivers…`. Token must be for a user with `is_admin: true` (seed admin, tinker, or personal access token). If you use `token` for these, you will get **403** `forbidden` for non-admins. |\n| `school_id`, `driver_id`, `student_id`, `guardian_id` | Set from a `GET` list response; used in paths and bodies. |\n\n## 403 (admin-only writes)\n\nNon-admins who call a mutation on schools/students/guardians/drivers receive **403**:\n\n```json\n{ \"success\": false, \"data\": {}, \"msg\": \"forbidden\" }\n```\n\nSome **GET** cases (e.g. resource from another school) return the same. If the account has no school scope, you may see:\n\n`\"A school must be linked to this account to perform this action.\"` (on scoped reads when scope is missing).\n",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "base_url", "value": "http://localhost:8000" },
-    { "key": "token", "value": "" },
-    { "key": "admin_token", "value": "" },
-    { "key": "school_id", "value": "1" },
-    { "key": "driver_id", "value": "1" },
-    { "key": "student_id", "value": "1" },
-    { "key": "guardian_id", "value": "1" }
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "admin_token",
+      "value": ""
+    },
+    {
+      "key": "school_id",
+      "value": "1"
+    },
+    {
+      "key": "driver_id",
+      "value": "1"
+    },
+    {
+      "key": "student_id",
+      "value": "1"
+    },
+    {
+      "key": "guardian_id",
+      "value": "1"
+    }
   ],
   "item": [
     {
       "name": "Auth",
-      "description": "On **200** from `verify-otp`, the test script stores `data.token` into `token`. Use that for **GET** (read) on schools/students/guardians/drivers. For **POST/PUT/DELETE** on those same APIs, set `admin_token` to a Sanctum token for an `is_admin` user and select the requests that use `Bearer {{admin_token}}` (see collection description).",
+      "description": "OTP works only for **existing users** (login flow only). `POST /api/auth/send-otp` and `POST /api/auth/verify-otp` do **not** register new users. If the phone is not found in `users`, the API returns 422 validation error. On **200** from `verify-otp`, the test script stores `data.token` into `token`.",
       "item": [
         {
           "name": "POST /api/auth/send-otp",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"phone\": \"7701234567\"\n}"
             },
             "url": "{{base_url}}/api/auth/send-otp"
-          }
+          },
+          "description": "Login OTP request for an **already registered** phone number only. No auto-registration. Unregistered phone returns 422."
         },
         {
           "name": "POST /api/auth/verify-otp",
@@ -57,23 +85,36 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"phone\": \"7701234567\",\n  \"code\": \"1234\"\n}"
             },
             "url": "{{base_url}}/api/auth/verify-otp"
-          }
+          },
+          "description": "Verifies OTP for an **existing user** only and returns a login token. Does not create user/driver/student/guardian/school records."
         },
         {
           "name": "GET /api/auth/me",
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "url": "{{base_url}}/api/auth/me"
           }
@@ -83,8 +124,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "url": "{{base_url}}/api/auth/logout"
           }
@@ -99,8 +146,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "url": "{{base_url}}/api/user/profile"
           }
@@ -110,9 +163,18 @@
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -126,9 +188,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -142,8 +213,14 @@
           "request": {
             "method": "DELETE",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "url": "{{base_url}}/api/user/profile"
           }
@@ -159,8 +236,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "url": "{{base_url}}/api/bus/my-bus"
           }
@@ -170,9 +253,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -186,9 +278,18 @@
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -202,8 +303,14 @@
           "request": {
             "method": "DELETE",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "url": "{{base_url}}/api/bus/my-bus"
           }
@@ -219,8 +326,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "url": "{{base_url}}/api/user/driver"
           }
@@ -230,8 +343,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "url": "{{base_url}}/api/drivers"
           }
@@ -241,8 +360,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "url": "{{base_url}}/api/drivers/{{driver_id}}"
           }
@@ -253,27 +378,93 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "body": {
               "mode": "formdata",
               "formdata": [
-                { "key": "schoolId", "value": "{{school_id}}", "type": "text" },
-                { "key": "firstName", "value": "Ahmed", "type": "text" },
-                { "key": "fatherName", "value": "Ali", "type": "text" },
-                { "key": "grandfatherName", "value": "Hassan", "type": "text" },
-                { "key": "lastName", "value": "Mohammed", "type": "text" },
-                { "key": "age", "value": "35", "type": "text" },
-                { "key": "idCardNumber", "value": "ID123456789", "type": "text" },
-                { "key": "licenseNumber", "value": "LIC987654", "type": "text" },
-                { "key": "primaryPhone", "value": "7701234567", "type": "text" },
-                { "key": "emergencyPhone", "value": "7712345678", "type": "text" },
-                { "key": "residentialAddress", "value": "Baghdad", "type": "text" },
-                { "key": "status", "value": "active", "type": "text" },
-                { "key": "idCardImage", "type": "file", "src": "" },
-                { "key": "licenseImage", "type": "file", "src": "" },
-                { "key": "nonConvictionCertificate", "type": "file", "src": "" }
+                {
+                  "key": "schoolId",
+                  "value": "{{school_id}}",
+                  "type": "text"
+                },
+                {
+                  "key": "firstName",
+                  "value": "Ahmed",
+                  "type": "text"
+                },
+                {
+                  "key": "fatherName",
+                  "value": "Ali",
+                  "type": "text"
+                },
+                {
+                  "key": "grandfatherName",
+                  "value": "Hassan",
+                  "type": "text"
+                },
+                {
+                  "key": "lastName",
+                  "value": "Mohammed",
+                  "type": "text"
+                },
+                {
+                  "key": "age",
+                  "value": "35",
+                  "type": "text"
+                },
+                {
+                  "key": "idCardNumber",
+                  "value": "ID123456789",
+                  "type": "text"
+                },
+                {
+                  "key": "licenseNumber",
+                  "value": "LIC987654",
+                  "type": "text"
+                },
+                {
+                  "key": "primaryPhone",
+                  "value": "7701234567",
+                  "type": "text"
+                },
+                {
+                  "key": "emergencyPhone",
+                  "value": "7712345678",
+                  "type": "text"
+                },
+                {
+                  "key": "residentialAddress",
+                  "value": "Baghdad",
+                  "type": "text"
+                },
+                {
+                  "key": "status",
+                  "value": "active",
+                  "type": "text"
+                },
+                {
+                  "key": "idCardImage",
+                  "type": "file",
+                  "src": ""
+                },
+                {
+                  "key": "licenseImage",
+                  "type": "file",
+                  "src": ""
+                },
+                {
+                  "key": "nonConvictionCertificate",
+                  "type": "file",
+                  "src": ""
+                }
               ]
             },
             "url": "{{base_url}}/api/drivers"
@@ -285,14 +476,28 @@
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "body": {
               "mode": "formdata",
               "formdata": [
-                { "key": "status", "value": "inactive", "type": "text" },
-                { "key": "residentialAddress", "value": "Baghdad - Karkh", "type": "text" }
+                {
+                  "key": "status",
+                  "value": "inactive",
+                  "type": "text"
+                },
+                {
+                  "key": "residentialAddress",
+                  "value": "Baghdad - Karkh",
+                  "type": "text"
+                }
               ]
             },
             "url": "{{base_url}}/api/drivers/{{driver_id}}"
@@ -304,8 +509,14 @@
           "request": {
             "method": "DELETE",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": "{{base_url}}/api/drivers/{{driver_id}}"
           }
@@ -321,8 +532,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "url": "{{base_url}}/api/schools"
           }
@@ -332,8 +549,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "url": "{{base_url}}/api/schools/{{school_id}}"
           }
@@ -344,26 +567,88 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "body": {
               "mode": "formdata",
               "formdata": [
-                { "key": "schoolNameAr", "value": "مدرسة النور الابتدائية", "type": "text" },
-                { "key": "schoolNameEn", "value": "Al Noor Primary School", "type": "text" },
-                { "key": "province", "value": "Baghdad", "type": "text" },
-                { "key": "district", "value": "Karkh", "type": "text" },
-                { "key": "address", "value": "Al Mansour, Street 10", "type": "text" },
-                { "key": "latitude", "value": "33.3128", "type": "text" },
-                { "key": "longitude", "value": "44.3615", "type": "text" },
-                { "key": "status", "value": "active", "type": "text" },
-                { "key": "principalName", "value": "Ahmed Mohammed", "type": "text" },
-                { "key": "adminPhone", "value": "7701234567", "type": "text" },
-                { "key": "authorizedPersonName", "value": "Ali Hassan", "type": "text" },
-                { "key": "authorizedPersonPhone", "value": "7712345678", "type": "text" },
-                { "key": "notes", "value": "Main branch", "type": "text" },
-                { "key": "attachment", "type": "file", "src": "" }
+                {
+                  "key": "schoolNameAr",
+                  "value": "مدرسة النور الابتدائية",
+                  "type": "text"
+                },
+                {
+                  "key": "schoolNameEn",
+                  "value": "Al Noor Primary School",
+                  "type": "text"
+                },
+                {
+                  "key": "province",
+                  "value": "Baghdad",
+                  "type": "text"
+                },
+                {
+                  "key": "district",
+                  "value": "Karkh",
+                  "type": "text"
+                },
+                {
+                  "key": "address",
+                  "value": "Al Mansour, Street 10",
+                  "type": "text"
+                },
+                {
+                  "key": "latitude",
+                  "value": "33.3128",
+                  "type": "text"
+                },
+                {
+                  "key": "longitude",
+                  "value": "44.3615",
+                  "type": "text"
+                },
+                {
+                  "key": "status",
+                  "value": "active",
+                  "type": "text"
+                },
+                {
+                  "key": "principalName",
+                  "value": "Ahmed Mohammed",
+                  "type": "text"
+                },
+                {
+                  "key": "adminPhone",
+                  "value": "7701234567",
+                  "type": "text"
+                },
+                {
+                  "key": "authorizedPersonName",
+                  "value": "Ali Hassan",
+                  "type": "text"
+                },
+                {
+                  "key": "authorizedPersonPhone",
+                  "value": "7712345678",
+                  "type": "text"
+                },
+                {
+                  "key": "notes",
+                  "value": "Main branch",
+                  "type": "text"
+                },
+                {
+                  "key": "attachment",
+                  "type": "file",
+                  "src": ""
+                }
               ]
             },
             "url": "{{base_url}}/api/schools"
@@ -375,15 +660,33 @@
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "body": {
               "mode": "formdata",
               "formdata": [
-                { "key": "status", "value": "inactive", "type": "text" },
-                { "key": "notes", "value": "Updated school info", "type": "text" },
-                { "key": "attachment", "type": "file", "src": "" }
+                {
+                  "key": "status",
+                  "value": "inactive",
+                  "type": "text"
+                },
+                {
+                  "key": "notes",
+                  "value": "Updated school info",
+                  "type": "text"
+                },
+                {
+                  "key": "attachment",
+                  "type": "file",
+                  "src": ""
+                }
               ]
             },
             "url": "{{base_url}}/api/schools/{{school_id}}"
@@ -395,8 +698,14 @@
           "request": {
             "method": "DELETE",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": "{{base_url}}/api/schools/{{school_id}}"
           }
@@ -412,8 +721,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "url": "{{base_url}}/api/students"
           }
@@ -423,8 +738,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "url": "{{base_url}}/api/students/{{student_id}}"
           }
@@ -435,27 +756,93 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "body": {
               "mode": "formdata",
               "formdata": [
-                { "key": "schoolId", "value": "{{school_id}}", "type": "text" },
-                { "key": "guardianId", "value": "{{guardian_id}}", "type": "text" },
-                { "key": "fullName", "value": "Ali Ahmed", "type": "text" },
-                { "key": "gender", "value": "male", "type": "text" },
-                { "key": "dateOfBirth", "value": "2015-05-01", "type": "text" },
-                { "key": "age", "value": "10", "type": "text" },
-                { "key": "profilePhoto", "type": "file", "src": "" },
-                { "key": "grade", "value": "Grade 5", "type": "text" },
-                { "key": "studentPhone", "value": "7701234500", "type": "text" },
-                { "key": "relationship", "value": "father", "type": "text" },
-                { "key": "districtArea", "value": "Karkh", "type": "text" },
-                { "key": "nearestLandmark", "value": "Near Main Mosque", "type": "text" },
-                { "key": "latitude", "value": "33.3152", "type": "text" },
-                { "key": "longitude", "value": "44.3661", "type": "text" },
-                { "key": "status", "value": "active", "type": "text" }
+                {
+                  "key": "schoolId",
+                  "value": "{{school_id}}",
+                  "type": "text"
+                },
+                {
+                  "key": "guardianId",
+                  "value": "{{guardian_id}}",
+                  "type": "text"
+                },
+                {
+                  "key": "fullName",
+                  "value": "Ali Ahmed",
+                  "type": "text"
+                },
+                {
+                  "key": "gender",
+                  "value": "male",
+                  "type": "text"
+                },
+                {
+                  "key": "dateOfBirth",
+                  "value": "2015-05-01",
+                  "type": "text"
+                },
+                {
+                  "key": "age",
+                  "value": "10",
+                  "type": "text"
+                },
+                {
+                  "key": "profilePhoto",
+                  "type": "file",
+                  "src": ""
+                },
+                {
+                  "key": "grade",
+                  "value": "Grade 5",
+                  "type": "text"
+                },
+                {
+                  "key": "studentPhone",
+                  "value": "7701234500",
+                  "type": "text"
+                },
+                {
+                  "key": "relationship",
+                  "value": "father",
+                  "type": "text"
+                },
+                {
+                  "key": "districtArea",
+                  "value": "Karkh",
+                  "type": "text"
+                },
+                {
+                  "key": "nearestLandmark",
+                  "value": "Near Main Mosque",
+                  "type": "text"
+                },
+                {
+                  "key": "latitude",
+                  "value": "33.3152",
+                  "type": "text"
+                },
+                {
+                  "key": "longitude",
+                  "value": "44.3661",
+                  "type": "text"
+                },
+                {
+                  "key": "status",
+                  "value": "active",
+                  "type": "text"
+                }
               ]
             },
             "url": "{{base_url}}/api/students"
@@ -467,15 +854,33 @@
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "body": {
               "mode": "formdata",
               "formdata": [
-                { "key": "grade", "value": "Grade 6", "type": "text" },
-                { "key": "status", "value": "inactive", "type": "text" },
-                { "key": "profilePhoto", "type": "file", "src": "" }
+                {
+                  "key": "grade",
+                  "value": "Grade 6",
+                  "type": "text"
+                },
+                {
+                  "key": "status",
+                  "value": "inactive",
+                  "type": "text"
+                },
+                {
+                  "key": "profilePhoto",
+                  "type": "file",
+                  "src": ""
+                }
               ]
             },
             "url": "{{base_url}}/api/students/{{student_id}}"
@@ -487,8 +892,14 @@
           "request": {
             "method": "DELETE",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": "{{base_url}}/api/students/{{student_id}}"
           }
@@ -504,8 +915,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "url": "{{base_url}}/api/guardians"
           }
@@ -515,8 +932,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "url": "{{base_url}}/api/guardians/{{guardian_id}}"
           }
@@ -527,9 +950,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -544,9 +976,18 @@
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -561,8 +1002,14 @@
           "request": {
             "method": "DELETE",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": "{{base_url}}/api/guardians/{{guardian_id}}"
           }
