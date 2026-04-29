@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Student Path — Auth, User & Bus APIs",
-    "description": "## OTP login policy\n\n- OTP is **login-only**.\n- Phone must already exist in `users.phone` (existing account).\n- **No registration flow** is performed by `send-otp` or `verify-otp`.\n- If phone is not registered, auth endpoints return validation error (422).\n\n## Tokens & scoping (matches web dashboard)\n\n| Variable | When to use |\n|----------|-------------|\n| `token` | After **verify-otp**, the test script stores the Sanctum token here. Use for **read** requests: `GET` list/show on schools, students, guardians, and drivers. Non-admins are **school-scoped** (via `users.school_id` or linked `driver.school_id`). Also use for **user profile**, **language**, and **`/api/bus/my-bus`** (driver’s own bus — not the same as admin bus CRUD). |\n| `admin_token` | **Required** for any **write** to schools/students/guardians/drivers: `POST`, `PUT`, `DELETE` on `/api/schools…`, `/api/students…`, `/api/guardians…`, `/api/drivers…`. Token must be for a user with `is_admin: true` (seed admin, tinker, or personal access token). If you use `token` for these, you will get **403** `forbidden` for non-admins. |\n| `school_id`, `driver_id`, `student_id`, `guardian_id` | Set from a `GET` list response; used in paths and bodies. |\n\n## 403 (admin-only writes)\n\nNon-admins who call a mutation on schools/students/guardians/drivers receive **403**:\n\n```json\n{ \"success\": false, \"data\": {}, \"msg\": \"forbidden\" }\n```\n\nSome **GET** cases (e.g. resource from another school) return the same. If the account has no school scope, you may see:\n\n`\"A school must be linked to this account to perform this action.\"` (on scoped reads when scope is missing).\n",
+    "description": "## OTP login policy\n\n- OTP is **login-only**.\n- Phone must already exist in `users.phone` (existing account).\n- **No registration flow** is performed by `send-otp` or `verify-otp`.\n- If phone is not registered, auth endpoints return validation error (422).\n\n## Tokens & scoping (matches web dashboard)\n\n| Variable | When to use |\n|----------|-------------|\n| `token` | After **verify-otp**, the test script stores the Sanctum token here. Use for **read** requests: `GET` list/show on schools, students, guardians, drivers, and trips. Non-admins are **school-scoped** (via `users.school_id` or linked `driver.school_id`). Also use for **user profile**, **language**, and **`/api/bus/my-bus`** (driver’s own bus — not the same as admin bus CRUD). |\n| `admin_token` | **Required** for any **write** to schools/students/guardians/drivers/trips: `POST`, `PUT`, `DELETE` on `/api/schools…`, `/api/students…`, `/api/guardians…`, `/api/drivers…`, `/api/trips…`. Token must be for a user with `is_admin: true` (seed admin, tinker, or personal access token). If you use `token` for these, you will get **403** `forbidden` for non-admins. |\n| `school_id`, `driver_id`, `student_id`, `guardian_id`, `trip_id` | Set from a `GET` list response; used in paths and bodies. |\n\n## 403 (admin-only writes)\n\nNon-admins who call a mutation on schools/students/guardians/drivers/trips receive **403**:\n\n```json\n{ \"success\": false, \"data\": {}, \"msg\": \"forbidden\" }\n```\n\nSome **GET** cases (e.g. resource from another school) return the same. If the account has no school scope, you may see:\n\n`\"A school must be linked to this account to perform this action.\"` (on scoped reads when scope is missing).\n",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -31,6 +31,10 @@
     },
     {
       "key": "guardian_id",
+      "value": "1"
+    },
+    {
+      "key": "trip_id",
       "value": "1"
     }
   ],
@@ -1012,6 +1016,133 @@
               }
             ],
             "url": "{{base_url}}/api/guardians/{{guardian_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Trips Services",
+      "description": "`GET /api/trips/history` returns UI-oriented history (status/message/data) with filters: `period`, `from`, `to`, `page`, `pageSize`. `GET /api/trips` and `GET /api/trips/{trip}` use `{{token}}` (school-scoped for non-admins). `POST/PUT/DELETE /api/trips` require `{{admin_token}}`.",
+      "item": [
+        {
+          "name": "GET /api/trips/history",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/trips/history?period=MORNING&page=1&pageSize=20&from=2026-04-01&to=2026-04-30"
+          }
+        },
+        {
+          "name": "GET /api/trips",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/trips"
+          }
+        },
+        {
+          "name": "GET /api/trips/{trip}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/trips/{{trip_id}}"
+          }
+        },
+        {
+          "name": "POST /api/trips (admin only)",
+          "description": "Use `Bearer {{admin_token}}`.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"school_id\": {{school_id}},\n  \"bus_number\": \"40\",\n  \"route_title\": \"المنصور - حي الجامعة\",\n  \"location\": \"منطقة رقم 1، بغداد\",\n  \"students_count\": 3,\n  \"distance_km\": 10,\n  \"start_time\": \"2026-04-28 07:30:00\",\n  \"end_time\": \"2026-04-28 08:30:00\",\n  \"status\": \"PRESENT\",\n  \"note\": \"وصل الطلاب في الموعد المحدد.\",\n  \"students_preview\": [\n    {\"id\": \"student-1-0\", \"name\": \"أحمد محمد\", \"stop_name\": \"نقطة التوقف رقم 1\", \"grade_label\": \"الصف الدراسي\"}\n  ]\n}"
+            },
+            "url": "{{base_url}}/api/trips"
+          }
+        },
+        {
+          "name": "PUT /api/trips/{trip} (admin only)",
+          "description": "Use `Bearer {{admin_token}}`.",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ABSENT\",\n  \"note\": \"Traffic delay\"\n}"
+            },
+            "url": "{{base_url}}/api/trips/{{trip_id}}"
+          }
+        },
+        {
+          "name": "DELETE /api/trips/{trip} (admin only)",
+          "description": "Use `Bearer {{admin_token}}`.",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/trips/{{trip_id}}"
           }
         }
       ]

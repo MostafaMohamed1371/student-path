@@ -36,7 +36,7 @@
                 </label>
                 <label style="grid-column:1 / -1;"><span>{{ __('dashboard.notes') }}</span><textarea name="note" rows="3">{{ old('note') }}</textarea></label>
 
-                <div style="grid-column:1 / -1;display:flex;gap:10px;">
+                <div style="grid-column:1 / -1;display:flex;gap:10px;flex-wrap:wrap;">
                     <button type="submit" class="btn-primary">{{ __('dashboard.create') }}</button>
                     <a href="{{ route('dashboard.trips.index') }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.cancel') }}</a>
                 </div>

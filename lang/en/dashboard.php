@@ -77,6 +77,7 @@ return [
     'buses' => 'Buses',
     'route_title' => 'Route Title',
     'location' => 'Location',
+    'students_count' => 'Students Count',
     'distance_km' => 'Distance (km)',
     'trip_start_time' => 'Start Time',
     'trip_end_time' => 'End Time',

@@ -77,6 +77,7 @@ return [
     'buses' => 'الحافلات',
     'route_title' => 'عنوان المسار',
     'location' => 'الموقع',
+    'students_count' => 'عدد الطلاب',
     'distance_km' => 'المسافة (كم)',
     'trip_start_time' => 'وقت البدء',
     'trip_end_time' => 'وقت الانتهاء',

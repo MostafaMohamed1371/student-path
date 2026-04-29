@@ -344,6 +344,39 @@
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
+        .form-grid label {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 0;
+        }
+
+        .form-grid label > span {
+            font-size: 14px;
+            color: #475569;
+            font-weight: 600;
+        }
+
+        .form-grid input,
+        .form-grid select,
+        .form-grid textarea {
+            width: 100%;
+            max-width: 100%;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            background: #fff;
+            padding: 10px 12px;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .form-grid input:focus,
+        .form-grid select:focus,
+        .form-grid textarea:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(26, 39, 68, 0.12);
+        }
+
         @media (max-width: 520px) {
             .login-card {
                 padding: 22px;
@@ -367,6 +400,22 @@
             .stats-grid,
             .form-grid {
                 grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 680px) {
+            .dash-main {
+                padding: 12px;
+            }
+
+            .card {
+                padding: 12px;
+            }
+
+            .form-grid .btn-primary,
+            .form-grid .btn-muted {
+                width: 100%;
+                text-align: center;
             }
         }
     </style>
