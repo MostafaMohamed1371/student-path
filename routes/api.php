@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\GuardianController;
 use App\Http\Controllers\Api\SchoolController;
 use App\Http\Controllers\Api\StudentController;
+use App\Http\Controllers\Api\TripHistoryController;
 use App\Http\Controllers\Api\UserProfileController;
 use Illuminate\Support\Facades\Route;
 
@@ -68,5 +69,14 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('{guardian}', [GuardianController::class, 'show']);
         Route::put('{guardian}', [GuardianController::class, 'update']);
         Route::delete('{guardian}', [GuardianController::class, 'destroy']);
+    });
+
+    Route::prefix('trips')->group(function (): void {
+        Route::get('history', [TripHistoryController::class, 'history']);
+        Route::get('/', [TripHistoryController::class, 'index']);
+        Route::post('/', [TripHistoryController::class, 'store']);
+        Route::get('{trip}', [TripHistoryController::class, 'show']);
+        Route::put('{trip}', [TripHistoryController::class, 'update']);
+        Route::delete('{trip}', [TripHistoryController::class, 'destroy']);
     });
 });

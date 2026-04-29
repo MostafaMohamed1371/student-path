@@ -27,6 +27,8 @@ Endpoints:
 Behavior:
 - Client sends Iraqi national mobile number (10 digits, no leading `0`)
 - Server normalizes to canonical format: `964` + 10 digits
+- OTP works for **existing users only** (login flow; no registration)
+- If phone is not found in `users`, auth endpoints return `422`
 - OTP is 4 digits and stored as plain text by project requirement
 - Expiry, resend cooldown, attempts limit, and API throttling are enforced
 

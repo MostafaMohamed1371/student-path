@@ -8,6 +8,7 @@ use App\Http\Controllers\Web\DashboardLoginController;
 use App\Http\Controllers\Web\DashboardProfileController;
 use App\Http\Controllers\Web\DashboardSchoolController;
 use App\Http\Controllers\Web\DashboardStudentController;
+use App\Http\Controllers\Web\DashboardTripController;
 use App\Http\Controllers\Web\DashboardUserController;
 use Illuminate\Support\Facades\Route;
 
@@ -71,6 +72,13 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/dashboard/guardians/{guardian}/edit', [DashboardGuardianController::class, 'edit'])->name('dashboard.guardians.edit');
     Route::put('/dashboard/guardians/{guardian}', [DashboardGuardianController::class, 'update'])->name('dashboard.guardians.update');
     Route::delete('/dashboard/guardians/{guardian}', [DashboardGuardianController::class, 'destroy'])->name('dashboard.guardians.destroy');
+
+    Route::get('/dashboard/trips', [DashboardTripController::class, 'index'])->name('dashboard.trips.index');
+    Route::get('/dashboard/trips/create', [DashboardTripController::class, 'create'])->name('dashboard.trips.create');
+    Route::post('/dashboard/trips', [DashboardTripController::class, 'store'])->name('dashboard.trips.store');
+    Route::get('/dashboard/trips/{trip}/edit', [DashboardTripController::class, 'edit'])->name('dashboard.trips.edit');
+    Route::put('/dashboard/trips/{trip}', [DashboardTripController::class, 'update'])->name('dashboard.trips.update');
+    Route::delete('/dashboard/trips/{trip}', [DashboardTripController::class, 'destroy'])->name('dashboard.trips.destroy');
 
     Route::get('/dashboard/users', [DashboardUserController::class, 'index'])->name('dashboard.users.index');
     Route::get('/dashboard/users/create', [DashboardUserController::class, 'create'])->name('dashboard.users.create');

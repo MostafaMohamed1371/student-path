@@ -29,9 +29,15 @@ Main layers:
 ### OTP Login (Mobile)
 1. Client calls `POST /api/auth/send-otp` with a 10-digit national phone.
 2. Server normalizes phone to `964` + national digits.
-3. OTP is generated and sent via configured SMS sender.
-4. Client verifies with `POST /api/auth/verify-otp`.
-5. Server issues Sanctum token.
+3. Server checks `users.phone` first (**login-only policy**).
+4. If phone exists and account is active, OTP is generated and sent via configured SMS sender.
+5. Client verifies with `POST /api/auth/verify-otp`.
+6. Server issues Sanctum token for that existing user.
+
+Notes:
+- If phone is not found in `users`, auth endpoints return validation error (`422`).
+- OTP auth does **not** create users or related records (no registration flow).
+- OTP auth does **not** auto-create driver/student/guardian/school data.
 
 ### Driver linkage behavior
 - User accounts can be linked to drivers (`drivers.user_id`).
