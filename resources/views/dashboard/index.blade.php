@@ -46,6 +46,10 @@
                 <h3>{{ __('dashboard.stats_assigned_buses') }}</h3>
                 <p>{{ $assignedBusesCount }}</p>
             </article>
+            <article class="stat-card">
+                <h3>{{ __('dashboard.stats_trips') }}</h3>
+                <p>{{ $tripsCount }}</p>
+            </article>
         </div>
 
     @endcomponent

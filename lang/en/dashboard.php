@@ -38,6 +38,7 @@ return [
     'stats_verified_users' => 'Verified Users',
     'stats_buses' => 'Buses',
     'stats_assigned_buses' => 'Buses Assigned',
+    'stats_trips' => 'Trips',
 
     'overview_web_title' => 'Web Dashboard',
     'overview_web_text' => 'Manage users, your profile, and your bus from one panel with Arabic and English support.',

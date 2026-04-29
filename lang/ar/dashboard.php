@@ -38,6 +38,7 @@ return [
     'stats_verified_users' => 'المستخدمون الموثقون',
     'stats_buses' => 'الحافلات',
     'stats_assigned_buses' => 'الحافلات المرتبطة',
+    'stats_trips' => 'إجمالي الرحلات',
 
     'overview_web_title' => 'لوحة التحكم',
     'overview_web_text' => 'إدارة المستخدمين، وملفك الشخصي، وحافلتك من مكان واحد مع دعم العربية والإنجليزية.',

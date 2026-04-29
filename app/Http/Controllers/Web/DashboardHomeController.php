@@ -9,6 +9,7 @@ use App\Models\Guardian;
 use App\Models\OtpCode;
 use App\Models\School;
 use App\Models\Student;
+use App\Models\TripHistory;
 use App\Models\User;
 use Illuminate\View\View;
 
@@ -31,6 +32,7 @@ class DashboardHomeController extends Controller
                 'verifiedUsersCount' => User::query()->where('is_verified', true)->count(),
                 'busesCount' => Bus::query()->count(),
                 'assignedBusesCount' => Bus::query()->whereNotNull('driver_id')->count(),
+                'tripsCount' => TripHistory::query()->count(),
                 'otpCount' => OtpCode::query()->count(),
             ]);
         }
@@ -55,6 +57,7 @@ class DashboardHomeController extends Controller
                 ->count(),
             'busesCount' => Bus::query()->whereIn('driver_id', $driverIds)->count(),
             'assignedBusesCount' => Bus::query()->whereIn('driver_id', $driverIds)->whereNotNull('driver_id')->count(),
+            'tripsCount' => TripHistory::query()->when($schoolId, fn ($query) => $query->where('school_id', $schoolId))->count(),
             'otpCount' => OtpCode::query()->where('phone', $authUser?->phone)->count(),
         ]);
     }
