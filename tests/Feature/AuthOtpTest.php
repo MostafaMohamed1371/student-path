@@ -67,6 +67,8 @@ class AuthOtpTest extends TestCase
             ->assertStatus(422)
             ->assertJsonPath('success', false)
             ->assertJsonStructure(['errors' => ['phone']]);
+
+        $this->assertDatabaseCount('otp_codes', 0);
     }
 
     public function test_resend_blocked_before_cooldown(): void

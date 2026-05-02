@@ -33,5 +33,6 @@
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
         <env name="STANDINGTECH_MOCK" value="true"/>
+        <env name="OTP_STATIC_CODE" value=""/>
     </php>
 </phpunit>

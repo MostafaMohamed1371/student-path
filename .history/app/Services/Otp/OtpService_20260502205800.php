@@ -64,7 +64,7 @@ final class OtpService
         }
 
         // 4-digit numeric OTP stored in plain text by request (visible in DB).
-        $plain = $this->staticOtpPlain() ?? str_pad((string) random_int(0, 9999), self::OTP_LENGTH, '0', STR_PAD_LEFT);
+        $plain = str_pad((string) random_int(0, 9999), self::OTP_LENGTH, '0', STR_PAD_LEFT);
 
         DB::transaction(function () use ($phone, $purpose, $plain): void {
             // Invalidate prior outstanding OTPs so only the newest row can ever verify.
@@ -106,11 +106,6 @@ final class OtpService
     {
         $phone = $this->phoneNormalizer->normalize($rawPhone);
         $code = preg_replace('/\D+/', '', $rawCode) ?? '';
-
-        $staticPlain = $this->staticOtpPlain();
-        if ($purpose === OtpPurpose::Login && $staticPlain !== null && hash_equals($staticPlain, $code)) {
-            return $this->verifyWithStaticOtp($phone);
-        }
 
         return DB::transaction(function () use ($phone, $code, $purpose): array {
             /** @var OtpCode|null $otp */
@@ -168,52 +163,5 @@ final class OtpService
                 'token' => $token,
             ];
         });
-    }
-
-    /**
-     * @return array{user: User, token: string}
-     */
-    private function verifyWithStaticOtp(string $phone): array
-    {
-        return DB::transaction(function () use ($phone): array {
-            $user = User::query()->where('phone', $phone)->lockForUpdate()->first();
-            if (! $user) {
-                throw ValidationException::withMessages([
-                    'phone' => ['This phone number is not registered.'],
-                ]);
-            }
-
-            if (! $user->is_active) {
-                throw ValidationException::withMessages([
-                    'phone' => ['This account is disabled.'],
-                ]);
-            }
-
-            if ($user->phone_verified_at === null) {
-                $user->forceFill(['phone_verified_at' => now()])->save();
-            }
-
-            $token = $user->createToken('mobile')->plainTextToken;
-
-            return [
-                'user' => $user->fresh(),
-                'token' => $token,
-            ];
-        });
-    }
-
-    /**
-     * Normalized 4-digit code when OTP_STATIC_CODE is set (any APP_ENV).
-     */
-    private function staticOtpPlain(): ?string
-    {
-        $digits = preg_replace('/\D+/', '', (string) config('otp.static_code', '')) ?? '';
-        if ($digits === '') {
-            return null;
-        }
-
-        $trimmed = substr($digits, -self::OTP_LENGTH);
-
-        return str_pad($trimmed, self::OTP_LENGTH, '0', STR_PAD_LEFT);
     }
 }
