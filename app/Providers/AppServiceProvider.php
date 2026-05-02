@@ -7,6 +7,7 @@ use App\Services\Sms\FakeSmsSender;
 use App\Services\Sms\StandingTechSmsSender;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
@@ -19,6 +20,12 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(SmsSender::class, function ($app) {
             if (config('standingtech.mock')) {
+                return $app->make(FakeSmsSender::class);
+            }
+
+            if (trim((string) config('standingtech.bearer_token')) === '') {
+                Log::warning('STANDINGTECH_BEARER_TOKEN is empty; using FakeSmsSender (OTP still works; configure token and STANDINGTECH_MOCK=false to send real SMS).');
+
                 return $app->make(FakeSmsSender::class);
             }
 

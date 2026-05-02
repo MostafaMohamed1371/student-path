@@ -30,18 +30,6 @@ class AuthController extends Controller
                 ],
                 429
             );
-        } catch (\RuntimeException $e) {
-            report($e);
-
-            $phoneErrors = config('app.debug')
-                ? [$e->getMessage()]
-                : ['SMS could not be sent. Please try again in a few minutes.'];
-
-            return ApiResponse::error(
-                'Unable to send the verification code right now. Please try again shortly.',
-                ['phone' => $phoneErrors],
-                503
-            );
         }
 
         return response()->json([

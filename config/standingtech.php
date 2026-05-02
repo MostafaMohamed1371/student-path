@@ -14,7 +14,8 @@ return [
 
     'lang' => env('STANDINGTECH_LANG', 'ar'),
 
-    // When true, SMS is not sent over the network (logs only).
+    // When true, SMS is not sent over the network (logs only). If bearer_token is
+    // empty, FakeSmsSender is used regardless of this flag (see AppServiceProvider).
     'mock' => filter_var(env('STANDINGTECH_MOCK', false), FILTER_VALIDATE_BOOLEAN),
 
     'timeout' => (int) env('STANDINGTECH_TIMEOUT', 15),

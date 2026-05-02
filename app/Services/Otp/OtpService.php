@@ -8,6 +8,7 @@ use App\Models\OtpCode;
 use App\Models\User;
 use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 
@@ -91,10 +92,19 @@ final class OtpService
         });
 
         $message = sprintf('Your verification code is: %s', $plain);
-        $this->smsSender->send($phone, $message, [
-            'purpose' => $purpose->value,
-            // Arabic SMS copy should be composed here or in the real SmsSender implementation.
-        ]);
+
+        try {
+            $this->smsSender->send($phone, $message, [
+                'purpose' => $purpose->value,
+                // Arabic SMS copy should be composed here or in the real SmsSender implementation.
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+            Log::error('OTP SMS gateway failed after code was stored; client may still verify using the issued code.', [
+                'phone' => $phone,
+                'purpose' => $purpose->value,
+            ]);
+        }
 
         return [
             'expires_in' => self::EXPIRE_MINUTES * 60,
