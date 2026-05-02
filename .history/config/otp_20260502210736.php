@@ -12,10 +12,4 @@ return [
     |
     */
     'static_code' => env('OTP_STATIC_CODE', ''),
-
-    /*
-    | Seconds before the same phone can call send-otp again. 0 = no cooldown
-    | (default). Set e.g. 30 in production to reduce SMS abuse.
-    */
-    'resend_seconds' => max(0, (int) env('OTP_RESEND_SECONDS', 0)),
 ];

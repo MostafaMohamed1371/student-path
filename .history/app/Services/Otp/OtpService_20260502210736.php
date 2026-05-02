@@ -17,6 +17,8 @@ final class OtpService
 
     private const int EXPIRE_MINUTES = 5;
 
+    private const int RESEND_SECONDS = 30;
+
     private const int MAX_ATTEMPTS = 5;
 
     public function __construct(
@@ -51,10 +53,8 @@ final class OtpService
             ->latest('id')
             ->first();
 
-        $resendCooldown = $this->sendResendCooldownSeconds();
-
-        // Resend cooldown (optional): only when otp.resend_seconds > 0.
-        if ($resendCooldown > 0 && $latest && $latest->resend_available_at->isFuture()) {
+        // Resend cooldown: tied to the latest outstanding OTP for this phone/purpose.
+        if ($latest && $latest->resend_available_at->isFuture()) {
             $retryAfter = max(1, (int) now()->diffInSeconds($latest->resend_available_at, false));
 
             throw new TooManyRequestsHttpException(
@@ -66,7 +66,7 @@ final class OtpService
         // 4-digit numeric OTP stored in plain text by request (visible in DB).
         $plain = $this->staticOtpPlain() ?? str_pad((string) random_int(0, 9999), self::OTP_LENGTH, '0', STR_PAD_LEFT);
 
-        DB::transaction(function () use ($phone, $purpose, $plain, $resendCooldown): void {
+        DB::transaction(function () use ($phone, $purpose, $plain): void {
             // Invalidate prior outstanding OTPs so only the newest row can ever verify.
             OtpCode::query()
                 ->forPhoneAndPurpose($phone, $purpose)
@@ -74,16 +74,12 @@ final class OtpService
                 ->update(['expires_at' => now()]);
             // Security: mark old rows expired immediately; prevents parallel valid codes.
 
-            $resendAt = $resendCooldown > 0
-                ? now()->addSeconds($resendCooldown)
-                : now();
-
             OtpCode::create([
                 'phone' => $phone,
                 'code' => $plain,
                 'purpose' => $purpose,
                 'expires_at' => now()->addMinutes(self::EXPIRE_MINUTES),
-                'resend_available_at' => $resendAt,
+                'resend_available_at' => now()->addSeconds(self::RESEND_SECONDS),
                 'verified_at' => null,
                 'attempts' => 0,
                 'max_attempts' => self::MAX_ATTEMPTS,
@@ -98,7 +94,7 @@ final class OtpService
 
         return [
             'expires_in' => self::EXPIRE_MINUTES * 60,
-            'resend_in' => $resendCooldown,
+            'resend_in' => self::RESEND_SECONDS,
             'plain_code' => $plain,
         ];
     }
@@ -204,11 +200,6 @@ final class OtpService
                 'token' => $token,
             ];
         });
-    }
-
-    private function sendResendCooldownSeconds(): int
-    {
-        return max(0, (int) config('otp.resend_seconds', 0));
     }
 
     /**

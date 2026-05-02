@@ -74,7 +74,6 @@ class AuthOtpTest extends TestCase
     public function test_resend_blocked_before_cooldown(): void
     {
         Config::set('app.debug', false);
-        Config::set('otp.resend_seconds', 30);
 
         $this->postJson('/api/auth/send-otp', ['phone' => self::PHONE_INPUT])->assertOk();
 

@@ -75,6 +75,7 @@ class AuthOtpTest extends TestCase
     {
         Config::set('app.debug', false);
         Config::set('otp.resend_seconds', 30);
+        Config::set('otp.static_code', '');
 
         $this->postJson('/api/auth/send-otp', ['phone' => self::PHONE_INPUT])->assertOk();
 
