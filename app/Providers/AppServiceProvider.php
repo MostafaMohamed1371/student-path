@@ -32,7 +32,15 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         RateLimiter::for('otp-send', function (Request $request) {
-            return Limit::perMinute(5)->by($request->ip());
+            $perPhone = (int) config('otp.send_throttle_per_phone_per_minute', 120);
+            $perIp = (int) config('otp.send_throttle_per_ip_per_minute', 300);
+            $digits = preg_replace('/\D+/', '', (string) $request->input('phone', '')) ?? '';
+            $phoneKey = $digits !== '' ? sha1($digits) : 'no-phone';
+
+            return [
+                Limit::perMinute(max(1, $perPhone))->by('otp-send|phone|'.$phoneKey),
+                Limit::perMinute(max(1, $perIp))->by('otp-send|ip|'.$request->ip()),
+            ];
         });
 
         RateLimiter::for('otp-verify', function (Request $request) {

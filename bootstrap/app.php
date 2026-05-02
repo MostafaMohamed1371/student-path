@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\SetLocaleFromSession;
 use App\Http\Responses\ApiResponse;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
@@ -18,11 +19,11 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
-            \App\Http\Middleware\SetLocaleFromSession::class,
+            SetLocaleFromSession::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        $exceptions->shouldRenderJsonWhen(function (Request $request, \Throwable $e) {
+        $exceptions->shouldRenderJsonWhen(function (Request $request, Throwable $e) {
             return $request->is('api/*');
         });
 
@@ -55,9 +56,14 @@ return Application::configure(basePath: dirname(__DIR__))
                 return null;
             }
 
+            $retryAfter = (int) ($e->getHeaders()['Retry-After'][0] ?? 0);
+            $errors = $retryAfter > 0
+                ? ['phone' => ["Try again in {$retryAfter} seconds."]]
+                : null;
+
             return ApiResponse::error(
                 $e->getMessage() ?: 'Too many requests.',
-                null,
+                $errors,
                 429
             );
         });
