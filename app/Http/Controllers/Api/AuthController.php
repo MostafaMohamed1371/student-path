@@ -55,7 +55,7 @@ class AuthController extends Controller
             OtpPurpose::Login,
             $validated['type_user'],
         );
-        $user = $payload['user']->load('driver');
+        $user = $payload['user']->load(['driver', 'school', 'guardian']);
 
         return ApiResponse::success('Authenticated successfully', [
             'token' => $payload['token'],
@@ -81,7 +81,7 @@ class AuthController extends Controller
 
     public function me(Request $request): JsonResponse
     {
-        $user = $request->user()->load('driver');
+        $user = $request->user()->load(['driver', 'school', 'guardian']);
 
         return ApiResponse::success('Profile retrieved successfully', [
             'user' => (new UserResource($user))->toArray($request),

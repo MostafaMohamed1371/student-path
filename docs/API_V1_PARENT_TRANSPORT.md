@@ -85,7 +85,7 @@ Implemented by `Api\V1\ProfileController`, which **delegates** to `UserProfileCo
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/api/auth/send-otp` | Body: **`phone`** (10-digit national, no leading `0`) and required **`type_user`**: `guardian` (see `ParentContext::guardian`: `users.guardian_id`, exact `guardians.phone`, or **10-digit national** when `users.phone` is `964…`), `student` (a `students` row matches this user’s phone as `student_phone`), or **`driver`** (user has a linked `drivers` row via `user_id`). |
-| POST | `/api/auth/verify-otp` | Body: `phone`, `code`, and required **`type_user`** (same allowed values as send-otp; use the same role you used when requesting the code). Returns `data.token`. |
+| POST | `/api/auth/verify-otp` | Body: `phone`, `code`, and required **`type_user`**. Returns `data.token`, `data.token_type`, and **`data.user`**: full account (`userId`, `nameFromAccount`, `phoneFromAccount`, flags, ids, timestamps, camelCase fields) plus **`driver`** (full row or `null`), **`school`**, **`guardian`** when linked. Top-level `id` / `name` / `phone` stay driver-aware for legacy clients when a driver profile exists. |
 | GET | `/api/support/info` | Contact methods + FAQs from `config/mobile_legacy_api.php`. |
 | GET | `/api/support/categories` | Category list for complaint dropdown (`id` + `label`). |
 | POST | `/api/webhooks/qicard` | Qi Card webhook (JSON; `paymentId` / `payment_id` handling in `QiCardWalletPaymentController`). |
@@ -96,7 +96,7 @@ Implemented by `Api\V1\ProfileController`, which **delegates** to `UserProfileCo
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/api/auth/logout` | Revokes current Sanctum token. |
-| GET | `/api/auth/me` | Current user (+ driver if linked). |
+| GET | `/api/auth/me` | Same **`data.user`** shape as verify-otp (`UserResource`: full user + nested `driver` / `school` / `guardian`). |
 | GET | `/api/wallet` | Balance + currency. |
 | GET | `/api/wallet/transactions` | Query: `per_page` (optional). Paginated `items` + `pagination`. |
 | POST | `/api/wallet/recharge` | Body: `amount` (required), optional `reference`, `currency`, `payment_method`, `idempotency_key`. Header: **`Idempotency-Key`** (optional; preferred). Idempotent repeat returns **200** with cached balance. **403** when `QI_CARD_ENABLED=true` and `QI_CARD_BLOCK_DIRECT_RECHARGE=true` (use Qi Card flow below). |
