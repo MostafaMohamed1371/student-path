@@ -328,6 +328,7 @@ class AuthOtpTest extends TestCase
         $verify->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.token_type', 'Bearer')
+            ->assertJsonPath('data.user.type_user', 'driver')
             ->assertJsonStructure(['data' => ['token', 'user']]);
 
         $this->assertDatabaseHas('users', [
@@ -404,7 +405,8 @@ class AuthOtpTest extends TestCase
         ])
             ->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.user.phone', self::PHONE_INPUT);
+            ->assertJsonPath('data.user.phone', self::PHONE_INPUT)
+            ->assertJsonPath('data.user.type_user', 'driver');
     }
 
     /**

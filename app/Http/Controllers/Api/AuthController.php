@@ -60,7 +60,7 @@ class AuthController extends Controller
         return ApiResponse::success('Authenticated successfully', [
             'token' => $payload['token'],
             'token_type' => 'Bearer',
-            'user' => (new UserResource($user))->toArray($request),
+            'user' => (new UserResource($user, $validated['type_user']))->toArray($request),
         ]);
     }
 

@@ -5,9 +5,10 @@ namespace App\Services\Otp;
 use App\Contracts\Sms\SmsSender;
 use App\Enums\OtpPurpose;
 use App\Models\OtpCode;
+use App\Models\Student;
 use App\Models\User;
 use App\Services\Phone\PhoneNormalizer;
-use App\Support\LoginTypeUser;
+use App\Support\ParentContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -47,7 +48,7 @@ final class OtpService
             ]);
         }
 
-        LoginTypeUser::assertMatches($typeUser, $user);
+        $this->assertTypeUserMatches($typeUser, $user);
 
         $latest = OtpCode::query()
             ->forPhoneAndPurpose($phone, $purpose)
@@ -174,7 +175,7 @@ final class OtpService
                 ]);
             }
 
-            LoginTypeUser::assertMatches($typeUser, $user);
+            $this->assertTypeUserMatches($typeUser, $user);
 
             if ($user->phone_verified_at === null) {
                 $user->forceFill(['phone_verified_at' => now()])->save();
@@ -208,7 +209,7 @@ final class OtpService
                 ]);
             }
 
-            LoginTypeUser::assertMatches($typeUser, $user);
+            $this->assertTypeUserMatches($typeUser, $user);
 
             if ($user->phone_verified_at === null) {
                 $user->forceFill(['phone_verified_at' => now()])->save();
@@ -221,6 +222,43 @@ final class OtpService
                 'token' => $token,
             ];
         });
+    }
+
+    private function assertTypeUserMatches(string $typeUser, User $user): void
+    {
+        $ok = match ($typeUser) {
+            'guardian' => ParentContext::guardian($user) !== null,
+            'student' => $this->userIsStudentAccount($user),
+            'driver' => $user->driver()->exists(),
+        };
+
+        if (! $ok) {
+            throw ValidationException::withMessages([
+                'type_user' => ['This login type does not match this phone number.'],
+            ]);
+        }
+    }
+
+    private function userIsStudentAccount(User $user): bool
+    {
+        $national = str_starts_with($user->phone, '964') && strlen($user->phone) === 13
+            ? substr($user->phone, 3)
+            : null;
+
+        if ($national !== null) {
+            $byNational = Student::query()
+                ->where(function ($q) use ($user, $national): void {
+                    $q->where('student_phone', $national)->orWhere('student_phone', $user->phone);
+                })
+                ->exists();
+            if ($byNational) {
+                return true;
+            }
+        }
+
+        return Student::query()
+            ->where('student_phone', $user->phone)
+            ->exists();
     }
 
     private function sendResendCooldownSeconds(): int

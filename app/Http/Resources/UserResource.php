@@ -6,6 +6,7 @@ use App\Models\Driver;
 use App\Models\Guardian;
 use App\Models\School;
 use App\Models\User;
+use App\Support\LoginTypeUser;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -17,6 +18,11 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 class UserResource extends JsonResource
 {
+    public function __construct($resource, private readonly ?string $typeUserOverride = null)
+    {
+        parent::__construct($resource);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -40,9 +46,12 @@ class UserResource extends JsonResource
         $legacyName = $driverName ?? $user->name;
         $legacyPhone = $driver?->primary_phone ?? $user->phone;
 
+        $typeUser = $this->typeUserOverride ?? LoginTypeUser::resolve($user);
+
         return [
             'id' => $legacyId,
             'userId' => $user->id,
+            'type_user' => $typeUser,
             'name' => $legacyName,
             'nameFromAccount' => $user->name,
             'phone' => $legacyPhone,
