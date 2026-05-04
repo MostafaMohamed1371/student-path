@@ -51,7 +51,7 @@ class TripHistoryApiTest extends TestCase
             'students_preview' => [],
         ]);
 
-        $this->getJson('/api/trips/history')
+        $this->getJson('/api/org/trips/history')
             ->assertOk()
             ->assertJsonPath('status', 200)
             ->assertJsonPath('message', 'Success')
@@ -88,7 +88,7 @@ class TripHistoryApiTest extends TestCase
             'status' => 'PRESENT',
         ]);
 
-        $this->getJson('/api/trips/history?period=EVENING&from=2026-04-28&to=2026-04-28')
+        $this->getJson('/api/org/trips/history?period=EVENING&from=2026-04-28&to=2026-04-28')
             ->assertOk()
             ->assertJsonPath('status', 200)
             ->assertJsonCount(1, 'data')
@@ -106,7 +106,7 @@ class TripHistoryApiTest extends TestCase
         ]);
         Sanctum::actingAs($user);
 
-        $this->getJson('/api/trips/history?period=NIGHT')
+        $this->getJson('/api/org/trips/history?period=NIGHT')
             ->assertStatus(400)
             ->assertJsonPath('status', 400)
             ->assertJsonPath('message', 'Invalid period value. Expected MORNING or EVENING.')
@@ -123,7 +123,7 @@ class TripHistoryApiTest extends TestCase
         ]);
         Sanctum::actingAs($user);
 
-        $this->getJson('/api/trips/history')
+        $this->getJson('/api/org/trips/history')
             ->assertOk()
             ->assertJsonPath('status', 200)
             ->assertJsonPath('message', 'No trips found')
@@ -144,7 +144,7 @@ class TripHistoryApiTest extends TestCase
         ]);
 
         Sanctum::actingAs($admin);
-        $create = $this->postJson('/api/trips', [
+        $create = $this->postJson('/api/org/trips', [
             'school_id' => $school->id,
             'bus_number' => '77',
             'route_title' => 'R',
@@ -159,12 +159,12 @@ class TripHistoryApiTest extends TestCase
         ])->assertStatus(201)->assertJsonPath('success', true);
 
         $tripId = (int) $create->json('data.id');
-        $this->getJson('/api/trips')->assertOk()->assertJsonPath('success', true);
-        $this->getJson('/api/trips/'.$tripId)->assertOk()->assertJsonPath('success', true);
-        $this->putJson('/api/trips/'.$tripId, ['status' => 'ABSENT'])->assertOk()->assertJsonPath('data.status', 'ABSENT');
+        $this->getJson('/api/org/trips')->assertOk()->assertJsonPath('success', true);
+        $this->getJson('/api/org/trips/'.$tripId)->assertOk()->assertJsonPath('success', true);
+        $this->putJson('/api/org/trips/'.$tripId, ['status' => 'ABSENT'])->assertOk()->assertJsonPath('data.status', 'ABSENT');
 
         Sanctum::actingAs($staff);
-        $this->postJson('/api/trips', [
+        $this->postJson('/api/org/trips', [
             'school_id' => $school->id,
             'bus_number' => '88',
             'students_count' => 0,
@@ -172,11 +172,11 @@ class TripHistoryApiTest extends TestCase
             'start_time' => '2026-04-28 09:00:00',
             'status' => 'PRESENT',
         ])->assertStatus(403);
-        $this->putJson('/api/trips/'.$tripId, ['status' => 'CANCELLED'])->assertStatus(403);
-        $this->deleteJson('/api/trips/'.$tripId)->assertStatus(403);
+        $this->putJson('/api/org/trips/'.$tripId, ['status' => 'CANCELLED'])->assertStatus(403);
+        $this->deleteJson('/api/org/trips/'.$tripId)->assertStatus(403);
 
         Sanctum::actingAs($admin);
-        $this->deleteJson('/api/trips/'.$tripId)->assertOk()->assertJsonPath('success', true);
+        $this->deleteJson('/api/org/trips/'.$tripId)->assertOk()->assertJsonPath('success', true);
     }
 
     private function makeSchool(string $nameEn): School
@@ -191,4 +191,3 @@ class TripHistoryApiTest extends TestCase
         ]);
     }
 }
-

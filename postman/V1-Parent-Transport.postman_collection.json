@@ -1,0 +1,2110 @@
+{
+    "info": {
+        "name": "Student Path — Parent Transport API (/api)",
+        "description": "## Setup\n\n- Set `base_url` (e.g. `http://localhost:8000`).\n- Run **Public auth → verify-otp** to fill `token`.\n\n## Auth\n\nOTP is **login-only** (`users.phone`). Required JSON **`type_user`**: `guardian`, `student`, or `driver` (same on send-otp and verify-otp). See `docs/API_V1_PARENT_TRANSPORT.md`.\n\n## Route groups\n\n- **Public (no Bearer):** `POST /api/auth/send-otp`, `verify-otp`, `GET /api/support/info`, `GET /api/support/categories`, `POST /api/webhooks/qicard`, `GET|POST /api/wallet/payments/qicard/finish`.\n- **Bearer (`token`):** parent transport, legacy `transactions` / `notifications` / `haveNewMessages`, `POST /api/support/complaint`, `user/*`, `bus/*`, `org/*`.\n\n## Variables\n\nParent: `student_id`, `trip_id`, `district_id`, `trip_request_id`, `absence_id`, `place_id`, `notification_id`. Org staff: `org_school_id`, `org_driver_id`, `org_student_id`, `org_guardian_id`, `org_trip_id`.",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:8000"
+        },
+        {
+            "key": "token",
+            "value": ""
+        },
+        {
+            "key": "district_id",
+            "value": "1"
+        },
+        {
+            "key": "student_id",
+            "value": "1"
+        },
+        {
+            "key": "trip_id",
+            "value": "1"
+        },
+        {
+            "key": "trip_request_id",
+            "value": "1"
+        },
+        {
+            "key": "absence_id",
+            "value": "1"
+        },
+        {
+            "key": "place_id",
+            "value": "ChIJN1t_tDeuEmsRUsoyG83frY4"
+        },
+        {
+            "key": "notification_id",
+            "value": "1"
+        },
+        {
+            "key": "org_school_id",
+            "value": "1"
+        },
+        {
+            "key": "org_driver_id",
+            "value": "1"
+        },
+        {
+            "key": "org_student_id",
+            "value": "1"
+        },
+        {
+            "key": "org_guardian_id",
+            "value": "1"
+        },
+        {
+            "key": "org_trip_id",
+            "value": "1"
+        }
+    ],
+    "item": [
+        {
+            "name": "Parent — Public auth",
+            "item": [
+                {
+                    "name": "POST /api/auth/send-otp",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/auth/send-otp",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"phone\": \"7701234567\",\n  \"type_user\": \"guardian\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "POST /api/auth/verify-otp",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/auth/verify-otp",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"phone\": \"7701234567\",\n  \"code\": \"1234\",\n  \"type_user\": \"guardian\"\n}"
+                        }
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "  try {",
+                                    "    const j = pm.response.json();",
+                                    "    const t = j.data && (j.data.token || j.data.access_token);",
+                                    "    if (t) { pm.collectionVariables.set(\"token\", t); }",
+                                    "  } catch (e) {}",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Public — Support",
+            "description": "No Bearer token required.",
+            "item": [
+                {
+                    "name": "GET /api/support/info",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/support/info"
+                    }
+                },
+                {
+                    "name": "GET /api/support/categories",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/support/categories"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Public — QiCard",
+            "description": "Webhook: Qi Card server callback (no Bearer). Finish: browser redirect after payment.",
+            "item": [
+                {
+                    "name": "POST /api/webhooks/qicard",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/webhooks/qicard",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{}"
+                        }
+                    },
+                    "description": "Replace body with the signed payload from your Qi Card integration."
+                },
+                {
+                    "name": "GET /api/wallet/payments/qicard/finish",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/wallet/payments/qicard/finish?paymentId=1"
+                    }
+                },
+                {
+                    "name": "POST /api/wallet/payments/qicard/finish",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/x-www-form-urlencoded"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/wallet/payments/qicard/finish",
+                        "body": {
+                            "mode": "urlencoded",
+                            "urlencoded": [
+                                {
+                                    "key": "paymentId",
+                                    "value": "1",
+                                    "type": "text"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Parent — Session",
+            "item": [
+                {
+                    "name": "GET /api/auth/me",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/auth/me"
+                    }
+                },
+                {
+                    "name": "POST /api/auth/logout",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/auth/logout"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Parent — Wallet",
+            "item": [
+                {
+                    "name": "GET /api/wallet",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/wallet"
+                    }
+                },
+                {
+                    "name": "GET /api/wallet/transactions",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/wallet/transactions?per_page=20"
+                    }
+                },
+                {
+                    "name": "GET /api/transactions (legacy flat list)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/transactions?limit=50"
+                    },
+                    "description": "Legacy envelope `{ success, data[], msg }`. Paginated wallet ledger remains **GET /api/wallet/transactions**."
+                },
+                {
+                    "name": "POST /api/wallet/recharge",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Idempotency-Key",
+                                "value": "postman-{{$guid}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/wallet/recharge",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"amount\": 10.5,\n  \"currency\": \"IQD\",\n  \"payment_method\": \"test\",\n  \"reference\": \"ref-1\"\n}"
+                        }
+                    },
+                    "description": "Optional header `Idempotency-Key` or body `idempotency_key`. Repeats return 200 with same balance. Returns 403 when QiCard is enabled and QI_CARD_BLOCK_DIRECT_RECHARGE=true."
+                },
+                {
+                    "name": "POST /api/wallet/payments/qicard/init",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/wallet/payments/qicard/init",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"amount\": 10000,\n  \"currency\": \"IQD\",\n  \"description\": \"Wallet top-up\",\n  \"customer_info\": {}\n}"
+                        }
+                    },
+                    "description": "Requires QI_CARD_* env and QI_CARD_ENABLED=true. Open data.form_url in a WebView; Qi Card will hit POST /api/webhooks/qicard and redirect to /api/wallet/payments/qicard/finish."
+                }
+            ]
+        },
+        {
+            "name": "Parent — Home location",
+            "item": [
+                {
+                    "name": "GET /api/home-location",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/home-location"
+                    }
+                },
+                {
+                    "name": "POST /api/home-location",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/home-location",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"latitude\": 33.3152,\n  \"longitude\": 44.3661,\n  \"formatted_address\": \"Baghdad\",\n  \"place_id\": \"sample_place_id\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /api/home-location",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/home-location"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Parent — Locations",
+            "item": [
+                {
+                    "name": "GET /api/locations/districts",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/locations/districts"
+                    }
+                },
+                {
+                    "name": "GET /api/locations/districts/{id}/areas",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/locations/districts/{{district_id}}/areas"
+                    }
+                },
+                {
+                    "name": "GET /api/locations/iraq (areas + neighborhoods + distance)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/locations/iraq?latitude=33.3152&longitude=44.3661&max_radius_km=50"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Parent — Places (Google)",
+            "item": [
+                {
+                    "name": "GET /api/places/autocomplete",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/places/autocomplete?input=baghdad"
+                    }
+                },
+                {
+                    "name": "GET /api/places/{place}",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/places/{{place_id}}"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Parent — Meta",
+            "item": [
+                {
+                    "name": "GET /api/meta/schools",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/meta/schools"
+                    }
+                },
+                {
+                    "name": "GET /api/meta/schools (minimal)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/meta/schools?format=minimal"
+                    }
+                },
+                {
+                    "name": "GET /api/meta/grades",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/meta/grades"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Parent — Students (parent)",
+            "item": [
+                {
+                    "name": "GET /api/students",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/students"
+                    }
+                },
+                {
+                    "name": "GET /api/students/{id}",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/students/{{student_id}}"
+                    }
+                },
+                {
+                    "name": "POST /api/students",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/students",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"full_name\": \"New Student\",\n  \"gender\": \"male\",\n  \"grade\": \"1\",\n  \"student_phone\": \"7800000001\",\n  \"relationship\": \"father\",\n  \"district_area\": \"Area 1\",\n  \"nearest_landmark\": \"School\",\n  \"status\": \"active\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "PUT /api/students/{id}",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/students/{{student_id}}",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"full_name\": \"Updated Student\",\n  \"grade\": \"2\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "PATCH /api/students/{id}",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/students/{{student_id}}",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"grade\": \"3\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /api/students/{id}",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/students/{{student_id}}"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Parent — Trips (parent)",
+            "item": [
+                {
+                    "name": "GET /api/trips/available",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/trips/available"
+                    }
+                },
+                {
+                    "name": "GET /api/trips/available (student)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/trips/available?student_id={{student_id}}"
+                    }
+                },
+                {
+                    "name": "GET /api/trips/active",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/trips/active"
+                    }
+                },
+                {
+                    "name": "GET /api/trips/active (student)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/trips/active?student_id={{student_id}}"
+                    }
+                },
+                {
+                    "name": "GET /api/trips/{id}",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/trips/{{trip_id}}"
+                    }
+                },
+                {
+                    "name": "GET /api/trips/{id}/driver",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/trips/{{trip_id}}/driver"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Parent — Trip tracking",
+            "item": [
+                {
+                    "name": "GET /api/trip-tracking/config",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/trip-tracking/config"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Parent — Trip requests",
+            "item": [
+                {
+                    "name": "GET /api/trip-requests",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/trip-requests"
+                    }
+                },
+                {
+                    "name": "POST /api/trip-requests",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/trip-requests",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"student_id\": {{student_id}},\n  \"notes\": \"Need a seat\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "GET /api/trip-requests/{id}",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/trip-requests/{{trip_request_id}}"
+                    }
+                },
+                {
+                    "name": "PUT /api/trip-requests/{id}",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/trip-requests/{{trip_request_id}}",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"notes\": \"Updated notes\"\n}"
+                        }
+                    },
+                    "description": "Only when `status` is `pending`."
+                },
+                {
+                    "name": "PATCH /api/trip-requests/{id}",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/trip-requests/{{trip_request_id}}",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"notes\": \"Patched notes\"\n}"
+                        }
+                    },
+                    "description": "Same rules as PUT; only when `status` is `pending`."
+                },
+                {
+                    "name": "POST /api/trip-requests/{id}/cancel",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/trip-requests/{{trip_request_id}}/cancel",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{}"
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /api/trip-requests/{id}",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/trip-requests/{{trip_request_id}}"
+                    },
+                    "description": "Only when `status` is `pending`. Use cancel for non-destructive workflow."
+                }
+            ]
+        },
+        {
+            "name": "Parent — Absences",
+            "item": [
+                {
+                    "name": "GET /api/absences",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/absences?student_id={{student_id}}"
+                    }
+                },
+                {
+                    "name": "POST /api/absences",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/absences",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"student_id\": {{student_id}},\n  \"start_date\": \"2026-05-01\",\n  \"end_date\": \"2026-05-02\",\n  \"reason\": \"Travel\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "GET /api/absences/{id}",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/absences/{{absence_id}}"
+                    }
+                },
+                {
+                    "name": "PATCH /api/absences/{id}",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/absences/{{absence_id}}",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"reason\": \"Updated reason\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /api/absences/{id}",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/absences/{{absence_id}}"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Parent — Profile",
+            "item": [
+                {
+                    "name": "GET /api/profile",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/profile"
+                    }
+                },
+                {
+                    "name": "PUT /api/profile",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/profile",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Updated Name\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /api/profile",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/profile"
+                    },
+                    "description": "Permanently deletes the user and revokes tokens (same as `/api/user/profile` DELETE)."
+                }
+            ]
+        },
+        {
+            "name": "Parent — Notifications",
+            "item": [
+                {
+                    "name": "GET /api/notifications (legacy flat list)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/notifications?limit=50"
+                    },
+                    "description": "Legacy `{ success, data[], msg }` with `time_ago`, `is_read`. For paginated API use **GET /api/in-app-notifications**."
+                },
+                {
+                    "name": "GET /api/haveNewMessages",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/haveNewMessages"
+                    }
+                },
+                {
+                    "name": "GET /api/in-app-notifications",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/in-app-notifications?unread_only=1&per_page=20"
+                    }
+                },
+                {
+                    "name": "POST /api/in-app-notifications/read",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/in-app-notifications/read",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"ids\": []\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /api/in-app-notifications/{id}",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/in-app-notifications/{{notification_id}}"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Support (auth)",
+            "description": "Bearer required. `category_id` must match an `id` from GET /api/support/categories.",
+            "item": [
+                {
+                    "name": "POST /api/support/complaint",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "category_id",
+                                    "value": "1",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "details",
+                                    "value": "Test complaint from Postman collection.",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "attachment",
+                                    "type": "file",
+                                    "disabled": true
+                                }
+                            ]
+                        },
+                        "url": "{{base_url}}/api/support/complaint"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "User — Legacy profile & extras",
+            "description": "Staff/driver paths under `/api/user/...` (distinct from parent `GET /api/profile`).",
+            "item": [
+                {
+                    "name": "GET /api/user/profile",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/user/profile"
+                    }
+                },
+                {
+                    "name": "PUT /api/user/profile",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/user/profile",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Legacy User Name\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /api/user/profile",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/user/profile"
+                    }
+                },
+                {
+                    "name": "POST /api/user/language",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/user/language",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"language\": \"ar\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "GET /api/user/driver",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/user/driver"
+                    }
+                },
+                {
+                    "name": "GET /api/user/settings/notifications",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/user/settings/notifications"
+                    }
+                },
+                {
+                    "name": "GET /api/user/performance",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/user/performance"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Bus",
+            "description": "Authenticated bus registration for the current user.",
+            "item": [
+                {
+                    "name": "GET /api/bus/my-bus",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/bus/my-bus"
+                    }
+                },
+                {
+                    "name": "POST /api/bus/my-bus",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/bus/my-bus",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"busName\": \"Demo bus\",\n  \"busType\": \"Standard\",\n  \"busCity\": \"Baghdad\",\n  \"busNumber\": \"DEMO-{{$randomInt}}\",\n  \"busColor\": \"#FFD700\",\n  \"busCapacity\": 40,\n  \"fuelType\": \"Diesel\",\n  \"busStatus\": \"active\",\n  \"busAnnualStatus\": true,\n  \"busInsurance\": true\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "PUT /api/bus/my-bus",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/bus/my-bus",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"busName\": \"Updated demo bus\",\n  \"busCapacity\": 42\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /api/bus/my-bus",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/bus/my-bus"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Org — Schools",
+            "description": "Staff CRUD. Mutations may require admin role per controller.",
+            "item": [
+                {
+                    "name": "GET /api/org/schools",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/schools"
+                    }
+                },
+                {
+                    "name": "POST /api/org/schools",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/schools",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"schoolNameAr\": \"\\u0645\\u062f\\u0631\\u0633\\u0629 \\u0627\\u0644\\u062a\\u062c\\u0631\\u0628\\u0629\",\n  \"schoolNameEn\": \"Demo School\",\n  \"province\": \"Baghdad\",\n  \"district\": \"Karrada\",\n  \"address\": \"Main St 1\",\n  \"latitude\": 33.3152,\n  \"longitude\": 44.3661,\n  \"status\": \"active\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "GET /api/org/schools/{id}",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/schools/{{org_school_id}}"
+                    }
+                },
+                {
+                    "name": "PUT /api/org/schools/{id}",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/schools/{{org_school_id}}",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"schoolNameAr\": \"\\u0645\\u062f\\u0631\\u0633\\u0629 \\u0627\\u0644\\u062a\\u062c\\u0631\\u0628\\u0629\",\n  \"schoolNameEn\": \"Demo School\",\n  \"province\": \"Baghdad\",\n  \"district\": \"Karrada\",\n  \"address\": \"Main St 1\",\n  \"latitude\": 33.3152,\n  \"longitude\": 44.3661,\n  \"status\": \"active\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /api/org/schools/{id}",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/schools/{{org_school_id}}"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Org — Drivers",
+            "item": [
+                {
+                    "name": "GET /api/org/drivers",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/drivers"
+                    }
+                },
+                {
+                    "name": "POST /api/org/drivers",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/drivers",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"schoolId\": 1,\n  \"firstName\": \"Ahmad\",\n  \"fatherName\": \"Hassan\",\n  \"grandfatherName\": \"Omar\",\n  \"lastName\": \"Ali\",\n  \"age\": 30,\n  \"idCardNumber\": \"ID-DEMO-001\",\n  \"licenseNumber\": \"LIC-DEMO-001\",\n  \"primaryPhone\": \"7701234567\",\n  \"emergencyPhone\": \"7801234567\",\n  \"residentialAddress\": \"Baghdad\",\n  \"status\": \"active\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "GET /api/org/drivers/{id}",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/drivers/{{org_driver_id}}"
+                    }
+                },
+                {
+                    "name": "PUT /api/org/drivers/{id}",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/drivers/{{org_driver_id}}",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"schoolId\": 1,\n  \"firstName\": \"Ahmad\",\n  \"fatherName\": \"Hassan\",\n  \"grandfatherName\": \"Omar\",\n  \"lastName\": \"Ali\",\n  \"age\": 30,\n  \"idCardNumber\": \"ID-DEMO-001\",\n  \"licenseNumber\": \"LIC-DEMO-001\",\n  \"primaryPhone\": \"7701234567\",\n  \"emergencyPhone\": \"7801234567\",\n  \"residentialAddress\": \"Baghdad\",\n  \"status\": \"active\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /api/org/drivers/{id}",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/drivers/{{org_driver_id}}"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Org — Students",
+            "item": [
+                {
+                    "name": "GET /api/org/students",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/students"
+                    }
+                },
+                {
+                    "name": "POST /api/org/students",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/students",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"schoolId\": 1,\n  \"guardianId\": 1,\n  \"fullName\": \"Student Demo\",\n  \"gender\": \"male\",\n  \"grade\": \"1\",\n  \"studentPhone\": \"7901234567\",\n  \"relationship\": \"father\",\n  \"districtArea\": \"Area 1\",\n  \"nearestLandmark\": \"School gate\",\n  \"status\": \"active\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "GET /api/org/students/{id}",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/students/{{org_student_id}}"
+                    }
+                },
+                {
+                    "name": "PUT /api/org/students/{id}",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/students/{{org_student_id}}",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"schoolId\": 1,\n  \"guardianId\": 1,\n  \"fullName\": \"Student Demo\",\n  \"gender\": \"male\",\n  \"grade\": \"1\",\n  \"studentPhone\": \"7901234567\",\n  \"relationship\": \"father\",\n  \"districtArea\": \"Area 1\",\n  \"nearestLandmark\": \"School gate\",\n  \"status\": \"active\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /api/org/students/{id}",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/students/{{org_student_id}}"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Org — Guardians",
+            "item": [
+                {
+                    "name": "GET /api/org/guardians",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/guardians"
+                    }
+                },
+                {
+                    "name": "POST /api/org/guardians",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/guardians",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"schoolId\": 1,\n  \"fullName\": \"Guardian Demo\",\n  \"phone\": \"7501234567\",\n  \"status\": \"active\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "GET /api/org/guardians/{id}",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/guardians/{{org_guardian_id}}"
+                    }
+                },
+                {
+                    "name": "PUT /api/org/guardians/{id}",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/guardians/{{org_guardian_id}}",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"schoolId\": 1,\n  \"fullName\": \"Guardian Demo\",\n  \"phone\": \"7501234567\",\n  \"status\": \"active\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /api/org/guardians/{id}",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/guardians/{{org_guardian_id}}"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Org — Trips",
+            "description": "`GET /api/org/trips/history` is registered before `{trip}`.",
+            "item": [
+                {
+                    "name": "GET /api/org/trips/history",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/trips/history"
+                    }
+                },
+                {
+                    "name": "GET /api/org/trips",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/trips"
+                    }
+                },
+                {
+                    "name": "POST /api/org/trips",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/trips",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"school_id\": 1,\n  \"bus_number\": \"BUS-001\",\n  \"route_title\": \"Morning route\",\n  \"location\": \"Baghdad\",\n  \"students_count\": 12,\n  \"distance_km\": 15.5,\n  \"start_time\": \"2026-05-03T07:00:00\",\n  \"end_time\": \"2026-05-03T08:30:00\",\n  \"status\": \"PRESENT\",\n  \"note\": \"Demo trip\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "GET /api/org/trips/{id}",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/trips/{{org_trip_id}}"
+                    }
+                },
+                {
+                    "name": "PUT /api/org/trips/{id}",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/trips/{{org_trip_id}}",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"school_id\": 1,\n  \"bus_number\": \"BUS-001\",\n  \"route_title\": \"Morning route\",\n  \"location\": \"Baghdad\",\n  \"students_count\": 12,\n  \"distance_km\": 15.5,\n  \"start_time\": \"2026-05-03T07:00:00\",\n  \"end_time\": \"2026-05-03T08:30:00\",\n  \"status\": \"PRESENT\",\n  \"note\": \"Demo trip\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /api/org/trips/{id}",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/org/trips/{{org_trip_id}}"
+                    }
+                }
+            ]
+        }
+    ]
+}

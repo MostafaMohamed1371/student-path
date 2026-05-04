@@ -5,8 +5,10 @@ namespace App\Services\Otp;
 use App\Contracts\Sms\SmsSender;
 use App\Enums\OtpPurpose;
 use App\Models\OtpCode;
+use App\Models\Student;
 use App\Models\User;
 use App\Services\Phone\PhoneNormalizer;
+use App\Support\ParentContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -28,7 +30,7 @@ final class OtpService
     /**
      * @return array{expires_in: int, resend_in: int, plain_code: string}
      */
-    public function send(string $rawPhone, OtpPurpose $purpose): array
+    public function send(string $rawPhone, OtpPurpose $purpose, string $typeUser): array
     {
         $phone = $this->phoneNormalizer->normalize($rawPhone);
         $user = User::query()->where('phone', $phone)->first();
@@ -45,6 +47,8 @@ final class OtpService
                 'phone' => ['This account is disabled.'],
             ]);
         }
+
+        $this->assertTypeUserMatches($typeUser, $user);
 
         $latest = OtpCode::query()
             ->forPhoneAndPurpose($phone, $purpose)
@@ -116,17 +120,17 @@ final class OtpService
     /**
      * @return array{user: User, token: string}
      */
-    public function verify(string $rawPhone, string $rawCode, OtpPurpose $purpose): array
+    public function verify(string $rawPhone, string $rawCode, OtpPurpose $purpose, string $typeUser): array
     {
         $phone = $this->phoneNormalizer->normalize($rawPhone);
         $code = preg_replace('/\D+/', '', $rawCode) ?? '';
 
         $staticPlain = $this->staticOtpPlain();
         if ($purpose === OtpPurpose::Login && $staticPlain !== null && hash_equals($staticPlain, $code)) {
-            return $this->verifyWithStaticOtp($phone);
+            return $this->verifyWithStaticOtp($phone, $typeUser);
         }
 
-        return DB::transaction(function () use ($phone, $code, $purpose): array {
+        return DB::transaction(function () use ($phone, $code, $purpose, $typeUser): array {
             /** @var OtpCode|null $otp */
             $otp = OtpCode::query()
                 ->forPhoneAndPurpose($phone, $purpose)
@@ -171,6 +175,8 @@ final class OtpService
                 ]);
             }
 
+            $this->assertTypeUserMatches($typeUser, $user);
+
             if ($user->phone_verified_at === null) {
                 $user->forceFill(['phone_verified_at' => now()])->save();
             }
@@ -187,9 +193,9 @@ final class OtpService
     /**
      * @return array{user: User, token: string}
      */
-    private function verifyWithStaticOtp(string $phone): array
+    private function verifyWithStaticOtp(string $phone, string $typeUser): array
     {
-        return DB::transaction(function () use ($phone): array {
+        return DB::transaction(function () use ($phone, $typeUser): array {
             $user = User::query()->where('phone', $phone)->lockForUpdate()->first();
             if (! $user) {
                 throw ValidationException::withMessages([
@@ -203,6 +209,8 @@ final class OtpService
                 ]);
             }
 
+            $this->assertTypeUserMatches($typeUser, $user);
+
             if ($user->phone_verified_at === null) {
                 $user->forceFill(['phone_verified_at' => now()])->save();
             }
@@ -214,6 +222,43 @@ final class OtpService
                 'token' => $token,
             ];
         });
+    }
+
+    private function assertTypeUserMatches(string $typeUser, User $user): void
+    {
+        $ok = match ($typeUser) {
+            'guardian' => ParentContext::guardian($user) !== null,
+            'student' => $this->userIsStudentAccount($user),
+            'driver' => $user->driver()->exists(),
+        };
+
+        if (! $ok) {
+            throw ValidationException::withMessages([
+                'type_user' => ['This login type does not match this phone number.'],
+            ]);
+        }
+    }
+
+    private function userIsStudentAccount(User $user): bool
+    {
+        $national = str_starts_with($user->phone, '964') && strlen($user->phone) === 13
+            ? substr($user->phone, 3)
+            : null;
+
+        if ($national !== null) {
+            $byNational = Student::query()
+                ->where(function ($q) use ($user, $national): void {
+                    $q->where('student_phone', $national)->orWhere('student_phone', $user->phone);
+                })
+                ->exists();
+            if ($byNational) {
+                return true;
+            }
+        }
+
+        return Student::query()
+            ->where('student_phone', $user->phone)
+            ->exists();
     }
 
     private function sendResendCooldownSeconds(): int

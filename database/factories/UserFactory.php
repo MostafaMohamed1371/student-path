@@ -23,6 +23,9 @@ class UserFactory extends Factory
             'phone_verified_at' => now(),
             'is_active' => true,
             'password' => 'password',
+            'votes' => 0,
+            'rate' => 0,
+            'is_verified' => false,
         ];
     }
 

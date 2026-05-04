@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -16,6 +17,7 @@ use Laravel\Sanctum\HasApiTokens;
 #[Fillable([
     'name',
     'school_id',
+    'guardian_id',
     'image',
     'phone',
     'city',
@@ -68,6 +70,36 @@ class User extends Authenticatable
     public function school(): BelongsTo
     {
         return $this->belongsTo(School::class);
+    }
+
+    public function guardian(): BelongsTo
+    {
+        return $this->belongsTo(Guardian::class);
+    }
+
+    public function wallet(): HasOne
+    {
+        return $this->hasOne(Wallet::class);
+    }
+
+    public function homeLocation(): HasOne
+    {
+        return $this->hasOne(HomeLocation::class);
+    }
+
+    public function tripRequests(): HasMany
+    {
+        return $this->hasMany(TripRequest::class);
+    }
+
+    public function absences(): HasMany
+    {
+        return $this->hasMany(Absence::class);
+    }
+
+    public function inAppNotifications(): HasMany
+    {
+        return $this->hasMany(InAppNotification::class);
     }
 
     public function driver(): HasOne

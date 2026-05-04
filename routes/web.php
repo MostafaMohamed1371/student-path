@@ -1,14 +1,18 @@
 <?php
 
+use App\Http\Controllers\Web\DashboardAbsenceController;
 use App\Http\Controllers\Web\DashboardBusController;
 use App\Http\Controllers\Web\DashboardDriverController;
 use App\Http\Controllers\Web\DashboardGuardianController;
 use App\Http\Controllers\Web\DashboardHomeController;
 use App\Http\Controllers\Web\DashboardLoginController;
 use App\Http\Controllers\Web\DashboardProfileController;
+use App\Http\Controllers\Web\DashboardReportsController;
 use App\Http\Controllers\Web\DashboardSchoolController;
 use App\Http\Controllers\Web\DashboardStudentController;
+use App\Http\Controllers\Web\DashboardSupportComplaintController;
 use App\Http\Controllers\Web\DashboardTripController;
+use App\Http\Controllers\Web\DashboardTripRequestController;
 use App\Http\Controllers\Web\DashboardUserController;
 use Illuminate\Support\Facades\Route;
 
@@ -86,4 +90,31 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/dashboard/users/{user}/edit', [DashboardUserController::class, 'edit'])->name('dashboard.users.edit');
     Route::put('/dashboard/users/{user}', [DashboardUserController::class, 'update'])->name('dashboard.users.update');
     Route::delete('/dashboard/users/{user}', [DashboardUserController::class, 'destroy'])->name('dashboard.users.destroy');
+
+    Route::get('/dashboard/payments', [DashboardReportsController::class, 'payments'])->name('dashboard.payments');
+    Route::get('/dashboard/in-app-notifications', [DashboardReportsController::class, 'notifications'])->name('dashboard.in_app_notifications');
+
+    Route::get('/dashboard/trip-requests', [DashboardTripRequestController::class, 'index'])->name('dashboard.trip_requests.index');
+    Route::get('/dashboard/trip-requests/create', [DashboardTripRequestController::class, 'create'])->name('dashboard.trip_requests.create');
+    Route::post('/dashboard/trip-requests', [DashboardTripRequestController::class, 'store'])->name('dashboard.trip_requests.store');
+    Route::get('/dashboard/trip-requests/{trip_request}', [DashboardTripRequestController::class, 'show'])->name('dashboard.trip_requests.show');
+    Route::get('/dashboard/trip-requests/{trip_request}/edit', [DashboardTripRequestController::class, 'edit'])->name('dashboard.trip_requests.edit');
+    Route::put('/dashboard/trip-requests/{trip_request}/status', [DashboardTripRequestController::class, 'updateStatus'])->name('dashboard.trip_requests.update_status');
+    Route::put('/dashboard/trip-requests/{trip_request}', [DashboardTripRequestController::class, 'update'])->name('dashboard.trip_requests.update');
+    Route::delete('/dashboard/trip-requests/{trip_request}', [DashboardTripRequestController::class, 'destroy'])->name('dashboard.trip_requests.destroy');
+
+    Route::get('/dashboard/absences', [DashboardAbsenceController::class, 'index'])->name('dashboard.absences.index');
+    Route::get('/dashboard/absences/create', [DashboardAbsenceController::class, 'create'])->name('dashboard.absences.create');
+    Route::post('/dashboard/absences', [DashboardAbsenceController::class, 'store'])->name('dashboard.absences.store');
+    Route::get('/dashboard/absences/{absence}/edit', [DashboardAbsenceController::class, 'edit'])->name('dashboard.absences.edit');
+    Route::put('/dashboard/absences/{absence}', [DashboardAbsenceController::class, 'update'])->name('dashboard.absences.update');
+    Route::delete('/dashboard/absences/{absence}', [DashboardAbsenceController::class, 'destroy'])->name('dashboard.absences.destroy');
+
+    Route::get('/dashboard/support-complaints', [DashboardSupportComplaintController::class, 'index'])->name('dashboard.support_complaints.index');
+    Route::get('/dashboard/support-complaints/create', [DashboardSupportComplaintController::class, 'create'])->name('dashboard.support_complaints.create');
+    Route::post('/dashboard/support-complaints', [DashboardSupportComplaintController::class, 'store'])->name('dashboard.support_complaints.store');
+    Route::get('/dashboard/support-complaints/{complaint}', [DashboardSupportComplaintController::class, 'show'])->name('dashboard.support_complaints.show');
+    Route::get('/dashboard/support-complaints/{complaint}/edit', [DashboardSupportComplaintController::class, 'edit'])->name('dashboard.support_complaints.edit');
+    Route::put('/dashboard/support-complaints/{complaint}', [DashboardSupportComplaintController::class, 'update'])->name('dashboard.support_complaints.update');
+    Route::delete('/dashboard/support-complaints/{complaint}', [DashboardSupportComplaintController::class, 'destroy'])->name('dashboard.support_complaints.destroy');
 });

@@ -1,0 +1,89 @@
+<?php
+
+use App\Http\Controllers\Web\DashboardBusController;
+use App\Http\Controllers\Web\DashboardDriverController;
+use App\Http\Controllers\Web\DashboardGuardianController;
+use App\Http\Controllers\Web\DashboardHomeController;
+use App\Http\Controllers\Web\DashboardLoginController;
+use App\Http\Controllers\Web\DashboardProfileController;
+use App\Http\Controllers\Web\DashboardSchoolController;
+use App\Http\Controllers\Web\DashboardStudentController;
+use App\Http\Controllers\Web\DashboardTripController;
+use App\Http\Controllers\Web\DashboardUserController;
+use Illuminate\Support\Facades\Route;
+
+Route::get('/', function () {
+    return auth()->check()
+        ? redirect()->route('dashboard')
+        : redirect()->route('login');
+});
+
+Route::get('/locale/{locale}', function (string $locale) {
+    abort_unless(in_array($locale, ['en', 'ar'], true), 400);
+    session(['locale' => $locale]);
+
+    return redirect()->back();
+})->name('locale.switch');
+
+Route::middleware('guest')->group(function (): void {
+    Route::get('/login', [DashboardLoginController::class, 'show'])->name('login');
+    Route::post('/login', [DashboardLoginController::class, 'authenticate']);
+});
+
+Route::post('/logout', [DashboardLoginController::class, 'destroy'])->middleware('auth')->name('logout');
+
+Route::middleware('auth')->group(function (): void {
+    Route::get('/dashboard', [DashboardHomeController::class, 'index'])->name('dashboard');
+
+    Route::get('/dashboard/profile', [DashboardProfileController::class, 'edit'])->name('dashboard.profile.edit');
+    Route::put('/dashboard/profile', [DashboardProfileController::class, 'update'])->name('dashboard.profile.update');
+
+    Route::get('/dashboard/buses', [DashboardBusController::class, 'index'])->name('dashboard.buses.index');
+    Route::get('/dashboard/buses/create', [DashboardBusController::class, 'create'])->name('dashboard.buses.create');
+    Route::post('/dashboard/buses', [DashboardBusController::class, 'store'])->name('dashboard.buses.store');
+    Route::get('/dashboard/buses/{bus}/edit', [DashboardBusController::class, 'edit'])->name('dashboard.buses.edit');
+    Route::put('/dashboard/buses/{bus}', [DashboardBusController::class, 'update'])->name('dashboard.buses.update');
+    Route::delete('/dashboard/buses/{bus}', [DashboardBusController::class, 'destroy'])->name('dashboard.buses.destroy');
+
+    Route::get('/dashboard/schools', [DashboardSchoolController::class, 'index'])->name('dashboard.schools.index');
+    Route::get('/dashboard/schools/create', [DashboardSchoolController::class, 'create'])->name('dashboard.schools.create');
+    Route::post('/dashboard/schools', [DashboardSchoolController::class, 'store'])->name('dashboard.schools.store');
+    Route::get('/dashboard/schools/{school}/edit', [DashboardSchoolController::class, 'edit'])->name('dashboard.schools.edit');
+    Route::put('/dashboard/schools/{school}', [DashboardSchoolController::class, 'update'])->name('dashboard.schools.update');
+    Route::delete('/dashboard/schools/{school}', [DashboardSchoolController::class, 'destroy'])->name('dashboard.schools.destroy');
+
+    Route::get('/dashboard/drivers', [DashboardDriverController::class, 'index'])->name('dashboard.drivers.index');
+    Route::get('/dashboard/drivers/create', [DashboardDriverController::class, 'create'])->name('dashboard.drivers.create');
+    Route::post('/dashboard/drivers', [DashboardDriverController::class, 'store'])->name('dashboard.drivers.store');
+    Route::get('/dashboard/drivers/{driver}/edit', [DashboardDriverController::class, 'edit'])->name('dashboard.drivers.edit');
+    Route::put('/dashboard/drivers/{driver}', [DashboardDriverController::class, 'update'])->name('dashboard.drivers.update');
+    Route::delete('/dashboard/drivers/{driver}', [DashboardDriverController::class, 'destroy'])->name('dashboard.drivers.destroy');
+
+    Route::get('/dashboard/students', [DashboardStudentController::class, 'index'])->name('dashboard.students.index');
+    Route::get('/dashboard/students/create', [DashboardStudentController::class, 'create'])->name('dashboard.students.create');
+    Route::post('/dashboard/students', [DashboardStudentController::class, 'store'])->name('dashboard.students.store');
+    Route::get('/dashboard/students/{student}/edit', [DashboardStudentController::class, 'edit'])->name('dashboard.students.edit');
+    Route::put('/dashboard/students/{student}', [DashboardStudentController::class, 'update'])->name('dashboard.students.update');
+    Route::delete('/dashboard/students/{student}', [DashboardStudentController::class, 'destroy'])->name('dashboard.students.destroy');
+
+    Route::get('/dashboard/guardians', [DashboardGuardianController::class, 'index'])->name('dashboard.guardians.index');
+    Route::get('/dashboard/guardians/create', [DashboardGuardianController::class, 'create'])->name('dashboard.guardians.create');
+    Route::post('/dashboard/guardians', [DashboardGuardianController::class, 'store'])->name('dashboard.guardians.store');
+    Route::get('/dashboard/guardians/{guardian}/edit', [DashboardGuardianController::class, 'edit'])->name('dashboard.guardians.edit');
+    Route::put('/dashboard/guardians/{guardian}', [DashboardGuardianController::class, 'update'])->name('dashboard.guardians.update');
+    Route::delete('/dashboard/guardians/{guardian}', [DashboardGuardianController::class, 'destroy'])->name('dashboard.guardians.destroy');
+
+    Route::get('/dashboard/trips', [DashboardTripController::class, 'index'])->name('dashboard.trips.index');
+    Route::get('/dashboard/trips/create', [DashboardTripController::class, 'create'])->name('dashboard.trips.create');
+    Route::post('/dashboard/trips', [DashboardTripController::class, 'store'])->name('dashboard.trips.store');
+    Route::get('/dashboard/trips/{trip}/edit', [DashboardTripController::class, 'edit'])->name('dashboard.trips.edit');
+    Route::put('/dashboard/trips/{trip}', [DashboardTripController::class, 'update'])->name('dashboard.trips.update');
+    Route::delete('/dashboard/trips/{trip}', [DashboardTripController::class, 'destroy'])->name('dashboard.trips.destroy');
+
+    Route::get('/dashboard/users', [DashboardUserController::class, 'index'])->name('dashboard.users.index');
+    Route::get('/dashboard/users/create', [DashboardUserController::class, 'create'])->name('dashboard.users.create');
+    Route::post('/dashboard/users', [DashboardUserController::class, 'store'])->name('dashboard.users.store');
+    Route::get('/dashboard/users/{user}/edit', [DashboardUserController::class, 'edit'])->name('dashboard.users.edit');
+    Route::put('/dashboard/users/{user}', [DashboardUserController::class, 'update'])->name('dashboard.users.update');
+    Route::delete('/dashboard/users/{user}', [DashboardUserController::class, 'destroy'])->name('dashboard.users.destroy');
+});

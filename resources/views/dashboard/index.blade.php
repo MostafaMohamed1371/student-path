@@ -50,7 +50,37 @@
                 <h3>{{ __('dashboard.stats_trips') }}</h3>
                 <p>{{ $tripsCount }}</p>
             </article>
+            <article class="stat-card">
+                <h3>{{ __('dashboard.stats_trip_requests') }}</h3>
+                <p>{{ $tripRequestsCount }}</p>
+            </article>
+            <article class="stat-card">
+                <h3>{{ __('dashboard.stats_absences') }}</h3>
+                <p>{{ $absencesCount }}</p>
+            </article>
+            <article class="stat-card">
+                <h3>{{ __('dashboard.stats_support_complaints') }}</h3>
+                <p>{{ $supportComplaintsCount }}</p>
+            </article>
         </div>
+
+        <section class="card" style="margin-top: 24px;">
+            <h3 style="margin: 0 0 8px;">{{ __('dashboard.payments_hub_cards_title') }}</h3>
+            <p style="margin: 0 0 14px; color: var(--text-muted);">{{ __('dashboard.payments_hub_cards_text') }}</p>
+            <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                <a href="{{ route('dashboard.payments') }}" class="btn-primary" style="width: auto; padding: 10px 14px; text-decoration: none;">{{ __('dashboard.menu_payments') }}</a>
+                <a href="{{ route('dashboard.in_app_notifications') }}" class="btn-primary" style="width: auto; padding: 10px 14px; text-decoration: none;">{{ __('dashboard.menu_in_app_notifications') }}</a>
+                <a href="{{ route('dashboard.trip_requests.index') }}" class="btn-primary" style="width: auto; padding: 10px 14px; text-decoration: none;">{{ __('dashboard.menu_trip_requests') }}</a>
+                <a href="{{ route('dashboard.absences.index') }}" class="btn-primary" style="width: auto; padding: 10px 14px; text-decoration: none;">{{ __('dashboard.menu_absences') }}</a>
+                <a href="{{ route('dashboard.support_complaints.index') }}" class="btn-primary" style="width: auto; padding: 10px 14px; text-decoration: none;">{{ __('dashboard.menu_support_complaints') }}</a>
+            </div>
+            <p style="margin: 14px 0 6px; color: var(--text-muted); font-size: 0.9rem;">{{ __('dashboard.overview_quick_add') }}</p>
+            <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                <a href="{{ route('dashboard.trip_requests.create') }}" class="btn-muted" style="width: auto; padding: 8px 12px; text-decoration: none;">{{ __('dashboard.add_trip_request') }}</a>
+                <a href="{{ route('dashboard.absences.create') }}" class="btn-muted" style="width: auto; padding: 8px 12px; text-decoration: none;">{{ __('dashboard.add_absence') }}</a>
+                <a href="{{ route('dashboard.support_complaints.create') }}" class="btn-muted" style="width: auto; padding: 8px 12px; text-decoration: none;">{{ __('dashboard.add_support_complaint') }}</a>
+            </div>
+        </section>
 
     @endcomponent
 @endsection

@@ -5,6 +5,7 @@ namespace App\Http\Requests\Auth;
 use App\Http\Requests\Concerns\PreparesIraqPhoneInput;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class VerifyOtpRequest extends FormRequest
 {
@@ -23,6 +24,7 @@ class VerifyOtpRequest extends FormRequest
         return [
             'phone' => ['required', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
             'code' => ['required', 'string', 'regex:/^\d{4}$/'],
+            'type_user' => ['required', 'string', Rule::in(['guardian', 'student', 'driver'])],
         ];
     }
 

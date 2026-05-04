@@ -19,7 +19,12 @@ class AuthController extends Controller
     public function sendOtp(SendOtpRequest $request, OtpService $otpService): JsonResponse
     {
         try {
-            $result = $otpService->send($request->validated('phone'), OtpPurpose::Login);
+            $validated = $request->validated();
+            $result = $otpService->send(
+                $validated['phone'],
+                OtpPurpose::Login,
+                $validated['type_user'],
+            );
         } catch (TooManyRequestsHttpException $e) {
             $retryAfter = (int) ($e->getHeaders()['Retry-After'][0] ?? 30);
 
@@ -44,7 +49,12 @@ class AuthController extends Controller
     public function verifyOtp(VerifyOtpRequest $request, OtpService $otpService): JsonResponse
     {
         $validated = $request->validated();
-        $payload = $otpService->verify($validated['phone'], $validated['code'], OtpPurpose::Login);
+        $payload = $otpService->verify(
+            $validated['phone'],
+            $validated['code'],
+            OtpPurpose::Login,
+            $validated['type_user'],
+        );
         $user = $payload['user']->load('driver');
 
         return ApiResponse::success('Authenticated successfully', [

@@ -4,6 +4,8 @@
 
 Full documentation:
 - `docs/PROJECT_DOCUMENTATION.md`
+- Parent mobile API (`/api`): `docs/API_V1_PARENT_TRANSPORT.md`
+- Postman: `postman/OTP-Auth.postman_collection.json` (core API), `postman/V1-Parent-Transport.postman_collection.json` (parent v1)
 
 It provides:
 - OTP login with Iraqi phone rules
@@ -73,26 +75,28 @@ Authenticated endpoints:
 
 Bus ownership in API flow is linked through the authenticated user's driver record.
 
-### School APIs (auth)
+### School APIs (auth, org / staff)
 
-- `GET /api/schools` — list (school-scoped for non-admins)
-- `GET /api/schools/{school}` — show (in scope for non-admins)
+- `GET /api/org/schools` — list (school-scoped for non-admins)
+- `GET /api/org/schools/{school}` — show (in scope for non-admins)
 - `POST`, `PUT`, `DELETE` — **admin only** (403 otherwise)
 
-### Student APIs (auth)
+### Student APIs (auth, org — admin roster; not parent children)
 
-- `GET /api/students`, `GET /api/students/{student}` — **read**, school-scoped for non-admins
+- `GET /api/org/students`, `GET /api/org/students/{student}` — **read**, school-scoped for non-admins
 - `POST`, `PUT`, `DELETE` — **admin only**
 
-### Guardian APIs (auth)
+### Guardian APIs (auth, org)
 
-- `GET /api/guardians`, `GET /api/guardians/{guardian}` — **read**, school-scoped for non-admins
+- `GET /api/org/guardians`, `GET /api/org/guardians/{guardian}` — **read**, school-scoped for non-admins
 - `POST`, `PUT`, `DELETE` — **admin only**
 
-### Driver APIs (auth)
+### Driver APIs (auth, org)
 
-- `GET /api/drivers`, `GET /api/drivers/{driver}` — **read**, school-scoped for non-admins
+- `GET /api/org/drivers`, `GET /api/org/drivers/{driver}` — **read**, school-scoped for non-admins
 - `POST`, `PUT`, `DELETE` — **admin only**
+
+Parent-app resources (wallet, guardian **children** at `GET /api/students`, trips, etc.) are documented in **`docs/API_V1_PARENT_TRANSPORT.md`** (**`/api/...`** only).
 
 ### Web dashboard
 

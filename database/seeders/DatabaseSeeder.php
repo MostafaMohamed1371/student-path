@@ -29,5 +29,8 @@ class DatabaseSeeder extends Seeder
                 'is_admin' => true,
             ]
         );
+
+        $this->call(LocationMetaSeeder::class);
+        $this->call(NeighborhoodSeeder::class);
     }
 }

@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Student Path — Auth, User & Bus APIs",
-    "description": "## OTP login policy\n\n- OTP is **login-only**.\n- Phone must already exist in `users.phone` (existing account).\n- **No registration flow** is performed by `send-otp` or `verify-otp`.\n- If phone is not registered, auth endpoints return validation error (422).\n\n## Tokens & scoping (matches web dashboard)\n\n| Variable | When to use |\n|----------|-------------|\n| `token` | After **verify-otp**, the test script stores the Sanctum token here. Use for **read** requests: `GET` list/show on schools, students, guardians, drivers, and trips. Non-admins are **school-scoped** (via `users.school_id` or linked `driver.school_id`). Also use for **user profile**, **language**, and **`/api/bus/my-bus`** (driver’s own bus — not the same as admin bus CRUD). |\n| `admin_token` | **Required** for any **write** to schools/students/guardians/drivers/trips: `POST`, `PUT`, `DELETE` on `/api/schools…`, `/api/students…`, `/api/guardians…`, `/api/drivers…`, `/api/trips…`. Token must be for a user with `is_admin: true` (seed admin, tinker, or personal access token). If you use `token` for these, you will get **403** `forbidden` for non-admins. |\n| `school_id`, `driver_id`, `student_id`, `guardian_id`, `trip_id` | Set from a `GET` list response; used in paths and bodies. |\n\n## 403 (admin-only writes)\n\nNon-admins who call a mutation on schools/students/guardians/drivers/trips receive **403**:\n\n```json\n{ \"success\": false, \"data\": {}, \"msg\": \"forbidden\" }\n```\n\nSome **GET** cases (e.g. resource from another school) return the same. If the account has no school scope, you may see:\n\n`\"A school must be linked to this account to perform this action.\"` (on scoped reads when scope is missing).\n",
+    "description": "## OTP login policy\n\n- OTP is **login-only**.\n- Phone must already exist in `users.phone` (existing account).\n- **No registration flow** is performed by `send-otp` or `verify-otp`.\n- If phone is not registered, auth endpoints return validation error (422).\n\n## Tokens & scoping (matches web dashboard)\n\n| Variable | When to use |\n|----------|-------------|\n| `token` | After **verify-otp**, the test script stores the Sanctum token here. Use for **read** requests: `GET` list/show on schools, students, guardians, drivers, and trips. Non-admins are **school-scoped** (via `users.school_id` or linked `driver.school_id`). Also use for **user profile**, **language**, and **`/api/bus/my-bus`** (driver’s own bus — not the same as admin bus CRUD). |\n| `admin_token` | **Required** for any **write** to schools/students/guardians/drivers/trips: `POST`, `PUT`, `DELETE` on `/api/org/schools…`, `/api/org/students…`, `/api/org/guardians…`, `/api/org/drivers…`, `/api/org/trips…`. Token must be for a user with `is_admin: true` (seed admin, tinker, or personal access token). If you use `token` for these, you will get **403** `forbidden` for non-admins. |\n| `school_id`, `driver_id`, `student_id`, `guardian_id`, `trip_id` | Set from a `GET` list response; used in paths and bodies. |\n\n## 403 (admin-only writes)\n\nNon-admins who call a mutation on schools/students/guardians/drivers/trips receive **403**:\n\n```json\n{ \"success\": false, \"data\": {}, \"msg\": \"forbidden\" }\n```\n\nSome **GET** cases (e.g. resource from another school) return the same. If the account has no school scope, you may see:\n\n`\"A school must be linked to this account to perform this action.\"` (on scoped reads when scope is missing).\n",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -59,7 +59,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"phone\": \"7701234567\"\n}"
+              "raw": "{\n  \"phone\": \"7701234567\",\n  \"type_user\": \"driver\"\n}"
             },
             "url": "{{base_url}}/api/auth/send-otp"
           },
@@ -100,7 +100,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"phone\": \"7701234567\",\n  \"code\": \"1234\"\n}"
+              "raw": "{\n  \"phone\": \"7701234567\",\n  \"code\": \"1234\",\n  \"type_user\": \"driver\"\n}"
             },
             "url": "{{base_url}}/api/auth/verify-otp"
           },
@@ -323,7 +323,7 @@
     },
     {
       "name": "Driver Services",
-      "description": "**GET** `/api/drivers` and `GET /api/drivers/{id}`: use `{{token}}` — list/detail are **school-scoped** for non-admins. **POST/PUT/DELETE** `/api/drivers` require `{{admin_token}}` (admin only). **GET** `/api/user/driver` is the current user’s own driver row (still `{{token}}`).",
+      "description": "**GET** `/api/org/drivers` and `GET /api/org/drivers/{id}`: use `{{token}}` — list/detail are **school-scoped** for non-admins. **POST/PUT/DELETE** `/api/org/drivers` require `{{admin_token}}` (admin only). **GET** `/api/user/driver` is the current user’s own driver row (still `{{token}}`).",
       "item": [
         {
           "name": "GET /api/user/driver",
@@ -356,7 +356,7 @@
                 "value": "Bearer {{token}}"
               }
             ],
-            "url": "{{base_url}}/api/drivers"
+            "url": "{{base_url}}/api/org/drivers"
           }
         },
         {
@@ -373,7 +373,7 @@
                 "value": "Bearer {{token}}"
               }
             ],
-            "url": "{{base_url}}/api/drivers/{{driver_id}}"
+            "url": "{{base_url}}/api/org/drivers/{{driver_id}}"
           }
         },
         {
@@ -471,7 +471,7 @@
                 }
               ]
             },
-            "url": "{{base_url}}/api/drivers"
+            "url": "{{base_url}}/api/org/drivers"
           }
         },
         {
@@ -504,7 +504,7 @@
                 }
               ]
             },
-            "url": "{{base_url}}/api/drivers/{{driver_id}}"
+            "url": "{{base_url}}/api/org/drivers/{{driver_id}}"
           }
         },
         {
@@ -522,7 +522,7 @@
                 "value": "Bearer {{admin_token}}"
               }
             ],
-            "url": "{{base_url}}/api/drivers/{{driver_id}}"
+            "url": "{{base_url}}/api/org/drivers/{{driver_id}}"
           }
         }
       ]
@@ -545,7 +545,7 @@
                 "value": "Bearer {{token}}"
               }
             ],
-            "url": "{{base_url}}/api/schools"
+            "url": "{{base_url}}/api/org/schools"
           }
         },
         {
@@ -562,7 +562,7 @@
                 "value": "Bearer {{token}}"
               }
             ],
-            "url": "{{base_url}}/api/schools/{{school_id}}"
+            "url": "{{base_url}}/api/org/schools/{{school_id}}"
           }
         },
         {
@@ -655,7 +655,7 @@
                 }
               ]
             },
-            "url": "{{base_url}}/api/schools"
+            "url": "{{base_url}}/api/org/schools"
           }
         },
         {
@@ -693,7 +693,7 @@
                 }
               ]
             },
-            "url": "{{base_url}}/api/schools/{{school_id}}"
+            "url": "{{base_url}}/api/org/schools/{{school_id}}"
           }
         },
         {
@@ -711,7 +711,7 @@
                 "value": "Bearer {{admin_token}}"
               }
             ],
-            "url": "{{base_url}}/api/schools/{{school_id}}"
+            "url": "{{base_url}}/api/org/schools/{{school_id}}"
           }
         }
       ]
@@ -734,7 +734,7 @@
                 "value": "Bearer {{token}}"
               }
             ],
-            "url": "{{base_url}}/api/students"
+            "url": "{{base_url}}/api/org/students"
           }
         },
         {
@@ -751,7 +751,7 @@
                 "value": "Bearer {{token}}"
               }
             ],
-            "url": "{{base_url}}/api/students/{{student_id}}"
+            "url": "{{base_url}}/api/org/students/{{student_id}}"
           }
         },
         {
@@ -849,7 +849,7 @@
                 }
               ]
             },
-            "url": "{{base_url}}/api/students"
+            "url": "{{base_url}}/api/org/students"
           }
         },
         {
@@ -887,7 +887,7 @@
                 }
               ]
             },
-            "url": "{{base_url}}/api/students/{{student_id}}"
+            "url": "{{base_url}}/api/org/students/{{student_id}}"
           }
         },
         {
@@ -905,7 +905,7 @@
                 "value": "Bearer {{admin_token}}"
               }
             ],
-            "url": "{{base_url}}/api/students/{{student_id}}"
+            "url": "{{base_url}}/api/org/students/{{student_id}}"
           }
         }
       ]
@@ -928,7 +928,7 @@
                 "value": "Bearer {{token}}"
               }
             ],
-            "url": "{{base_url}}/api/guardians"
+            "url": "{{base_url}}/api/org/guardians"
           }
         },
         {
@@ -945,7 +945,7 @@
                 "value": "Bearer {{token}}"
               }
             ],
-            "url": "{{base_url}}/api/guardians/{{guardian_id}}"
+            "url": "{{base_url}}/api/org/guardians/{{guardian_id}}"
           }
         },
         {
@@ -971,7 +971,7 @@
               "mode": "raw",
               "raw": "{\n  \"schoolId\": {{school_id}},\n  \"fullName\": \"Mohammed Ali\",\n  \"phone\": \"7709876543\",\n  \"backupPhone\": \"7712345678\",\n  \"idCardNumber\": \"GUA123456789\",\n  \"status\": \"active\"\n}"
             },
-            "url": "{{base_url}}/api/guardians"
+            "url": "{{base_url}}/api/org/guardians"
           }
         },
         {
@@ -997,7 +997,7 @@
               "mode": "raw",
               "raw": "{\n  \"schoolId\": {{school_id}},\n  \"status\": \"inactive\",\n  \"backupPhone\": \"7722222222\"\n}"
             },
-            "url": "{{base_url}}/api/guardians/{{guardian_id}}"
+            "url": "{{base_url}}/api/org/guardians/{{guardian_id}}"
           }
         },
         {
@@ -1015,17 +1015,17 @@
                 "value": "Bearer {{admin_token}}"
               }
             ],
-            "url": "{{base_url}}/api/guardians/{{guardian_id}}"
+            "url": "{{base_url}}/api/org/guardians/{{guardian_id}}"
           }
         }
       ]
     },
     {
       "name": "Trips Services",
-      "description": "`GET /api/trips/history` returns UI-oriented history (status/message/data) with filters: `period`, `from`, `to`, `page`, `pageSize`. `GET /api/trips` and `GET /api/trips/{trip}` use `{{token}}` (school-scoped for non-admins). `POST/PUT/DELETE /api/trips` require `{{admin_token}}`.",
+      "description": "`GET /api/org/trips/history` returns UI-oriented history (status/message/data) with filters: `period`, `from`, `to`, `page`, `pageSize`. `GET /api/org/trips` and `GET /api/org/trips/{trip}` use `{{token}}` (school-scoped for non-admins). `POST/PUT/DELETE /api/org/trips` require `{{admin_token}}`.",
       "item": [
         {
-          "name": "GET /api/trips/history",
+          "name": "GET /api/org/trips/history",
           "request": {
             "method": "GET",
             "header": [
@@ -1038,11 +1038,11 @@
                 "value": "Bearer {{token}}"
               }
             ],
-            "url": "{{base_url}}/api/trips/history?period=MORNING&page=1&pageSize=20&from=2026-04-01&to=2026-04-30"
+            "url": "{{base_url}}/api/org/trips/history?period=MORNING&page=1&pageSize=20&from=2026-04-01&to=2026-04-30"
           }
         },
         {
-          "name": "GET /api/trips",
+          "name": "GET /api/org/trips",
           "request": {
             "method": "GET",
             "header": [
@@ -1055,11 +1055,11 @@
                 "value": "Bearer {{token}}"
               }
             ],
-            "url": "{{base_url}}/api/trips"
+            "url": "{{base_url}}/api/org/trips"
           }
         },
         {
-          "name": "GET /api/trips/{trip}",
+          "name": "GET /api/org/trips/{trip}",
           "request": {
             "method": "GET",
             "header": [
@@ -1072,11 +1072,11 @@
                 "value": "Bearer {{token}}"
               }
             ],
-            "url": "{{base_url}}/api/trips/{{trip_id}}"
+            "url": "{{base_url}}/api/org/trips/{{trip_id}}"
           }
         },
         {
-          "name": "POST /api/trips (admin only)",
+          "name": "POST /api/org/trips (admin only)",
           "description": "Use `Bearer {{admin_token}}`.",
           "request": {
             "method": "POST",
@@ -1098,11 +1098,11 @@
               "mode": "raw",
               "raw": "{\n  \"school_id\": {{school_id}},\n  \"bus_number\": \"40\",\n  \"route_title\": \"المنصور - حي الجامعة\",\n  \"location\": \"منطقة رقم 1، بغداد\",\n  \"students_count\": 3,\n  \"distance_km\": 10,\n  \"start_time\": \"2026-04-28 07:30:00\",\n  \"end_time\": \"2026-04-28 08:30:00\",\n  \"status\": \"PRESENT\",\n  \"note\": \"وصل الطلاب في الموعد المحدد.\",\n  \"students_preview\": [\n    {\"id\": \"student-1-0\", \"name\": \"أحمد محمد\", \"stop_name\": \"نقطة التوقف رقم 1\", \"grade_label\": \"الصف الدراسي\"}\n  ]\n}"
             },
-            "url": "{{base_url}}/api/trips"
+            "url": "{{base_url}}/api/org/trips"
           }
         },
         {
-          "name": "PUT /api/trips/{trip} (admin only)",
+          "name": "PUT /api/org/trips/{trip} (admin only)",
           "description": "Use `Bearer {{admin_token}}`.",
           "request": {
             "method": "PUT",
@@ -1124,11 +1124,11 @@
               "mode": "raw",
               "raw": "{\n  \"status\": \"ABSENT\",\n  \"note\": \"Traffic delay\"\n}"
             },
-            "url": "{{base_url}}/api/trips/{{trip_id}}"
+            "url": "{{base_url}}/api/org/trips/{{trip_id}}"
           }
         },
         {
-          "name": "DELETE /api/trips/{trip} (admin only)",
+          "name": "DELETE /api/org/trips/{trip} (admin only)",
           "description": "Use `Bearer {{admin_token}}`.",
           "request": {
             "method": "DELETE",
@@ -1142,7 +1142,7 @@
                 "value": "Bearer {{admin_token}}"
               }
             ],
-            "url": "{{base_url}}/api/trips/{{trip_id}}"
+            "url": "{{base_url}}/api/org/trips/{{trip_id}}"
           }
         }
       ]

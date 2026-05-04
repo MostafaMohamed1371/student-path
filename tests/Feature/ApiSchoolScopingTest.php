@@ -26,11 +26,11 @@ class ApiSchoolScopingTest extends TestCase
         ]);
         Sanctum::actingAs($user);
 
-        $this->getJson('/api/schools')
+        $this->getJson('/api/org/schools')
             ->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonCount(1, 'data');
-        $this->getJson('/api/schools')
+        $this->getJson('/api/org/schools')
             ->assertJsonPath('data.0.schoolId', (string) $schoolA->id);
     }
 
@@ -44,7 +44,7 @@ class ApiSchoolScopingTest extends TestCase
         ]);
         Sanctum::actingAs($user);
 
-        $this->postJson('/api/schools', [
+        $this->postJson('/api/org/schools', [
             'schoolNameAr' => 'جديد',
             'schoolNameEn' => 'New',
             'province' => 'B',
@@ -83,7 +83,7 @@ class ApiSchoolScopingTest extends TestCase
         ]);
         Sanctum::actingAs($staffA);
 
-        $this->getJson('/api/drivers/'.$driverB->id)
+        $this->getJson('/api/org/drivers/'.$driverB->id)
             ->assertStatus(403);
     }
 
@@ -97,7 +97,7 @@ class ApiSchoolScopingTest extends TestCase
         ]);
         Sanctum::actingAs($admin);
 
-        $this->getJson('/api/schools')
+        $this->getJson('/api/org/schools')
             ->assertOk()
             ->assertJsonCount(2, 'data');
     }
@@ -112,7 +112,7 @@ class ApiSchoolScopingTest extends TestCase
         ]);
         Sanctum::actingAs($staff);
 
-        $this->putJson("/api/schools/{$school->id}", ['status' => 'inactive'])
+        $this->putJson("/api/org/schools/{$school->id}", ['status' => 'inactive'])
             ->assertStatus(403)
             ->assertJsonPath('success', false);
     }
@@ -137,13 +137,13 @@ class ApiSchoolScopingTest extends TestCase
         ]);
         Sanctum::actingAs($staff);
 
-        $this->postJson('/api/guardians', [
+        $this->postJson('/api/org/guardians', [
             'schoolId' => $school->id, 'fullName' => 'New G', 'phone' => '7500000000', 'status' => 'active',
         ])->assertStatus(403);
-        $this->putJson("/api/guardians/{$guardian->id}", ['fullName' => 'Changed'])->assertStatus(403);
-        $this->deleteJson("/api/guardians/{$guardian->id}")->assertStatus(403);
+        $this->putJson("/api/org/guardians/{$guardian->id}", ['fullName' => 'Changed'])->assertStatus(403);
+        $this->deleteJson("/api/org/guardians/{$guardian->id}")->assertStatus(403);
 
-        $this->postJson('/api/students', [
+        $this->postJson('/api/org/students', [
             'schoolId' => $school->id,
             'guardianId' => $guardian->id,
             'fullName' => 'Child C',
@@ -155,8 +155,8 @@ class ApiSchoolScopingTest extends TestCase
             'nearestLandmark' => 'L2',
             'status' => 'active',
         ])->assertStatus(403);
-        $this->putJson("/api/students/{$student->id}", ['grade' => '2'])->assertStatus(403);
-        $this->deleteJson("/api/students/{$student->id}")->assertStatus(403);
+        $this->putJson("/api/org/students/{$student->id}", ['grade' => '2'])->assertStatus(403);
+        $this->deleteJson("/api/org/students/{$student->id}")->assertStatus(403);
     }
 
     public function test_non_admin_cannot_mutate_drivers_resource_via_api(): void
@@ -178,15 +178,15 @@ class ApiSchoolScopingTest extends TestCase
         ]);
         Sanctum::actingAs($staff);
 
-        $this->postJson('/api/drivers', [
+        $this->postJson('/api/org/drivers', [
             'schoolId' => $school->id,
             'firstName' => 'N', 'fatherName' => 'N', 'grandfatherName' => 'N', 'lastName' => 'N',
             'age' => 30, 'idCardNumber' => 'NEW1', 'licenseNumber' => 'LNEW',
             'primaryPhone' => '7800000000', 'emergencyPhone' => '7800000001',
             'residentialAddress' => 'A', 'status' => 'active',
         ])->assertStatus(403);
-        $this->putJson("/api/drivers/{$driver->id}", ['firstName' => 'B'])->assertStatus(403);
-        $this->deleteJson("/api/drivers/{$driver->id}")->assertStatus(403);
+        $this->putJson("/api/org/drivers/{$driver->id}", ['firstName' => 'B'])->assertStatus(403);
+        $this->deleteJson("/api/org/drivers/{$driver->id}")->assertStatus(403);
     }
 
     private function makeSchool(string $nameEn): School

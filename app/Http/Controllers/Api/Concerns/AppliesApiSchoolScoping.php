@@ -2,13 +2,18 @@
 
 namespace App\Http\Controllers\Api\Concerns;
 
+use App\Models\Driver;
+use App\Models\Guardian;
+use App\Models\Student;
 use App\Models\User;
+use App\Support\ParentContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 
 /**
- * Sanctum users: admin sees all; other users are limited to the school on their
- * account or (for drivers) on their linked {@see \App\Models\Driver} record.
+ * Sanctum users: admin sees all; other users are limited to schools derived from
+ * {@see User::$school_id}, linked {@see Driver}, and (for parents)
+ * {@see ParentContext::guardian()} — including every school their students attend.
  */
 trait AppliesApiSchoolScoping
 {
@@ -27,22 +32,46 @@ trait AppliesApiSchoolScoping
     }
 
     /**
-     * Non-admin: school_id from the user, else from the linked driver. Null = no access to scoped data.
+     * Schools this user may access on the API.
+     *
+     * @return null Admin: no restriction (do not apply a school filter).
+     * @return list<int> Non-admin: allowed school primary keys. Empty means no access.
      */
-    protected function effectiveApiSchoolId(User $user): ?int
+    protected function apiSchoolScopeSchoolIds(User $user): ?array
     {
         if ($this->isApiAdmin($user)) {
             return null;
         }
+
+        $ids = collect();
+
         if ($user->school_id) {
-            return (int) $user->school_id;
-        }
-        $user->loadMissing('driver');
-        if ($user->driver?->school_id) {
-            return (int) $user->driver->school_id;
+            $ids->push((int) $user->school_id);
         }
 
-        return null;
+        $user->loadMissing('driver');
+        if ($user->driver?->school_id) {
+            $ids->push((int) $user->driver->school_id);
+        }
+
+        $guardian = ParentContext::guardian($user);
+        if ($guardian instanceof Guardian) {
+            if ($guardian->school_id) {
+                $ids->push((int) $guardian->school_id);
+            }
+
+            $studentSchools = Student::query()
+                ->where('guardian_id', $guardian->id)
+                ->pluck('school_id');
+
+            foreach ($studentSchools as $sid) {
+                if ($sid !== null) {
+                    $ids->push((int) $sid);
+                }
+            }
+        }
+
+        return $ids->filter(fn (int $id): bool => $id > 0)->unique()->values()->all();
     }
 
     protected function applyApiScopeBySchoolIdColumn(Builder $query, User $user, string $column = 'school_id'): void
@@ -50,26 +79,34 @@ trait AppliesApiSchoolScoping
         if ($this->isApiAdmin($user)) {
             return;
         }
-        $id = $this->effectiveApiSchoolId($user);
-        if ($id === null) {
-            $query->whereRaw('0 = 1');
+        $ids = $this->apiSchoolScopeSchoolIds($user);
+        if ($ids === null) {
             return;
         }
-        $query->where($column, $id);
+        if ($ids === []) {
+            $query->whereRaw('0 = 1');
+
+            return;
+        }
+        $query->whereIn($column, $ids);
     }
 
-    /** For the schools table, non-admins only see the row whose primary key matches their scope. */
+    /** For the schools table, non-admins only see rows in their scope. */
     protected function applyApiScopeToSchoolsQuery(Builder $query, User $user): void
     {
         if ($this->isApiAdmin($user)) {
             return;
         }
-        $id = $this->effectiveApiSchoolId($user);
-        if ($id === null) {
-            $query->whereRaw('0 = 1');
+        $ids = $this->apiSchoolScopeSchoolIds($user);
+        if ($ids === null) {
             return;
         }
-        $query->where('id', $id);
+        if ($ids === []) {
+            $query->whereRaw('0 = 1');
+
+            return;
+        }
+        $query->whereIn('id', $ids);
     }
 
     /**
@@ -86,18 +123,24 @@ trait AppliesApiSchoolScoping
     }
 
     /**
-     * Reject non-admins with no school scope, or if the target school is not their school.
+     * Reject non-admins with no school scope, or if the target school is not in their allowed set.
      */
     protected function ensureApiTargetsOwnSchoolOrAdmin(User $user, ?int $targetSchoolId): ?JsonResponse
     {
         if ($this->isApiAdmin($user)) {
             return null;
         }
-        $scope = $this->effectiveApiSchoolId($user);
-        if ($scope === null) {
+        $scopes = $this->apiSchoolScopeSchoolIds($user);
+        if ($scopes === null) {
+            return null;
+        }
+        if ($scopes === []) {
             return $this->apiForbiddenResponse('A school must be linked to this account to perform this action.');
         }
-        if ((int) $targetSchoolId !== (int) $scope) {
+        if ($targetSchoolId === null) {
+            return $this->apiForbiddenResponse('forbidden');
+        }
+        if (! in_array((int) $targetSchoolId, $scopes, true)) {
             return $this->apiForbiddenResponse('forbidden');
         }
 

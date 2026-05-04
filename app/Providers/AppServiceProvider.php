@@ -7,6 +7,7 @@ use App\Services\Sms\FakeSmsSender;
 use App\Services\Sms\StandingTechSmsSender;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -56,5 +57,13 @@ class AppServiceProvider extends ServiceProvider
 
             return Limit::perMinute(30)->by($key);
         });
+
+        RateLimiter::for('google-places', function (Request $request) {
+            return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
+        });
+
+        Broadcast::routes(['middleware' => ['auth:sanctum']]);
+
+        require base_path('routes/channels.php');
     }
 }
