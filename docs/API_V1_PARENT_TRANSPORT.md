@@ -223,7 +223,7 @@ Standard REST under Sanctum. **Route order:** `GET /api/org/trips/history` is re
 
 The authenticated web UI under **`/dashboard`** mirrors much of the same domain with **session login** (not Sanctum). It already managed org entities (schools, students, guardians, drivers, trips, buses, users) aligned with **`/api/org/...`**. The following **parent-API** data is also visible there with the **same school / user scoping** as payments and in-app notifications:
 
-- **`/dashboard/trip-requests`** — full **CRUD** (list, create, show, edit, delete when **`pending`**, plus **`PUT …/status`** for **`approved`** / **`rejected`**). Scoped by student’s `school_id` for staff. Parent **`POST /api/trip-requests/.../cancel`** only works from **`pending`**.
+- **`/dashboard/trip-requests`** — full **CRUD** (list, create, show, edit, delete when **`pending`**, plus **`PUT …/status`** for **`accepted`** / **`rejected`**). On **accepted**, backend auto-creates a `trip_histories` row and links it to `trip_requests.trip_history_id`. Scoped by student’s `school_id` for staff. Parent **`POST /api/trip-requests/.../cancel`** only works from **`pending`**.
 - **`/dashboard/absences`** — full **CRUD** for absences tied to students in scope (parent `user_id` is resolved from the student’s guardian).
 - **`/dashboard/support-complaints`** — full **CRUD** for complaints in user scope (same rules as payments/notifications); categories must match **`config/mobile_legacy_api`**.
 

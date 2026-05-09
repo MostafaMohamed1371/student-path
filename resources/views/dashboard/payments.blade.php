@@ -26,9 +26,15 @@
                     <tbody>
                     @forelse ($transactions as $tx)
                         @php($u = $tx->wallet?->user)
+                        @php($typeUser = $u ? \App\Support\LoginTypeUser::resolve($u) : null)
                         <tr>
                             <td>{{ $tx->id }}</td>
-                            <td>{{ $u?->name ?? '—' }}</td>
+                            <td>
+                                {{ $u?->name ?? '—' }}
+                                @if($typeUser)
+                                    <span class="mono" style="font-size: 12px; color: var(--text-muted);">({{ $typeUser }})</span>
+                                @endif
+                            </td>
                             <td class="mono">{{ $u?->phone ?? '—' }}</td>
                             <td>{{ $tx->type }}</td>
                             <td>{{ $tx->amount }}</td>
@@ -76,9 +82,15 @@
                         <tbody>
                         @forelse ($qicardPayments as $p)
                             @php($u = $p->user)
+                            @php($typeUser = $u ? \App\Support\LoginTypeUser::resolve($u) : null)
                             <tr>
                                 <td>{{ $p->id }}</td>
-                                <td>{{ $u?->name ?? '—' }}</td>
+                                <td>
+                                    {{ $u?->name ?? '—' }}
+                                    @if($typeUser)
+                                        <span class="mono" style="font-size: 12px; color: var(--text-muted);">({{ $typeUser }})</span>
+                                    @endif
+                                </td>
                                 <td class="mono">{{ $u?->phone ?? '—' }}</td>
                                 <td>{{ $p->amount }}</td>
                                 <td>{{ $p->currency }}</td>

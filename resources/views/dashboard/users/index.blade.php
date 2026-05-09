@@ -23,6 +23,7 @@
                         <th>{{ __('dashboard.licence_number') }}</th>
                         <th>{{ __('dashboard.votes') }}</th>
                         <th>{{ __('dashboard.rate') }}</th>
+                        <th>{{ __('dashboard.table_col_type') }}</th>
                         <th>{{ __('dashboard.verified') }}</th>
                         <th>{{ __('dashboard.status') }}</th>
                         <th>{{ __('dashboard.actions') }}</th>
@@ -30,6 +31,7 @@
                     </thead>
                     <tbody>
                     @forelse($users as $user)
+                        @php($typeUser = \App\Support\LoginTypeUser::resolve($user))
                         <tr>
                             <td>{{ $user->id }}</td>
                             <td>{{ $user->school?->name_en ?: '—' }}</td>
@@ -49,6 +51,7 @@
                             <td>{{ $user->licence_number ?: '—' }}</td>
                             <td>{{ $user->votes ?? 0 }}</td>
                             <td>{{ number_format((float) ($user->rate ?? 0), 1) }}</td>
+                            <td>{{ $typeUser ?? '—' }}</td>
                             <td>
                                 <span class="badge {{ $user->is_verified ? 'ok' : 'off' }}">
                                     {{ $user->is_verified ? __('dashboard.verified') : __('dashboard.not_verified') }}
@@ -70,7 +73,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="12">{{ __('dashboard.no_users') }}</td>
+                            <td colspan="13">{{ __('dashboard.no_users') }}</td>
                         </tr>
                     @endforelse
                     </tbody>

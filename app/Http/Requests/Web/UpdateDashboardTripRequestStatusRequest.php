@@ -17,7 +17,7 @@ class UpdateDashboardTripRequestStatusRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'status' => ['required', 'string', 'max:32', Rule::in(['approved', 'rejected'])],
+            'status' => ['required', 'string', 'max:32', Rule::in(['accepted', 'rejected'])],
         ];
     }
 }

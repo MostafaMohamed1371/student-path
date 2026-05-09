@@ -6,12 +6,15 @@ use App\Http\Controllers\Api\Concerns\AppliesApiSchoolScoping;
 use App\Http\Controllers\Api\V1\Concerns\FormatsParentApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\StudentResource;
+use App\Models\Driver;
 use App\Models\Guardian;
 use App\Models\Student;
+use App\Models\TripRequest;
 use App\Services\Trips\StudentTripStatusResolver;
 use App\Support\ParentContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ParentStudentController extends Controller
 {
@@ -94,25 +97,38 @@ class ParentStudentController extends Controller
             'status' => ['required', 'string', 'max:32'],
         ]);
 
-        $student = Student::query()->create([
-            'school_id' => $guardian->school_id,
-            'guardian_id' => $guardian->id,
-            'full_name' => $validated['full_name'],
-            'gender' => $validated['gender'],
-            'date_of_birth' => $validated['date_of_birth'] ?? null,
-            'age' => $validated['age'] ?? null,
-            'grade' => $validated['grade'],
-            'student_phone' => $validated['student_phone'],
-            'guardian_name' => $guardian->full_name,
-            'guardian_primary_phone' => $guardian->phone,
-            'guardian_backup_phone' => $guardian->backup_phone,
-            'relationship' => $validated['relationship'],
-            'district_area' => $validated['district_area'] ?? null,
-            'nearest_landmark' => $validated['nearest_landmark'] ?? null,
-            'latitude' => $validated['latitude'] ?? null,
-            'longitude' => $validated['longitude'] ?? null,
-            'status' => $validated['status'],
-        ]);
+        $student = DB::transaction(function () use ($guardian, $validated, $request): Student {
+            $student = Student::query()->create([
+                'school_id' => $guardian->school_id,
+                'guardian_id' => $guardian->id,
+                'full_name' => $validated['full_name'],
+                'gender' => $validated['gender'],
+                'date_of_birth' => $validated['date_of_birth'] ?? null,
+                'age' => $validated['age'] ?? null,
+                'grade' => $validated['grade'],
+                'student_phone' => $validated['student_phone'],
+                'guardian_name' => $guardian->full_name,
+                'guardian_primary_phone' => $guardian->phone,
+                'guardian_backup_phone' => $guardian->backup_phone,
+                'relationship' => $validated['relationship'],
+                'district_area' => $validated['district_area'] ?? null,
+                'nearest_landmark' => $validated['nearest_landmark'] ?? null,
+                'latitude' => $validated['latitude'] ?? null,
+                'longitude' => $validated['longitude'] ?? null,
+                'status' => $validated['status'],
+            ]);
+
+            TripRequest::query()->create([
+                'user_id' => $request->user()->id,
+                'student_id' => $student->id,
+                'driver_id' => $this->assignSchoolDriverId($student),
+                'trip_history_id' => null,
+                'status' => 'pending',
+                'notes' => $this->autoTripRequestNotes($request, $student),
+            ]);
+
+            return $student;
+        });
 
         return $this->parentSuccess(
             (new StudentResource($student->load(['school', 'guardian'])))->toArray($request),
@@ -202,5 +218,40 @@ class ParentStudentController extends Controller
         }
 
         return null;
+    }
+
+    private function autoTripRequestNotes(Request $request, Student $student): string
+    {
+        $student->loadMissing('school');
+        $school = $student->school;
+        $home = $request->user()->homeLocation;
+
+        $studentPoint = isset($student->latitude, $student->longitude)
+            ? ($student->latitude.', '.$student->longitude)
+            : 'unknown';
+        $schoolPoint = isset($school?->latitude, $school?->longitude)
+            ? ($school->latitude.', '.$school->longitude)
+            : 'unknown';
+        $schoolName = $school?->name_en ?? $school?->name_ar ?? 'school';
+        $homePoint = isset($home?->latitude, $home?->longitude)
+            ? ($home->latitude.', '.$home->longitude)
+            : 'unknown';
+
+        return sprintf(
+            'Auto-created on student registration. Student location: %s. School: %s (%s). Guardian home: %s.',
+            $studentPoint,
+            $schoolName,
+            $schoolPoint,
+            $homePoint
+        );
+    }
+
+    private function assignSchoolDriverId(Student $student): ?int
+    {
+        return Driver::query()
+            ->where('school_id', $student->school_id)
+            ->where('status', 'active')
+            ->orderBy('id')
+            ->value('id');
     }
 }

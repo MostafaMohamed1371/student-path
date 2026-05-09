@@ -10,6 +10,7 @@ class TripRequest extends Model
     protected $fillable = [
         'user_id',
         'student_id',
+        'driver_id',
         'trip_history_id',
         'status',
         'notes',
@@ -31,6 +32,11 @@ class TripRequest extends Model
     public function student(): BelongsTo
     {
         return $this->belongsTo(Student::class);
+    }
+
+    public function driver(): BelongsTo
+    {
+        return $this->belongsTo(Driver::class);
     }
 
     public function tripHistory(): BelongsTo

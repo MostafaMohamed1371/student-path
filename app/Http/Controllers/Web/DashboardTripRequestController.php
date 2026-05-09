@@ -7,6 +7,7 @@ use App\Http\Controllers\Web\Concerns\ConstrainsDashboardUserScope;
 use App\Http\Requests\Web\StoreDashboardTripRequestRequest;
 use App\Http\Requests\Web\UpdateDashboardTripRequestRequest;
 use App\Http\Requests\Web\UpdateDashboardTripRequestStatusRequest;
+use App\Models\Driver;
 use App\Models\Student;
 use App\Models\TripHistory;
 use App\Models\TripRequest;
@@ -15,6 +16,7 @@ use App\Support\ParentContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class DashboardTripRequestController extends Controller
@@ -26,10 +28,12 @@ class DashboardTripRequestController extends Controller
         $perPage = min(100, max(5, (int) $request->query('per_page', 25)));
 
         $query = TripRequest::query()
-            ->with(['user', 'student', 'tripHistory'])
+            ->with(['user', 'student', 'driver', 'tripHistory'])
             ->latest('trip_requests.id');
 
-        if (! auth()->user()?->is_admin) {
+        if ($this->currentDriver() instanceof Driver) {
+            $query->where('driver_id', $this->currentDriver()?->id);
+        } elseif (! auth()->user()?->is_admin) {
             $sid = auth()->user()?->scopingSchoolId();
             if ($sid === null) {
                 $query->whereRaw('0 = 1');
@@ -45,6 +49,8 @@ class DashboardTripRequestController extends Controller
 
     public function create(): View
     {
+        abort_if($this->currentDriver() instanceof Driver, 403);
+
         $users = $this->usersInScope()->get();
         $students = $this->studentsInScope()->get();
         $trips = $this->tripHistoriesInScope()->get();
@@ -54,6 +60,8 @@ class DashboardTripRequestController extends Controller
 
     public function store(StoreDashboardTripRequestRequest $request): RedirectResponse
     {
+        abort_if($this->currentDriver() instanceof Driver, 403);
+
         $validated = $request->validated();
         $user = User::query()->findOrFail((int) $validated['user_id']);
         abort_unless($this->userIdVisibleInDashboardScope((int) $user->id), 403);
@@ -74,6 +82,7 @@ class DashboardTripRequestController extends Controller
         TripRequest::query()->create([
             'user_id' => $user->id,
             'student_id' => $student->id,
+            'driver_id' => $this->assignSchoolDriverId((int) $student->school_id),
             'trip_history_id' => $tripHistoryId,
             'status' => 'pending',
             'notes' => $validated['notes'] ?? null,
@@ -86,15 +95,16 @@ class DashboardTripRequestController extends Controller
     public function show(TripRequest $trip_request): View
     {
         abort_unless($this->tripRequestVisible($trip_request), 404);
-        $trip_request->load(['user', 'student', 'tripHistory']);
+        $trip_request->load(['user', 'student', 'driver', 'tripHistory']);
 
         return view('dashboard.trip-requests.show', ['tripRequest' => $trip_request]);
     }
 
     public function edit(TripRequest $trip_request): View
     {
+        abort_if($this->currentDriver() instanceof Driver, 403);
         abort_unless($this->tripRequestVisible($trip_request), 404);
-        $trip_request->load(['user', 'student', 'tripHistory']);
+        $trip_request->load(['user', 'student', 'driver', 'tripHistory']);
         $students = $this->studentsForUser($trip_request->user)->get();
         $trips = $this->tripHistoriesInScope()->get();
 
@@ -103,6 +113,7 @@ class DashboardTripRequestController extends Controller
 
     public function update(UpdateDashboardTripRequestRequest $request, TripRequest $trip_request): RedirectResponse
     {
+        abort_if($this->currentDriver() instanceof Driver, 403);
         abort_unless($this->tripRequestVisible($trip_request), 404);
 
         if ($trip_request->status !== 'pending') {
@@ -131,6 +142,13 @@ class DashboardTripRequestController extends Controller
             }
         }
 
+        if (isset($validated['student_id'])) {
+            $updatedStudent = Student::query()->find((int) $validated['student_id']);
+            if ($updatedStudent) {
+                $validated['driver_id'] = $this->assignSchoolDriverId((int) $updatedStudent->school_id);
+            }
+        }
+
         $trip_request->fill($validated)->save();
 
         return redirect()->route('dashboard.trip_requests.show', $trip_request)
@@ -140,6 +158,10 @@ class DashboardTripRequestController extends Controller
     public function updateStatus(UpdateDashboardTripRequestStatusRequest $request, TripRequest $trip_request): RedirectResponse
     {
         abort_unless($this->tripRequestVisible($trip_request), 404);
+        $driver = $this->currentDriver();
+        if ($driver instanceof Driver && (int) $trip_request->driver_id !== (int) $driver->id) {
+            abort(403);
+        }
 
         if ($trip_request->status !== 'pending') {
             return redirect()
@@ -147,7 +169,15 @@ class DashboardTripRequestController extends Controller
                 ->with('error', __('dashboard.trip_request_only_pending_status'));
         }
 
-        $trip_request->update(['status' => $request->validated('status')]);
+        $nextStatus = (string) $request->validated('status');
+
+        DB::transaction(function () use ($trip_request, $nextStatus): void {
+            $trip_request->update(['status' => $nextStatus]);
+
+            if ($nextStatus === 'accepted') {
+                $this->createTripHistoryForAcceptedRequest($trip_request->fresh(['user.homeLocation', 'student.school']));
+            }
+        });
 
         return redirect()
             ->route('dashboard.trip_requests.show', $trip_request)
@@ -156,6 +186,7 @@ class DashboardTripRequestController extends Controller
 
     public function destroy(TripRequest $trip_request): RedirectResponse
     {
+        abort_if($this->currentDriver() instanceof Driver, 403);
         abort_unless($this->tripRequestVisible($trip_request), 404);
 
         if ($trip_request->status !== 'pending') {
@@ -178,6 +209,10 @@ class DashboardTripRequestController extends Controller
         }
         if ($auth->is_admin) {
             return true;
+        }
+        $driver = $this->currentDriver();
+        if ($driver instanceof Driver) {
+            return (int) ($tripRequest->driver_id ?? 0) === (int) $driver->id;
         }
         $sid = $auth->scopingSchoolId();
         if ($sid === null) {
@@ -251,5 +286,65 @@ class DashboardTripRequestController extends Controller
         }
         $sid = auth()->user()?->scopingSchoolId();
         abort_unless($sid !== null && (int) $trip->school_id === (int) $sid, 403);
+    }
+
+    private function createTripHistoryForAcceptedRequest(TripRequest $tripRequest): void
+    {
+        $student = $tripRequest->student;
+        $user = $tripRequest->user;
+        if (! $student || ! $user) {
+            return;
+        }
+
+        $home = $user->homeLocation;
+        $school = $student->school;
+
+        $from = $home?->formatted_address
+            ?? (isset($home?->latitude, $home?->longitude) ? ($home->latitude.', '.$home->longitude) : null)
+            ?? 'Guardian home';
+
+        $to = $school?->name_en
+            ?? $school?->name_ar
+            ?? $school?->address
+            ?? (isset($school?->latitude, $school?->longitude) ? ($school->latitude.', '.$school->longitude) : null)
+            ?? 'School';
+
+        $trip = TripHistory::query()->create([
+            'school_id' => $student->school_id,
+            'route_title' => 'Trip Request #'.$tripRequest->id,
+            'location' => 'From '.$from.' to '.$to,
+            'students_count' => 1,
+            'distance_km' => 0,
+            'start_time' => now(),
+            'status' => 'PENDING',
+            'note' => $tripRequest->notes,
+            'students_preview' => [[
+                'id' => (string) $student->id,
+                'name' => (string) ($student->full_name ?? ''),
+            ]],
+        ]);
+
+        $tripRequest->forceFill([
+            'trip_history_id' => $trip->id,
+        ])->save();
+    }
+
+    private function assignSchoolDriverId(int $schoolId): ?int
+    {
+        return Driver::query()
+            ->where('school_id', $schoolId)
+            ->where('status', 'active')
+            ->orderBy('id')
+            ->value('id');
+    }
+
+    private function currentDriver(): ?Driver
+    {
+        $authId = auth()->id();
+        if (! is_int($authId)) {
+            return null;
+        }
+
+        return Driver::query()->where('user_id', $authId)->first();
     }
 }

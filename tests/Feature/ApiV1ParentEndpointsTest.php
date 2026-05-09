@@ -309,6 +309,22 @@ class ApiV1ParentEndpointsTest extends TestCase
     public function test_v1_parent_can_create_student_when_guardian_linked(): void
     {
         $school = $this->makeSchool('Add Student School');
+        $driverUser = User::factory()->create(['phone' => '9647909000012']);
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'Auto',
+            'father_name' => 'Assign',
+            'grandfather_name' => 'Driver',
+            'last_name' => 'One',
+            'age' => 30,
+            'id_card_number' => 'IDC-AUTO-1',
+            'license_number' => 'LIC-AUTO-1',
+            'primary_phone' => '7770000012',
+            'emergency_phone' => '7770001012',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
         $guardian = Guardian::query()->create([
             'school_id' => $school->id,
             'full_name' => 'Guardian G2',
@@ -337,6 +353,12 @@ class ApiV1ParentEndpointsTest extends TestCase
         $this->assertDatabaseHas('students', [
             'full_name' => 'New Child',
             'guardian_id' => $guardian->id,
+        ]);
+        $this->assertDatabaseHas('trip_requests', [
+            'user_id' => $user->id,
+            'student_id' => Student::query()->where('full_name', 'New Child')->value('id'),
+            'driver_id' => $driver->id,
+            'status' => 'pending',
         ]);
     }
 
@@ -529,7 +551,7 @@ class ApiV1ParentEndpointsTest extends TestCase
         ])->assertStatus(201);
 
         $req = TripRequest::query()->firstOrFail();
-        $req->update(['status' => 'approved']);
+        $req->update(['status' => 'accepted']);
 
         $this->postJson('/api/trip-requests/'.$req->id.'/cancel')
             ->assertStatus(422);
@@ -781,6 +803,136 @@ class ApiV1ParentEndpointsTest extends TestCase
         $req2 = TripRequest::query()->latest('id')->firstOrFail();
         $this->postJson('/api/trip-requests/'.$req2->id.'/cancel')->assertOk();
         $this->deleteJson('/api/trip-requests/'.$req2->id)->assertStatus(422);
+    }
+
+    public function test_trip_request_put_returns_forbidden_for_unrelated_user(): void
+    {
+        $school = $this->makeSchool('Trip Forbidden School');
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'G Forbidden',
+            'phone' => '7300000089',
+            'status' => 'active',
+        ]);
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'S Forbidden',
+            'gender' => 'male',
+            'grade' => '1',
+            'student_phone' => '7400000089',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'status' => 'active',
+        ]);
+        $owner = User::factory()->create(['guardian_id' => $guardian->id, 'school_id' => $school->id]);
+        $other = User::factory()->create(['school_id' => $school->id]);
+        $req = TripRequest::query()->create([
+            'user_id' => $owner->id,
+            'student_id' => $student->id,
+            'status' => 'pending',
+        ]);
+
+        Sanctum::actingAs($other);
+
+        $this->putJson('/api/trip-requests/'.$req->id, [
+            'notes' => 'No access',
+        ])
+            ->assertStatus(403)
+            ->assertJson([
+                'success' => false,
+                'message' => 'forbidden',
+                'msg' => 'forbidden',
+                'data' => null,
+            ]);
+    }
+
+    public function test_v1_driver_can_list_and_accept_assigned_trip_request(): void
+    {
+        $school = $this->makeSchool('Driver Req School');
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'G Driver Req',
+            'phone' => '7300000078',
+            'status' => 'active',
+        ]);
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'S Driver Req',
+            'gender' => 'male',
+            'grade' => '1',
+            'student_phone' => '7400000078',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'status' => 'active',
+        ]);
+        $parent = User::factory()->create(['guardian_id' => $guardian->id, 'school_id' => $school->id]);
+        $driverUser = User::factory()->create(['phone' => '9647909000078']);
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'Driver',
+            'father_name' => 'Trip',
+            'grandfather_name' => 'Req',
+            'last_name' => 'One',
+            'age' => 30,
+            'id_card_number' => 'IDC-DRQ-1',
+            'license_number' => 'LIC-DRQ-1',
+            'primary_phone' => '7770000078',
+            'emergency_phone' => '7770001078',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+
+        $req = TripRequest::query()->create([
+            'user_id' => $parent->id,
+            'student_id' => $student->id,
+            'driver_id' => $driver->id,
+            'trip_history_id' => null,
+            'status' => 'pending',
+            'notes' => 'Assigned to driver',
+        ]);
+
+        Sanctum::actingAs($driverUser);
+
+        $this->getJson('/api/trip-requests')
+            ->assertOk()
+            ->assertJsonPath('data.pagination.total', 1)
+            ->assertJsonPath('data.items.0.id', $req->id);
+
+        $this->putJson('/api/trip-requests/'.$req->id, [
+            'status' => 'accepted',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'accepted');
+
+        $accepted = $req->fresh();
+        $this->assertNotNull($accepted->trip_history_id);
+        $this->assertDatabaseHas('trip_histories', ['id' => $accepted->trip_history_id]);
+
+        $req2 = TripRequest::query()->create([
+            'user_id' => $parent->id,
+            'student_id' => $student->id,
+            'driver_id' => $driver->id,
+            'trip_history_id' => null,
+            'status' => 'pending',
+            'notes' => 'Assigned to driver again',
+        ]);
+
+        $this->putJson('/api/trip-requests/'.$req2->id, ['status' => 'accepted'])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'accepted');
+
+        $fresh = $req2->fresh();
+        $this->assertNotNull($fresh->trip_history_id);
+        $this->assertDatabaseHas('trip_histories', ['id' => $fresh->trip_history_id]);
     }
 
     public function test_v1_profile_delete(): void
