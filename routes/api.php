@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\V1\PlacesController as V1PlacesController;
 use App\Http\Controllers\Api\V1\ProfileController as V1ProfileController;
 use App\Http\Controllers\Api\V1\QiCardWalletPaymentController as V1QiCardWalletPaymentController;
 use App\Http\Controllers\Api\V1\TrackingInfoController as V1TrackingInfoController;
+use App\Http\Controllers\Api\V1\TransportLinesDriverController as V1TransportLinesDriverController;
 use App\Http\Controllers\Api\V1\TripParentController as V1TripParentController;
 use App\Http\Controllers\Api\V1\TripRequestController as V1TripRequestController;
 use App\Http\Controllers\Api\V1\WalletController as V1WalletController;
@@ -143,6 +144,9 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::put('students/{student}', [V1ParentStudentController::class, 'update']);
     Route::patch('students/{student}', [V1ParentStudentController::class, 'update']);
     Route::delete('students/{student}', [V1ParentStudentController::class, 'destroy']);
+
+    Route::get('transport-lines/drivers', [V1TransportLinesDriverController::class, 'index']);
+    Route::get('transport-lines/drivers/{driver}', [V1TransportLinesDriverController::class, 'show']);
 
     Route::get('trips/available', [V1TripParentController::class, 'available']);
     Route::get('trips/active', [V1TripParentController::class, 'active']);

@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Api\V1\Concerns\FormatsParentApiResponse;
 use App\Http\Controllers\Controller;
 use App\Models\Driver;
+use App\Models\School;
 use App\Models\Student;
 use App\Models\TripHistory;
 use App\Models\TripRequest;
+use App\Services\TransportLines\TransportDriverCardBuilder;
 use App\Support\ParentContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,6 +18,10 @@ use Illuminate\Support\Facades\DB;
 class TripRequestController extends Controller
 {
     use FormatsParentApiResponse;
+
+    public function __construct(
+        private readonly TransportDriverCardBuilder $transportDriverCardBuilder,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -43,8 +49,11 @@ class TripRequestController extends Controller
     {
         $validated = $request->validate([
             'student_id' => ['required', 'integer', 'exists:students,id'],
+            'driver_id' => ['nullable', 'integer', 'exists:drivers,id'],
             'trip_history_id' => ['nullable', 'integer', 'exists:trip_histories,id'],
             'notes' => ['nullable', 'string', 'max:2000'],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
         ]);
 
         if (! ParentContext::ownsStudent($request->user(), (int) $validated['student_id'])) {
@@ -60,11 +69,28 @@ class TripRequestController extends Controller
         }
 
         $student = Student::query()->findOrFail((int) $validated['student_id']);
-        $driverId = Driver::query()
-            ->where('school_id', $student->school_id)
-            ->where('status', 'active')
-            ->orderBy('id')
-            ->value('id');
+
+        $driverId = null;
+        if (! empty($validated['driver_id'])) {
+            $chosen = Driver::query()->findOrFail((int) $validated['driver_id']);
+            if ($chosen->status !== 'active') {
+                return $this->parentError('Selected driver is not available.', ['driver_id' => ['inactive']], 422);
+            }
+            if ((int) $chosen->school_id !== (int) $student->school_id) {
+                return $this->parentError(
+                    'Driver does not belong to this student\'s school.',
+                    ['driver_id' => ['school_mismatch']],
+                    422
+                );
+            }
+            $driverId = $chosen->id;
+        } else {
+            $driverId = Driver::query()
+                ->where('school_id', $student->school_id)
+                ->where('status', 'active')
+                ->orderBy('id')
+                ->value('id');
+        }
 
         $row = TripRequest::query()->create([
             'user_id' => $request->user()->id,
@@ -75,11 +101,35 @@ class TripRequestController extends Controller
             'notes' => $validated['notes'] ?? null,
         ]);
 
-        return $this->parentSuccess(
-            $row->load(['student', 'driver', 'tripHistory']),
-            'Trip request created',
-            201
-        );
+        $loaded = $row->fresh()->load(['student.school', 'driver.user', 'driver.bus', 'tripHistory']);
+
+        $driverCard = null;
+        if ($loaded->driver) {
+            $d = $loaded->driver;
+            $reserved = $this->transportDriverCardBuilder->reservedCountsByDriverId(collect([$d]));
+            $routes = $this->transportDriverCardBuilder->latestRouteTitlesBySchoolAndBus([(int) $d->school_id], collect([$d]));
+            $school = $loaded->student?->school;
+            if (! $school instanceof School || (int) $school->id !== (int) $d->school_id) {
+                $school = School::query()->find((int) $d->school_id);
+            }
+            $queryLat = isset($validated['latitude']) ? (float) $validated['latitude'] : null;
+            $queryLng = isset($validated['longitude']) ? (float) $validated['longitude'] : null;
+            $distanceKm = $this->transportDriverCardBuilder->resolveDistanceKmToSchool(
+                $queryLat,
+                $queryLng,
+                $loaded->student,
+                $request->user(),
+                $school,
+            );
+            $driverCard = $this->transportDriverCardBuilder->buildCard($d, $reserved, $routes, $distanceKm);
+        }
+
+        $payload = array_merge($loaded->toArray(), [
+            'driverCard' => $driverCard,
+            'tripPreview' => $this->tripPreviewForRequest($request, $student),
+        ]);
+
+        return $this->parentSuccess($payload, 'Trip request created', 201);
     }
 
     public function show(Request $request, TripRequest $trip_request): JsonResponse
@@ -187,6 +237,32 @@ class TripRequestController extends Controller
         $trip_request->delete();
 
         return $this->parentSuccess((object) [], 'Trip request deleted');
+    }
+
+    /**
+     * @return array{pickupLabel: string, destinationLabel: string}
+     */
+    private function tripPreviewForRequest(Request $request, Student $student): array
+    {
+        $student->loadMissing('school');
+        $request->user()->loadMissing('homeLocation');
+        $home = $request->user()->homeLocation;
+        $school = $student->school;
+
+        $pickup = $home?->formatted_address
+            ?? (isset($home?->latitude, $home?->longitude) ? ($home->latitude.', '.$home->longitude) : null)
+            ?? 'Unknown pickup';
+
+        $destination = $school?->name_ar
+            ?? $school?->name_en
+            ?? $school?->address
+            ?? (isset($school?->latitude, $school?->longitude) ? ($school->latitude.', '.$school->longitude) : null)
+            ?? 'Unknown destination';
+
+        return [
+            'pickupLabel' => $pickup,
+            'destinationLabel' => $destination,
+        ];
     }
 
     private function createTripHistoryForAcceptedRequest(TripRequest $tripRequest): void

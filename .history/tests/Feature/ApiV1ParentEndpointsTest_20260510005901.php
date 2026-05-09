@@ -455,7 +455,6 @@ class ApiV1ParentEndpointsTest extends TestCase
     public function test_v1_trip_requests_and_cancel(): void
     {
         $school = $this->makeSchool('Req School');
-        $school->update(['latitude' => 33.3152, 'longitude' => 44.3661]);
         $guardian = Guardian::query()->create([
             'school_id' => $school->id,
             'full_name' => 'G Req',
@@ -476,7 +475,6 @@ class ApiV1ParentEndpointsTest extends TestCase
             'nearest_landmark' => 'L',
             'status' => 'active',
         ]);
-        $student->update(['latitude' => 33.325, 'longitude' => 44.376]);
         $trip = TripHistory::query()->create([
             'school_id' => $school->id,
             'bus_number' => '1',
@@ -487,39 +485,13 @@ class ApiV1ParentEndpointsTest extends TestCase
         $user = User::factory()->create(['guardian_id' => $guardian->id, 'school_id' => $school->id]);
         Sanctum::actingAs($user);
 
-        $driverUser = User::factory()->create(['phone' => '9647909000004']);
-        $driver = Driver::query()->create([
-            'user_id' => $driverUser->id,
-            'school_id' => $school->id,
-            'first_name' => 'Req',
-            'father_name' => 'D',
-            'grandfather_name' => 'D',
-            'last_name' => 'One',
-            'age' => 30,
-            'id_card_number' => 'IDC-RQ',
-            'license_number' => 'LIC-RQ',
-            'primary_phone' => '7770000004',
-            'emergency_phone' => '7770001004',
-            'residential_address' => 'R',
-            'status' => 'active',
-        ]);
-
-        $created = $this->postJson('/api/trip-requests', [
+        $this->postJson('/api/trip-requests', [
             'student_id' => $student->id,
-            'driver_id' => $driver->id,
             'trip_history_id' => $trip->id,
             'notes' => 'Please',
         ])
             ->assertStatus(201)
-            ->assertJsonPath('data.status', 'pending')
-            ->assertJsonPath('data.driver_id', $driver->id)
-            ->assertJsonPath('data.driverCard.driverId', (string) $driver->id)
-            ->assertJsonPath('data.tripPreview.pickupLabel', 'Unknown pickup')
-            ->assertJsonPath('data.tripPreview.destinationLabel', 'Req School');
-
-        $dKm = $created->json('data.driverCard.distanceKm');
-        $this->assertIsNumeric($dKm);
-        $this->assertGreaterThan(0, (float) $dKm);
+            ->assertJsonPath('data.status', 'pending');
 
         $this->getJson('/api/trip-requests')->assertOk()->assertJsonPath('data.pagination.total', 1);
 
@@ -980,7 +952,6 @@ class ApiV1ParentEndpointsTest extends TestCase
             'nearest_landmark' => 'L',
             'status' => 'active',
         ]);
-        $student->update(['latitude' => 33.325, 'longitude' => 44.376]);
 
         $parent = User::factory()->create([
             'guardian_id' => $guardian->id,
@@ -1066,9 +1037,8 @@ class ApiV1ParentEndpointsTest extends TestCase
 
         $this->getJson('/api/transport-lines/drivers')
             ->assertOk()
-            ->assertJsonPath('data.schoolIds.0', (string) $school->id)
+            ->assertJsonPath('data.schoolId', (string) $school->id)
             ->assertJsonCount(1, 'data.drivers')
-            ->assertJsonPath('data.drivers.0.schoolId', (string) $school->id)
             ->assertJsonPath('data.drivers.0.driverId', (string) $driver->id)
             ->assertJsonPath('data.drivers.0.driverName', 'Captain Test Driver')
             ->assertJsonPath('data.drivers.0.routeDescription', 'Route 15 - Northern Complex')
@@ -1088,22 +1058,11 @@ class ApiV1ParentEndpointsTest extends TestCase
             collect($this->getJson('/api/transport-lines/drivers')->json('data.drivers'))->pluck('driverId')->all()
         );
 
-        $distanceFromStudent = $this->getJson('/api/transport-lines/drivers?student_id='.$student->id)
+        $distance = $this->getJson('/api/transport-lines/drivers?latitude=33.325&longitude=44.376')
             ->assertOk()
             ->json('data.drivers.0.distanceKm');
-        $this->assertIsNumeric($distanceFromStudent);
-        $this->assertGreaterThan(0, (float) $distanceFromStudent);
-
-        $distanceOverride = $this->getJson('/api/transport-lines/drivers?latitude=33.30&longitude=44.35')
-            ->assertOk()
-            ->json('data.drivers.0.distanceKm');
-        $this->assertIsNumeric($distanceOverride);
-
-        $this->getJson('/api/transport-lines/drivers/'.$driver->id.'?student_id='.$student->id)
-            ->assertOk()
-            ->assertJsonPath('data.driver.driverId', (string) $driver->id)
-            ->assertJsonPath('data.driver.schoolId', (string) $school->id)
-            ->assertJsonPath('data.driver.driverName', 'Captain Test Driver');
+        $this->assertIsNumeric($distance);
+        $this->assertGreaterThan(0, (float) $distance);
     }
 
     public function test_v1_transport_lines_drivers_admin_requires_school_id(): void

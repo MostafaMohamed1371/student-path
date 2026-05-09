@@ -193,7 +193,7 @@ class WebDashboardReportsTest extends TestCase
         $this->assertSame(1, TripHistory::query()->whereKey($fresh->trip_history_id)->value('students_count'));
     }
 
-    public function test_dashboard_student_create_auto_creates_pending_trip_request_for_school_driver(): void
+    public function test_dashboard_student_create_does_not_auto_create_trip_request(): void
     {
         $school = School::query()->create([
             'name_ar' => 'S',
@@ -207,22 +207,6 @@ class WebDashboardReportsTest extends TestCase
             'school_id' => $school->id,
             'full_name' => 'Guardian D',
             'phone' => '7300000069',
-            'status' => 'active',
-        ]);
-        $driverUser = User::factory()->create(['phone' => '9647909000069']);
-        $driver = Driver::query()->create([
-            'user_id' => $driverUser->id,
-            'school_id' => $school->id,
-            'first_name' => 'Dash',
-            'father_name' => 'Trip',
-            'grandfather_name' => 'Driver',
-            'last_name' => 'One',
-            'age' => 30,
-            'id_card_number' => 'IDC-DASH-1',
-            'license_number' => 'LIC-DASH-1',
-            'primary_phone' => '7770000069',
-            'emergency_phone' => '7770001069',
-            'residential_address' => 'Addr',
             'status' => 'active',
         ]);
         $admin = User::factory()->create(['is_admin' => true, 'school_id' => $school->id]);
@@ -243,11 +227,8 @@ class WebDashboardReportsTest extends TestCase
 
         $studentId = Student::query()->where('full_name', 'Student D')->value('id');
         $this->assertNotNull($studentId);
-        $this->assertDatabaseHas('trip_requests', [
+        $this->assertDatabaseMissing('trip_requests', [
             'student_id' => $studentId,
-            'user_id' => $admin->id,
-            'driver_id' => $driver->id,
-            'status' => 'pending',
         ]);
     }
 

@@ -6,11 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
 use App\Http\Requests\Web\StoreDashboardStudentRequest;
 use App\Http\Requests\Web\UpdateDashboardStudentRequest;
-use App\Models\Driver;
 use App\Models\Guardian;
 use App\Models\School;
 use App\Models\Student;
-use App\Models\TripRequest;
 use App\Models\User;
 use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Database\Eloquent\Builder;
@@ -66,15 +64,6 @@ class DashboardStudentController extends Controller
         $student = DB::transaction(function () use ($validated, $phoneNormalizer): Student {
             $student = Student::query()->create($validated);
             $this->syncStudentUser($student, $phoneNormalizer);
-
-            TripRequest::query()->create([
-                'user_id' => $this->resolveTripRequestOwnerUserId($student),
-                'student_id' => $student->id,
-                'driver_id' => $this->assignSchoolDriverId((int) $student->school_id),
-                'trip_history_id' => null,
-                'status' => 'pending',
-                'notes' => $this->dashboardAutoTripRequestNotes($student),
-            ]);
 
             return $student;
         });
@@ -163,49 +152,5 @@ class DashboardStudentController extends Controller
     private function isAdmin(): bool
     {
         return (bool) auth()->user()?->is_admin;
-    }
-
-    private function assignSchoolDriverId(int $schoolId): ?int
-    {
-        return Driver::query()
-            ->where('school_id', $schoolId)
-            ->where('status', 'active')
-            ->orderBy('id')
-            ->value('id');
-    }
-
-    private function resolveTripRequestOwnerUserId(Student $student): int
-    {
-        $ownerId = User::query()
-            ->where('guardian_id', $student->guardian_id)
-            ->orderBy('id')
-            ->value('id');
-
-        if (is_int($ownerId)) {
-            return $ownerId;
-        }
-
-        return (int) auth()->id();
-    }
-
-    private function dashboardAutoTripRequestNotes(Student $student): string
-    {
-        $student->loadMissing('school');
-        $school = $student->school;
-
-        $studentPoint = isset($student->latitude, $student->longitude)
-            ? ($student->latitude.', '.$student->longitude)
-            : 'unknown';
-        $schoolPoint = isset($school?->latitude, $school?->longitude)
-            ? ($school->latitude.', '.$school->longitude)
-            : 'unknown';
-        $schoolName = $school?->name_en ?? $school?->name_ar ?? 'school';
-
-        return sprintf(
-            'Auto-created from dashboard student registration. Student location: %s. School: %s (%s).',
-            $studentPoint,
-            $schoolName,
-            $schoolPoint
-        );
     }
 }

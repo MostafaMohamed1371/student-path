@@ -455,7 +455,6 @@ class ApiV1ParentEndpointsTest extends TestCase
     public function test_v1_trip_requests_and_cancel(): void
     {
         $school = $this->makeSchool('Req School');
-        $school->update(['latitude' => 33.3152, 'longitude' => 44.3661]);
         $guardian = Guardian::query()->create([
             'school_id' => $school->id,
             'full_name' => 'G Req',
@@ -476,7 +475,6 @@ class ApiV1ParentEndpointsTest extends TestCase
             'nearest_landmark' => 'L',
             'status' => 'active',
         ]);
-        $student->update(['latitude' => 33.325, 'longitude' => 44.376]);
         $trip = TripHistory::query()->create([
             'school_id' => $school->id,
             'bus_number' => '1',
@@ -487,39 +485,13 @@ class ApiV1ParentEndpointsTest extends TestCase
         $user = User::factory()->create(['guardian_id' => $guardian->id, 'school_id' => $school->id]);
         Sanctum::actingAs($user);
 
-        $driverUser = User::factory()->create(['phone' => '9647909000004']);
-        $driver = Driver::query()->create([
-            'user_id' => $driverUser->id,
-            'school_id' => $school->id,
-            'first_name' => 'Req',
-            'father_name' => 'D',
-            'grandfather_name' => 'D',
-            'last_name' => 'One',
-            'age' => 30,
-            'id_card_number' => 'IDC-RQ',
-            'license_number' => 'LIC-RQ',
-            'primary_phone' => '7770000004',
-            'emergency_phone' => '7770001004',
-            'residential_address' => 'R',
-            'status' => 'active',
-        ]);
-
-        $created = $this->postJson('/api/trip-requests', [
+        $this->postJson('/api/trip-requests', [
             'student_id' => $student->id,
-            'driver_id' => $driver->id,
             'trip_history_id' => $trip->id,
             'notes' => 'Please',
         ])
             ->assertStatus(201)
-            ->assertJsonPath('data.status', 'pending')
-            ->assertJsonPath('data.driver_id', $driver->id)
-            ->assertJsonPath('data.driverCard.driverId', (string) $driver->id)
-            ->assertJsonPath('data.tripPreview.pickupLabel', 'Unknown pickup')
-            ->assertJsonPath('data.tripPreview.destinationLabel', 'Req School');
-
-        $dKm = $created->json('data.driverCard.distanceKm');
-        $this->assertIsNumeric($dKm);
-        $this->assertGreaterThan(0, (float) $dKm);
+            ->assertJsonPath('data.status', 'pending');
 
         $this->getJson('/api/trip-requests')->assertOk()->assertJsonPath('data.pagination.total', 1);
 
@@ -980,7 +952,6 @@ class ApiV1ParentEndpointsTest extends TestCase
             'nearest_landmark' => 'L',
             'status' => 'active',
         ]);
-        $student->update(['latitude' => 33.325, 'longitude' => 44.376]);
 
         $parent = User::factory()->create([
             'guardian_id' => $guardian->id,
@@ -1088,22 +1059,11 @@ class ApiV1ParentEndpointsTest extends TestCase
             collect($this->getJson('/api/transport-lines/drivers')->json('data.drivers'))->pluck('driverId')->all()
         );
 
-        $distanceFromStudent = $this->getJson('/api/transport-lines/drivers?student_id='.$student->id)
+        $distance = $this->getJson('/api/transport-lines/drivers?latitude=33.325&longitude=44.376')
             ->assertOk()
             ->json('data.drivers.0.distanceKm');
-        $this->assertIsNumeric($distanceFromStudent);
-        $this->assertGreaterThan(0, (float) $distanceFromStudent);
-
-        $distanceOverride = $this->getJson('/api/transport-lines/drivers?latitude=33.30&longitude=44.35')
-            ->assertOk()
-            ->json('data.drivers.0.distanceKm');
-        $this->assertIsNumeric($distanceOverride);
-
-        $this->getJson('/api/transport-lines/drivers/'.$driver->id.'?student_id='.$student->id)
-            ->assertOk()
-            ->assertJsonPath('data.driver.driverId', (string) $driver->id)
-            ->assertJsonPath('data.driver.schoolId', (string) $school->id)
-            ->assertJsonPath('data.driver.driverName', 'Captain Test Driver');
+        $this->assertIsNumeric($distance);
+        $this->assertGreaterThan(0, (float) $distance);
     }
 
     public function test_v1_transport_lines_drivers_admin_requires_school_id(): void
@@ -1114,6 +1074,104 @@ class ApiV1ParentEndpointsTest extends TestCase
         $this->getJson('/api/transport-lines/drivers')
             ->assertStatus(422)
             ->assertJsonPath('success', false);
+    }
+
+    public function test_v1_transport_lines_drivers_merges_all_schools_for_guardian_students(): void
+    {
+        $schoolA = $this->makeSchool('TLS Multi A');
+        $schoolB = $this->makeSchool('TLS Multi B');
+
+        $guardian = Guardian::query()->create([
+            'school_id' => $schoolA->id,
+            'full_name' => 'G Multi',
+            'phone' => '7300000199',
+            'status' => 'active',
+        ]);
+
+        Student::query()->create([
+            'school_id' => $schoolA->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'Child A',
+            'gender' => 'male',
+            'grade' => '1',
+            'student_phone' => '7400000191',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'status' => 'active',
+        ]);
+        Student::query()->create([
+            'school_id' => $schoolB->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'Child B',
+            'gender' => 'female',
+            'grade' => '2',
+            'student_phone' => '7400000192',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'status' => 'active',
+        ]);
+
+        $parent = User::factory()->create([
+            'guardian_id' => $guardian->id,
+            'school_id' => $schoolA->id,
+        ]);
+
+        $duA = User::factory()->create(['phone' => '9647909000191', 'name' => 'Driver School A']);
+        $driverA = Driver::query()->create([
+            'user_id' => $duA->id,
+            'school_id' => $schoolA->id,
+            'first_name' => 'A',
+            'father_name' => 'A',
+            'grandfather_name' => 'A',
+            'last_name' => 'One',
+            'age' => 30,
+            'id_card_number' => 'IDC-MSA',
+            'license_number' => 'LIC-MSA',
+            'primary_phone' => '7770199101',
+            'emergency_phone' => '7770199102',
+            'residential_address' => 'R',
+            'status' => 'active',
+        ]);
+
+        $duB = User::factory()->create(['phone' => '9647909000192', 'name' => 'Driver School B']);
+        $driverB = Driver::query()->create([
+            'user_id' => $duB->id,
+            'school_id' => $schoolB->id,
+            'first_name' => 'B',
+            'father_name' => 'B',
+            'grandfather_name' => 'B',
+            'last_name' => 'Two',
+            'age' => 31,
+            'id_card_number' => 'IDC-MSB',
+            'license_number' => 'LIC-MSB',
+            'primary_phone' => '7770199201',
+            'emergency_phone' => '7770199202',
+            'residential_address' => 'R',
+            'status' => 'active',
+        ]);
+
+        Sanctum::actingAs($parent);
+
+        $ids = $this->getJson('/api/transport-lines/drivers')
+            ->assertOk()
+            ->assertJsonCount(2, 'data.schoolIds')
+            ->assertJsonCount(2, 'data.drivers')
+            ->json('data.drivers');
+
+        $this->assertEqualsCanonicalizing(
+            [(string) $schoolA->id, (string) $schoolB->id],
+            collect($ids)->pluck('schoolId')->unique()->values()->all()
+        );
+        $this->assertEqualsCanonicalizing(
+            [(string) $driverA->id, (string) $driverB->id],
+            collect($ids)->pluck('driverId')->unique()->values()->all()
+        );
     }
 
     private function makeSchool(string $nameEn): School
