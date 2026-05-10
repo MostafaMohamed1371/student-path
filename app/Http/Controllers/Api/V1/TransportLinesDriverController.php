@@ -28,6 +28,11 @@ class TransportLinesDriverController extends Controller
         $request->validate([
             'school_id' => ['nullable', 'integer', 'exists:schools,id'],
             'student_id' => ['nullable', 'integer', 'exists:students,id'],
+            'search' => ['nullable', 'string', 'max:120'],
+            'min_monthly_price' => ['nullable', 'integer', 'min:0'],
+            'max_monthly_price' => ['nullable', 'integer', 'min:0'],
+            'has_monthly_price' => ['nullable', 'boolean'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
         ]);
@@ -59,13 +64,47 @@ class TransportLinesDriverController extends Controller
 
         $schools = School::query()->whereIn('id', $schoolIds)->get()->keyBy('id');
 
-        $drivers = Driver::query()
+        $driversQuery = Driver::query()
             ->whereIn('school_id', $schoolIds)
             ->where('status', 'active')
             ->with(['user', 'bus'])
             ->orderBy('school_id')
-            ->orderBy('id')
-            ->get();
+            ->orderBy('id');
+
+        $search = trim((string) $request->query('search', ''));
+        if ($search !== '') {
+            $driversQuery->where(function ($q) use ($search): void {
+                $q->where('first_name', 'like', '%'.$search.'%')
+                    ->orWhere('father_name', 'like', '%'.$search.'%')
+                    ->orWhere('grandfather_name', 'like', '%'.$search.'%')
+                    ->orWhere('last_name', 'like', '%'.$search.'%')
+                    ->orWhere('primary_phone', 'like', '%'.$search.'%')
+                    ->orWhereHas('user', fn ($u) => $u->where('name', 'like', '%'.$search.'%'))
+                    ->orWhereHas('bus', function ($b) use ($search): void {
+                        $b->where('number', 'like', '%'.$search.'%')
+                            ->orWhere('type', 'like', '%'.$search.'%')
+                            ->orWhere('name', 'like', '%'.$search.'%');
+                    });
+            });
+        }
+
+        if ($request->filled('min_monthly_price')) {
+            $driversQuery->where('monthly_subscription_price', '>=', (int) $request->query('min_monthly_price'));
+        }
+        if ($request->filled('max_monthly_price')) {
+            $driversQuery->where('monthly_subscription_price', '<=', (int) $request->query('max_monthly_price'));
+        }
+        if ($request->has('has_monthly_price')) {
+            $hasMonthlyPrice = filter_var($request->query('has_monthly_price'), FILTER_VALIDATE_BOOLEAN);
+            if ($hasMonthlyPrice) {
+                $driversQuery->whereNotNull('monthly_subscription_price');
+            } else {
+                $driversQuery->whereNull('monthly_subscription_price');
+            }
+        }
+
+        $rows = $driversQuery->paginate(min(100, max(1, (int) $request->query('per_page', 20))));
+        $drivers = collect($rows->items());
 
         $queryLat = $request->filled('latitude') ? (float) $request->query('latitude') : null;
         $queryLng = $request->filled('longitude') ? (float) $request->query('longitude') : null;
@@ -90,6 +129,12 @@ class TransportLinesDriverController extends Controller
         return $this->parentSuccess([
             'schoolIds' => array_map(static fn (int $id): string => (string) $id, $schoolIds),
             'drivers' => $cards,
+            'pagination' => [
+                'current_page' => $rows->currentPage(),
+                'per_page' => $rows->perPage(),
+                'total' => $rows->total(),
+                'last_page' => $rows->lastPage(),
+            ],
         ]);
     }
 

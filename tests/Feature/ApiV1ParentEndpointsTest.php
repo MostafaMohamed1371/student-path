@@ -1117,6 +1117,88 @@ class ApiV1ParentEndpointsTest extends TestCase
             ->assertJsonPath('success', false);
     }
 
+    public function test_v1_transport_lines_drivers_supports_search_filters_and_pagination(): void
+    {
+        $school = $this->makeSchool('Transport Search School');
+        $school->update(['latitude' => 33.31, 'longitude' => 44.36]);
+
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'G Search',
+            'phone' => '7300000199',
+            'status' => 'active',
+        ]);
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'Student Search',
+            'gender' => 'male',
+            'grade' => '3',
+            'student_phone' => '7400000199',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'status' => 'active',
+            'latitude' => 33.32,
+            'longitude' => 44.37,
+        ]);
+        $parent = User::factory()->create(['guardian_id' => $guardian->id, 'school_id' => $school->id]);
+
+        $userA = User::factory()->create(['name' => 'Captain Alpha']);
+        $driverA = Driver::query()->create([
+            'user_id' => $userA->id,
+            'school_id' => $school->id,
+            'first_name' => 'Alpha',
+            'father_name' => 'A',
+            'grandfather_name' => 'A',
+            'last_name' => 'One',
+            'age' => 31,
+            'id_card_number' => 'IDC-SA',
+            'license_number' => 'LIC-SA',
+            'primary_phone' => '7771000001',
+            'emergency_phone' => '7771001001',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+            'monthly_subscription_price' => 70000,
+        ]);
+
+        $userB = User::factory()->create(['name' => 'Captain Beta']);
+        $driverB = Driver::query()->create([
+            'user_id' => $userB->id,
+            'school_id' => $school->id,
+            'first_name' => 'Beta',
+            'father_name' => 'B',
+            'grandfather_name' => 'B',
+            'last_name' => 'Two',
+            'age' => 32,
+            'id_card_number' => 'IDC-SB',
+            'license_number' => 'LIC-SB',
+            'primary_phone' => '7771000002',
+            'emergency_phone' => '7771001002',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+            'monthly_subscription_price' => 50000,
+        ]);
+
+        Sanctum::actingAs($parent);
+
+        $this->getJson('/api/transport-lines/drivers?student_id='.$student->id.'&search=Alpha&min_monthly_price=60000&has_monthly_price=1&per_page=1&page=1')
+            ->assertOk()
+            ->assertJsonPath('data.pagination.current_page', 1)
+            ->assertJsonPath('data.pagination.per_page', 1)
+            ->assertJsonPath('data.pagination.total', 1)
+            ->assertJsonCount(1, 'data.drivers')
+            ->assertJsonPath('data.drivers.0.driverId', (string) $driverA->id)
+            ->assertJsonPath('data.drivers.0.monthlyPrice', 70000);
+
+        $this->getJson('/api/transport-lines/drivers?student_id='.$student->id.'&max_monthly_price=55000')
+            ->assertOk()
+            ->assertJsonCount(1, 'data.drivers')
+            ->assertJsonPath('data.drivers.0.driverId', (string) $driverB->id);
+    }
+
     private function makeSchool(string $nameEn): School
     {
         return School::query()->create([
