@@ -28,6 +28,7 @@ class StoreDriverRequest extends FormRequest
             'emergencyPhone' => ['required', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
             'residentialAddress' => ['required', 'string', 'max:255'],
             'status' => ['required', 'in:active,inactive'],
+            'monthlySubscriptionPrice' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
             'idCardImage' => ['nullable', 'file', 'image', 'max:4096'],
             'licenseImage' => ['nullable', 'file', 'image', 'max:4096'],
             'nonConvictionCertificate' => ['nullable', 'file', 'max:4096'],

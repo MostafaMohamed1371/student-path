@@ -1007,6 +1007,7 @@ class ApiV1ParentEndpointsTest extends TestCase
             'emergency_phone' => '7770999902',
             'residential_address' => 'Addr',
             'status' => 'active',
+            'monthly_subscription_price' => 65000,
         ]);
 
         $inactiveDriverUser = User::factory()->create(['phone' => '9647909000997']);
@@ -1079,7 +1080,7 @@ class ApiV1ParentEndpointsTest extends TestCase
             ->assertJsonPath('data.drivers.0.availableSeats', 13)
             ->assertJsonPath('data.drivers.0.plateNumber', 'TL-100')
             ->assertJsonPath('data.drivers.0.currency', 'IQD')
-            ->assertJsonPath('data.drivers.0.monthlyPrice', null)
+            ->assertJsonPath('data.drivers.0.monthlyPrice', 65000)
             ->assertJsonPath('data.drivers.0.vehicleModelYear', null)
             ->assertJsonPath('data.drivers.0.acStatus', null);
 

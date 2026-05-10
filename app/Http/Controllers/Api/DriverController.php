@@ -84,6 +84,7 @@ class DriverController extends Controller
             'emergency_phone' => $validated['emergencyPhone'],
             'residential_address' => $validated['residentialAddress'],
             'status' => $validated['status'],
+            'monthly_subscription_price' => $validated['monthlySubscriptionPrice'] ?? null,
             'id_card_image' => $request->hasFile('idCardImage') ? $request->file('idCardImage')->store('drivers', 'public') : null,
             'license_image' => $request->hasFile('licenseImage') ? $request->file('licenseImage')->store('drivers', 'public') : null,
             'non_conviction_certificate' => $request->hasFile('nonConvictionCertificate') ? $request->file('nonConvictionCertificate')->store('drivers', 'public') : null,
@@ -117,6 +118,10 @@ class DriverController extends Controller
             'residential_address' => $validated['residentialAddress'] ?? $driver->residential_address,
             'status' => $validated['status'] ?? $driver->status,
         ];
+
+        if (array_key_exists('monthlySubscriptionPrice', $validated)) {
+            $payload['monthly_subscription_price'] = $validated['monthlySubscriptionPrice'];
+        }
 
         if (isset($validated['primaryPhone'])) {
             $user = $this->resolveDriverUser($validated, $phoneNormalizer);

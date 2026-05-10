@@ -30,6 +30,9 @@ class DriverResource extends JsonResource
             'emergencyPhone' => $this->emergency_phone,
             'residentialAddress' => $this->residential_address,
             'status' => $this->status,
+            'monthlySubscriptionPrice' => $this->monthly_subscription_price !== null
+                ? (int) $this->monthly_subscription_price
+                : null,
             'idCardImage' => $idCardImage,
             'licenseImage' => $licenseImage,
             'nonConvictionCertificate' => $nonConvictionCertificate,

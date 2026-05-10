@@ -197,7 +197,9 @@ final class TransportDriverCardBuilder
             'plateNumber' => $plate,
             'acStatus' => null,
             'distanceKm' => $distanceKm,
-            'monthlyPrice' => null,
+            'monthlyPrice' => $driver->monthly_subscription_price !== null
+                ? (int) $driver->monthly_subscription_price
+                : null,
             'currency' => 'IQD',
         ];
     }

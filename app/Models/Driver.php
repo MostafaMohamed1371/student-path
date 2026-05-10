@@ -21,12 +21,20 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'emergency_phone',
     'residential_address',
     'status',
+    'monthly_subscription_price',
     'id_card_image',
     'license_image',
     'non_conviction_certificate',
 ])]
 class Driver extends Model
 {
+    protected function casts(): array
+    {
+        return [
+            'monthly_subscription_price' => 'integer',
+        ];
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

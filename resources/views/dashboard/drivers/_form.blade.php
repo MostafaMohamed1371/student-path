@@ -95,6 +95,13 @@
             <option value="inactive" @selected(old('status', $driver->status ?? 'active') === 'inactive')>{{ __('dashboard.inactive') }}</option>
         </select>
     </div>
+    <div>
+        <label class="field-label" for="monthly_subscription_price">{{ __('dashboard.monthly_subscription_price') }}</label>
+        <input class="input" id="monthly_subscription_price" name="monthly_subscription_price" type="number" min="0" step="1"
+            value="{{ old('monthly_subscription_price', ($driver ?? null) && $driver->monthly_subscription_price !== null ? $driver->monthly_subscription_price : '') }}"
+            placeholder="65000" />
+        <p style="margin:6px 0 0;font-size:12px;color:#64748b;">{{ __('dashboard.monthly_subscription_price_help') }}</p>
+    </div>
 </div>
 
 <hr style="margin: 20px 0; border: 0; border-top: 1px solid #e2e8f0;">

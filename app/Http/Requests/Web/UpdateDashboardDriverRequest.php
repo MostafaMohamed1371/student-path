@@ -28,6 +28,7 @@ class UpdateDashboardDriverRequest extends FormRequest
             'emergency_phone' => ['required', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
             'residential_address' => ['required', 'string', 'max:255'],
             'status' => ['required', 'in:active,inactive'],
+            'monthly_subscription_price' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
             'id_card_image' => ['nullable', 'file', 'image', 'max:4096'],
             'license_image' => ['nullable', 'file', 'image', 'max:4096'],
             'non_conviction_certificate' => ['nullable', 'file', 'max:4096'],

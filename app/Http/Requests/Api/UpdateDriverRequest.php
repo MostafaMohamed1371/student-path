@@ -28,6 +28,7 @@ class UpdateDriverRequest extends FormRequest
             'emergencyPhone' => ['sometimes', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
             'residentialAddress' => ['sometimes', 'string', 'max:255'],
             'status' => ['sometimes', 'in:active,inactive'],
+            'monthlySubscriptionPrice' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:999999999999'],
             'idCardImage' => ['sometimes', 'nullable', 'file', 'image', 'max:4096'],
             'licenseImage' => ['sometimes', 'nullable', 'file', 'image', 'max:4096'],
             'nonConvictionCertificate' => ['sometimes', 'nullable', 'file', 'max:4096'],
