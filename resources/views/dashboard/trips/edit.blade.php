@@ -19,6 +19,28 @@
                     </select>
                 </label>
 
+                <label>
+                    <span>{{ __('dashboard.trip_field_driver') }}</span>
+                    <select name="driver_id">
+                        <option value="">—</option>
+                        @foreach(($drivers ?? []) as $d)
+                            <option value="{{ $d->id }}" @selected((string) old('driver_id', $trip->driver_id) === (string) $d->id)>
+                                {{ trim(($d->first_name ?? '').' '.($d->last_name ?? '')) }} (#{{ $d->id }})
+                            </option>
+                        @endforeach
+                    </select>
+                </label>
+
+                <label>
+                    <span>{{ __('dashboard.trip_field_type') }}</span>
+                    <select name="trip_type">
+                        <option value="">—</option>
+                        @foreach(($tripTypes ?? []) as $tt)
+                            <option value="{{ $tt }}" @selected(old('trip_type', $trip->trip_type) === $tt)>{{ $tt }}</option>
+                        @endforeach
+                    </select>
+                </label>
+
                 <label><span>{{ __('dashboard.bus_number') }}</span><input name="bus_number" value="{{ old('bus_number', $trip->bus_number) }}" required></label>
                 <label><span>{{ __('dashboard.route_title') }}</span><input name="route_title" value="{{ old('route_title', $trip->route_title) }}"></label>
                 <label><span>{{ __('dashboard.location') }}</span><input name="location" value="{{ old('location', $trip->location) }}"></label>
@@ -29,9 +51,22 @@
                 <label>
                     <span>{{ __('dashboard.trip_status') }}</span>
                     <select name="status" required>
+                        <option value="ACTIVE" @selected(old('status', $trip->status)==='ACTIVE')>ACTIVE</option>
                         <option value="PRESENT" @selected(old('status', $trip->status)==='PRESENT')>PRESENT</option>
                         <option value="ABSENT" @selected(old('status', $trip->status)==='ABSENT')>ABSENT</option>
                         <option value="CANCELLED" @selected(old('status', $trip->status)==='CANCELLED')>CANCELLED</option>
+                        <option value="COMPLETED" @selected(old('status', $trip->status)==='COMPLETED')>COMPLETED</option>
+                    </select>
+                </label>
+                @php($sel = old('student_ids', $selectedStudentIds ?? []))
+                <label style="grid-column:1 / -1;">
+                    <span>{{ __('dashboard.trip_students_select') }}</span>
+                    <select name="student_ids[]" multiple size="8" style="width:100%;max-width:520px;">
+                        @foreach(($students ?? []) as $s)
+                            <option value="{{ $s->id }}" @selected(collect($sel)->contains($s->id))>
+                                {{ $s->full_name }} — {{ $s->grade }} (#{{ $s->id }})
+                            </option>
+                        @endforeach
                     </select>
                 </label>
                 <label style="grid-column:1 / -1;"><span>{{ __('dashboard.notes') }}</span><textarea name="note" rows="3">{{ old('note', $trip->note) }}</textarea></label>

@@ -23,6 +23,7 @@
                         <th>{{ __('dashboard.vehicle') }}</th>
                         <th>{{ __('dashboard.phone') }}</th>
                         <th>{{ __('dashboard.monthly_subscription_price') }}</th>
+                        <th>{{ __('dashboard.shift_period') }}</th>
                         <th>{{ __('dashboard.status') }}</th>
                         @if(auth()->user()?->is_admin)
                             <th>{{ __('dashboard.actions') }}</th>
@@ -39,6 +40,15 @@
                             <td>{{ $driver->bus?->name ?: '—' }}</td>
                             <td>{{ $driver->primary_phone }}</td>
                             <td>{{ $driver->monthly_subscription_price !== null ? number_format((int) $driver->monthly_subscription_price).' '.__('dashboard.currency_iqd_short') : '—' }}</td>
+                            <td>
+                                @if($driver->shift_period === 'MORNING')
+                                    {{ __('dashboard.shift_period_morning') }}
+                                @elseif($driver->shift_period === 'EVENING')
+                                    {{ __('dashboard.shift_period_evening') }}
+                                @else
+                                    —
+                                @endif
+                            </td>
                             <td>
                                 <span class="badge {{ $driver->status === 'active' ? 'ok' : 'off' }}">
                                     {{ $driver->status === 'active' ? __('dashboard.active') : __('dashboard.inactive') }}
@@ -57,7 +67,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="{{ auth()->user()?->is_admin ? 9 : 8 }}">{{ __('dashboard.no_drivers') }}</td>
+                            <td colspan="{{ auth()->user()?->is_admin ? 10 : 9 }}">{{ __('dashboard.no_drivers') }}</td>
                         </tr>
                     @endforelse
                     </tbody>

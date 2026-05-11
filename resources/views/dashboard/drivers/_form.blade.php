@@ -52,6 +52,16 @@
         <label class="field-label" for="age">{{ __('dashboard.age') }}</label>
         <input class="input" id="age" name="age" type="number" min="18" max="80" value="{{ old('age', $driver->age ?? '') }}" required />
     </div>
+    <div style="grid-column: 1 / -1;">
+        <label class="field-label" for="profile_image">{{ __('dashboard.driver_profile_image') }}</label>
+        @if(($driver?->user?->image ?? null))
+            <div style="margin: 0 0 10px;">
+                <img src="{{ asset('storage/'.$driver->user->image) }}" alt="" width="120" height="120" style="object-fit: cover; border-radius: 10px; border: 1px solid #e2e8f0;">
+            </div>
+        @endif
+        <input class="input" id="profile_image" name="profile_image" type="file" accept=".jpg,.jpeg,.png,.webp" />
+        <p style="margin: 6px 0 0; font-size: 12px; color: #64748b;">{{ __('dashboard.driver_profile_image_help') }}</p>
+    </div>
 </div>
 
 <hr style="margin: 20px 0; border: 0; border-top: 1px solid #e2e8f0;">
@@ -88,6 +98,11 @@
         <label class="field-label" for="residential_address">{{ __('dashboard.residential_address') }}</label>
         <input class="input" id="residential_address" name="residential_address" value="{{ old('residential_address', $driver->residential_address ?? '') }}" required />
     </div>
+    <div style="grid-column: 1 / -1;">
+        <label class="field-label" for="route_description">{{ __('dashboard.driver_route_description') }}</label>
+        <textarea class="input" id="route_description" name="route_description" rows="2" placeholder="{{ __('dashboard.driver_route_description_placeholder') }}">{{ old('route_description', $driver->route_description ?? '') }}</textarea>
+        <p style="margin: 6px 0 0; font-size: 12px; color: #64748b;">{{ __('dashboard.driver_route_description_help') }}</p>
+    </div>
     <div>
         <label class="field-label" for="status">{{ __('dashboard.status') }}</label>
         <select class="input" id="status" name="status" required>
@@ -101,6 +116,32 @@
             value="{{ old('monthly_subscription_price', ($driver ?? null) && $driver->monthly_subscription_price !== null ? $driver->monthly_subscription_price : '') }}"
             placeholder="65000" />
         <p style="margin:6px 0 0;font-size:12px;color:#64748b;">{{ __('dashboard.monthly_subscription_price_help') }}</p>
+    </div>
+    <div>
+        <label class="field-label" for="shift_period">{{ __('dashboard.shift_period') }}</label>
+        <select class="input" id="shift_period" name="shift_period">
+            <option value="">{{ __('dashboard.shift_period_unspecified') }}</option>
+            <option value="MORNING" @selected(old('shift_period', $driver->shift_period ?? '') === 'MORNING')>{{ __('dashboard.shift_period_morning') }}</option>
+            <option value="EVENING" @selected(old('shift_period', $driver->shift_period ?? '') === 'EVENING')>{{ __('dashboard.shift_period_evening') }}</option>
+        </select>
+    </div>
+</div>
+
+<hr style="margin: 20px 0; border: 0; border-top: 1px solid #e2e8f0;">
+<div style="margin-top: 4px;">
+    <h3 style="margin: 0 0 10px; font-size: 18px;">{{ __('dashboard.driver_account_ratings') }}</h3>
+    <p style="margin: 0 0 10px; font-size: 13px; color: #64748b;">{{ __('dashboard.driver_ratings_help') }}</p>
+</div>
+<div class="form-grid">
+    <div>
+        <label class="field-label" for="rating_avg">{{ __('dashboard.driver_rating_avg') }}</label>
+        <input class="input" id="rating_avg" name="rating_avg" type="number" min="0" max="5" step="0.1"
+            value="{{ old('rating_avg', $driver?->user !== null ? $driver->user->rate : '') }}" placeholder="0–5" />
+    </div>
+    <div>
+        <label class="field-label" for="rating_count">{{ __('dashboard.driver_rating_count') }}</label>
+        <input class="input" id="rating_count" name="rating_count" type="number" min="0" step="1"
+            value="{{ old('rating_count', $driver?->user !== null ? $driver->user->votes : '') }}" placeholder="0" />
     </div>
 </div>
 

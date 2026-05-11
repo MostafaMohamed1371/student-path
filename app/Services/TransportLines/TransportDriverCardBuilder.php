@@ -2,6 +2,7 @@
 
 namespace App\Services\TransportLines;
 
+use App\Models\Bus;
 use App\Models\Driver;
 use App\Models\School;
 use App\Models\Student;
@@ -120,7 +121,8 @@ final class TransportDriverCardBuilder
     /**
      * Distance shown on driver cards: pickup → school.
      *
-     * Priority: optional request GPS → student's stored lat/lng → guardian home location.
+     * Priority: optional request GPS → student's stored lat/lng (explicit or per-school default from
+     * {@see \App\Support\ParentContext::representativeStudentsWithLocationBySchool}) → guardian home location.
      * Student and school coordinates are optional; when missing, falls back or returns null.
      */
     public function resolveDistanceKmToSchool(
@@ -178,9 +180,7 @@ final class TransportDriverCardBuilder
 
         $plate = $bus?->number;
         $routeKey = $plate !== null ? (int) $driver->school_id.'|'.(string) $plate : '';
-        $routeDescription = ($routeKey !== '' && isset($routeBySchoolAndBus[$routeKey]))
-            ? $routeBySchoolAndBus[$routeKey]
-            : null;
+        $routeDescription = $this->resolveRouteDescription($driver, $bus, $routeKey, $routeBySchoolAndBus);
 
         return [
             'schoolId' => (string) $driver->school_id,
@@ -191,17 +191,43 @@ final class TransportDriverCardBuilder
             'ratingAvg' => $ratingAvg,
             'ratingCount' => $ratingCount,
             'vehicleType' => $bus?->type,
-            'vehicleModelYear' => null,
+            'vehicleModelYear' => $bus?->vehicle_model_year !== null
+                ? (int) $bus->vehicle_model_year
+                : null,
             'totalSeats' => $capacity,
             'availableSeats' => $availableSeats,
             'plateNumber' => $plate,
-            'acStatus' => null,
+            'acStatus' => $bus?->ac_status,
             'distanceKm' => $distanceKm,
             'monthlyPrice' => $driver->monthly_subscription_price !== null
                 ? (int) $driver->monthly_subscription_price
                 : null,
             'currency' => 'IQD',
         ];
+    }
+
+    /**
+     * @param  array<string, string>  $routeBySchoolAndBus
+     */
+    private function resolveRouteDescription(Driver $driver, ?Bus $bus, string $routeKey, array $routeBySchoolAndBus): ?string
+    {
+        $fromHistory = ($routeKey !== '' && isset($routeBySchoolAndBus[$routeKey]))
+            ? trim((string) $routeBySchoolAndBus[$routeKey])
+            : '';
+        if ($fromHistory !== '') {
+            return $fromHistory;
+        }
+
+        $driverText = $driver->route_description;
+        if (is_string($driverText) && trim($driverText) !== '') {
+            return trim($driverText);
+        }
+
+        if ($bus !== null && is_string($bus->name) && trim($bus->name) !== '') {
+            return trim($bus->name);
+        }
+
+        return null;
     }
 
     public function driverDisplayName(Driver $driver): string

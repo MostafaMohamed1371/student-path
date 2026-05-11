@@ -4,6 +4,7 @@ namespace App\Services\Trips;
 
 use App\Models\Student;
 use App\Models\TripHistory;
+use App\Models\TripHistoryStudent;
 use Illuminate\Support\Carbon;
 
 final class StudentTripStatusResolver
@@ -35,6 +36,13 @@ final class StudentTripStatusResolver
 
     public function tripIncludesStudent(TripHistory $trip, int $studentId): bool
     {
+        if (TripHistoryStudent::query()
+            ->where('trip_history_id', $trip->id)
+            ->where('student_id', $studentId)
+            ->exists()) {
+            return true;
+        }
+
         return $this->previewContainsStudent($trip, $studentId);
     }
 

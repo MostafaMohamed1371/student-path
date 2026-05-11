@@ -17,12 +17,14 @@ use App\Http\Controllers\Api\V1\HomeLocationController as V1HomeLocationControll
 use App\Http\Controllers\Api\V1\InAppNotificationController as V1InAppNotificationController;
 use App\Http\Controllers\Api\V1\LocationController as V1LocationController;
 use App\Http\Controllers\Api\V1\MetaController as V1MetaController;
+use App\Http\Controllers\Api\V1\OrderController as V1OrderController;
 use App\Http\Controllers\Api\V1\ParentStudentController as V1ParentStudentController;
 use App\Http\Controllers\Api\V1\PlacesController as V1PlacesController;
 use App\Http\Controllers\Api\V1\ProfileController as V1ProfileController;
 use App\Http\Controllers\Api\V1\QiCardWalletPaymentController as V1QiCardWalletPaymentController;
 use App\Http\Controllers\Api\V1\TrackingInfoController as V1TrackingInfoController;
 use App\Http\Controllers\Api\V1\TransportLinesDriverController as V1TransportLinesDriverController;
+use App\Http\Controllers\Api\V1\DriverTripController as V1DriverTripController;
 use App\Http\Controllers\Api\V1\TripParentController as V1TripParentController;
 use App\Http\Controllers\Api\V1\TripRequestController as V1TripRequestController;
 use App\Http\Controllers\Api\V1\WalletController as V1WalletController;
@@ -147,6 +149,20 @@ Route::middleware('auth:sanctum')->group(function (): void {
 
     Route::get('transport-lines/drivers', [V1TransportLinesDriverController::class, 'index']);
     Route::get('transport-lines/drivers/{driver}', [V1TransportLinesDriverController::class, 'show']);
+
+    Route::get('orders', [V1OrderController::class, 'index']);
+    Route::put('orders/{order}', [V1OrderController::class, 'update']);
+
+    Route::get('scheduled-trips', [V1DriverTripController::class, 'scheduledTrips']);
+    Route::get('driver-overview', [V1DriverTripController::class, 'driverOverview']);
+    Route::get('driver/trips/{trip}', [V1DriverTripController::class, 'tripDetails']);
+    Route::post('driver/trips/{trip}/finalize', [V1DriverTripController::class, 'finalizeTrip']);
+    Route::get('trips/current-trip', [V1DriverTripController::class, 'currentTrip']);
+    Route::put('trips/end-trip', [V1DriverTripController::class, 'endTrip']);
+    Route::put('update-status', [V1DriverTripController::class, 'updateStatus']);
+    Route::post('delay-alert', [V1DriverTripController::class, 'sendDelayAlert']);
+    Route::post('driver/sos/trigger', [V1DriverTripController::class, 'triggerSos']);
+    Route::post('driver/sos/{sos}/stop', [V1DriverTripController::class, 'stopSos']);
 
     Route::get('trips/available', [V1TripParentController::class, 'available']);
     Route::get('trips/active', [V1TripParentController::class, 'active']);

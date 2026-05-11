@@ -59,6 +59,45 @@ final class ParentContext
         return Student::query()->whereIn('id', $ids)->get();
     }
 
+    /**
+     * One owned student per school (lowest id) that has latitude/longitude, for transport distance
+     * when the client does not pass `student_id`.
+     *
+     * @param  list<int>  $schoolIds
+     * @return array<int, Student> keyed by school_id
+     */
+    public static function representativeStudentsWithLocationBySchool(User $user, array $schoolIds): array
+    {
+        $schoolIds = array_values(array_unique(array_filter(array_map('intval', $schoolIds), fn (int $id): bool => $id > 0)));
+        if ($schoolIds === []) {
+            return [];
+        }
+
+        $ownedIds = self::studentIdsFor($user);
+        if ($ownedIds === []) {
+            return [];
+        }
+
+        $candidates = Student::query()
+            ->whereIn('id', $ownedIds)
+            ->whereIn('school_id', $schoolIds)
+            ->whereNotNull('latitude')
+            ->whereNotNull('longitude')
+            ->orderBy('school_id')
+            ->orderBy('id')
+            ->get();
+
+        $out = [];
+        foreach ($candidates as $student) {
+            $sid = (int) $student->school_id;
+            if (! isset($out[$sid])) {
+                $out[$sid] = $student;
+            }
+        }
+
+        return $out;
+    }
+
     public static function ownsStudent(User $user, int $studentId): bool
     {
         return in_array($studentId, self::studentIdsFor($user), true);

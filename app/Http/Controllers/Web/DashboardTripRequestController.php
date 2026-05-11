@@ -12,11 +12,13 @@ use App\Models\Student;
 use App\Models\TripHistory;
 use App\Models\TripRequest;
 use App\Models\User;
+use App\Services\Trips\TripRequestAcceptanceService;
+use App\Services\Trips\DriverShiftResolver;
+use App\Services\Trips\TripRequestOrderSnapshot;
 use App\Support\ParentContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class DashboardTripRequestController extends Controller
@@ -79,13 +81,24 @@ class DashboardTripRequestController extends Controller
             }
         }
 
+        $targetShift = null;
+        if ($tripHistoryId !== null) {
+            $tripForShift = TripHistory::query()->find((int) $tripHistoryId);
+            $targetShift = app(DriverShiftResolver::class)->fromTripType($tripForShift?->trip_type);
+        }
+
+        $driverId = $this->assignSchoolDriverId((int) $student->school_id, $targetShift);
+        $assignedDriver = Driver::query()->find($driverId);
+        $snapshot = TripRequestOrderSnapshot::build($student, $assignedDriver, []);
+
         TripRequest::query()->create([
             'user_id' => $user->id,
             'student_id' => $student->id,
-            'driver_id' => $this->assignSchoolDriverId((int) $student->school_id),
+            'driver_id' => $driverId,
             'trip_history_id' => $tripHistoryId,
             'status' => 'pending',
             'notes' => $validated['notes'] ?? null,
+            ...$snapshot,
         ]);
 
         return redirect()->route('dashboard.trip_requests.index')
@@ -145,7 +158,15 @@ class DashboardTripRequestController extends Controller
         if (isset($validated['student_id'])) {
             $updatedStudent = Student::query()->find((int) $validated['student_id']);
             if ($updatedStudent) {
-                $validated['driver_id'] = $this->assignSchoolDriverId((int) $updatedStudent->school_id);
+                $targetShift = null;
+                if ($tripHistoryId !== null) {
+                    $tripForShift = TripHistory::query()->find((int) $tripHistoryId);
+                    $targetShift = app(DriverShiftResolver::class)->fromTripType($tripForShift?->trip_type);
+                }
+                if ($targetShift === null) {
+                    $targetShift = app(DriverShiftResolver::class)->fromPresentType($trip_request->present_type);
+                }
+                $validated['driver_id'] = $this->assignSchoolDriverId((int) $updatedStudent->school_id, $targetShift);
             }
         }
 
@@ -171,13 +192,7 @@ class DashboardTripRequestController extends Controller
 
         $nextStatus = (string) $request->validated('status');
 
-        DB::transaction(function () use ($trip_request, $nextStatus): void {
-            $trip_request->update(['status' => $nextStatus]);
-
-            if ($nextStatus === 'accepted') {
-                $this->createTripHistoryForAcceptedRequest($trip_request->fresh(['user.homeLocation', 'student.school']));
-            }
-        });
+        app(TripRequestAcceptanceService::class)->applyDriverDecision($trip_request, $nextStatus);
 
         return redirect()
             ->route('dashboard.trip_requests.show', $trip_request)
@@ -288,54 +303,21 @@ class DashboardTripRequestController extends Controller
         abort_unless($sid !== null && (int) $trip->school_id === (int) $sid, 403);
     }
 
-    private function createTripHistoryForAcceptedRequest(TripRequest $tripRequest): void
+    private function assignSchoolDriverId(int $schoolId, ?string $targetShift = null): ?int
     {
-        $student = $tripRequest->student;
-        $user = $tripRequest->user;
-        if (! $student || ! $user) {
-            return;
-        }
-
-        $home = $user->homeLocation;
-        $school = $student->school;
-
-        $from = $home?->formatted_address
-            ?? (isset($home?->latitude, $home?->longitude) ? ($home->latitude.', '.$home->longitude) : null)
-            ?? 'Guardian home';
-
-        $to = $school?->name_en
-            ?? $school?->name_ar
-            ?? $school?->address
-            ?? (isset($school?->latitude, $school?->longitude) ? ($school->latitude.', '.$school->longitude) : null)
-            ?? 'School';
-
-        $trip = TripHistory::query()->create([
-            'school_id' => $student->school_id,
-            'route_title' => 'Trip Request #'.$tripRequest->id,
-            'location' => 'From '.$from.' to '.$to,
-            'students_count' => 1,
-            'distance_km' => 0,
-            'start_time' => now(),
-            'status' => 'PENDING',
-            'note' => $tripRequest->notes,
-            'students_preview' => [[
-                'id' => (string) $student->id,
-                'name' => (string) ($student->full_name ?? ''),
-            ]],
-        ]);
-
-        $tripRequest->forceFill([
-            'trip_history_id' => $trip->id,
-        ])->save();
-    }
-
-    private function assignSchoolDriverId(int $schoolId): ?int
-    {
-        return Driver::query()
+        $query = Driver::query()
             ->where('school_id', $schoolId)
             ->where('status', 'active')
-            ->orderBy('id')
-            ->value('id');
+            ->orderBy('id');
+
+        if ($targetShift !== null) {
+            $matching = (clone $query)->where('shift_period', $targetShift)->value('id');
+            if ($matching !== null) {
+                return $matching;
+            }
+        }
+
+        return $query->value('id');
     }
 
     private function currentDriver(): ?Driver

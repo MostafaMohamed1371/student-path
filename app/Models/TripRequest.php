@@ -14,6 +14,10 @@ class TripRequest extends Model
         'trip_history_id',
         'status',
         'notes',
+        'present_type',
+        'moving_point',
+        'stop_point',
+        'subscribe_price',
         'cancelled_at',
     ];
 
@@ -21,6 +25,7 @@ class TripRequest extends Model
     {
         return [
             'cancelled_at' => 'datetime',
+            'subscribe_price' => 'float',
         ];
     }
 

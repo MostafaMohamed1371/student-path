@@ -27,6 +27,8 @@ class TripParentController extends Controller
     {
         $request->validate([
             'student_id' => ['nullable', 'integer', 'exists:students,id'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'page' => ['nullable', 'integer', 'min:1'],
         ]);
 
         $query = TripHistory::query()
@@ -51,10 +53,27 @@ class TripParentController extends Controller
             }
         }
 
-        $trips = $query->orderBy('start_time')->limit(200)->get();
+        $paginator = $query
+            ->orderBy('start_time')
+            ->paginate(
+                min(100, max(1, (int) $request->query('per_page', 20))),
+                ['*'],
+                'page',
+                max(1, (int) $request->query('page', 1))
+            );
 
         return $this->parentSuccess(
-            $trips->map(fn (TripHistory $t) => $this->tripSummary($t))->values()->all()
+            collect($paginator->items())->map(fn (TripHistory $t) => $this->tripSummary($t))->values()->all(),
+            'success',
+            200,
+            [
+                'pagination' => [
+                    'current_page' => $paginator->currentPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                    'last_page' => $paginator->lastPage(),
+                ],
+            ]
         );
     }
 

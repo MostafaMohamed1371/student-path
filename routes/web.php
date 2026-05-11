@@ -80,6 +80,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/dashboard/trips', [DashboardTripController::class, 'index'])->name('dashboard.trips.index');
     Route::get('/dashboard/trips/create', [DashboardTripController::class, 'create'])->name('dashboard.trips.create');
     Route::post('/dashboard/trips', [DashboardTripController::class, 'store'])->name('dashboard.trips.store');
+    Route::get('/dashboard/trips/{trip}', [DashboardTripController::class, 'show'])->name('dashboard.trips.show');
     Route::get('/dashboard/trips/{trip}/edit', [DashboardTripController::class, 'edit'])->name('dashboard.trips.edit');
     Route::put('/dashboard/trips/{trip}', [DashboardTripController::class, 'update'])->name('dashboard.trips.update');
     Route::delete('/dashboard/trips/{trip}', [DashboardTripController::class, 'destroy'])->name('dashboard.trips.destroy');
@@ -93,6 +94,9 @@ Route::middleware('auth')->group(function (): void {
 
     Route::get('/dashboard/payments', [DashboardReportsController::class, 'payments'])->name('dashboard.payments');
     Route::get('/dashboard/in-app-notifications', [DashboardReportsController::class, 'notifications'])->name('dashboard.in_app_notifications');
+    Route::get('/dashboard/delay-alerts', [DashboardReportsController::class, 'delayAlerts'])->name('dashboard.delay_alerts');
+    Route::get('/dashboard/sos-alerts', [DashboardReportsController::class, 'sosAlerts'])->name('dashboard.sos_alerts');
+    Route::get('/dashboard/trip-finalization-reports', [DashboardReportsController::class, 'tripFinalizationReports'])->name('dashboard.trip_finalization_reports');
 
     Route::get('/dashboard/trip-requests', [DashboardTripRequestController::class, 'index'])->name('dashboard.trip_requests.index');
     Route::get('/dashboard/trip-requests/create', [DashboardTripRequestController::class, 'create'])->name('dashboard.trip_requests.create');

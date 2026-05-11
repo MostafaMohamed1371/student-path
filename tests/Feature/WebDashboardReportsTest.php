@@ -3,9 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Driver;
+use App\Models\DelayAlert;
 use App\Models\Guardian;
 use App\Models\InAppNotification;
 use App\Models\School;
+use App\Models\SosAlert;
 use App\Models\Student;
 use App\Models\SupportComplaint;
 use App\Models\TripHistory;
@@ -24,6 +26,9 @@ class WebDashboardReportsTest extends TestCase
     {
         $this->get(route('dashboard.payments'))->assertRedirect(route('login'));
         $this->get(route('dashboard.in_app_notifications'))->assertRedirect(route('login'));
+        $this->get(route('dashboard.delay_alerts'))->assertRedirect(route('login'));
+        $this->get(route('dashboard.sos_alerts'))->assertRedirect(route('login'));
+        $this->get(route('dashboard.trip_finalization_reports'))->assertRedirect(route('login'));
         $this->get(route('dashboard.trip_requests.index'))->assertRedirect(route('login'));
         $this->get(route('dashboard.absences.index'))->assertRedirect(route('login'));
         $this->get(route('dashboard.support_complaints.index'))->assertRedirect(route('login'));
@@ -76,6 +81,88 @@ class WebDashboardReportsTest extends TestCase
             ->assertOk()
             ->assertSee('Hello', false)
             ->assertSee('Body text', false);
+
+        $driverUser = User::factory()->create(['phone' => '9647909002010']);
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'D',
+            'father_name' => 'D',
+            'grandfather_name' => 'D',
+            'last_name' => 'A',
+            'age' => 30,
+            'id_card_number' => 'IDC-DA-2010',
+            'license_number' => 'LIC-DA-2010',
+            'primary_phone' => '7770002010',
+            'emergency_phone' => '7770003010',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+        $trip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'bus_number' => 'B',
+            'route_title' => 'T',
+            'location' => 'L',
+            'students_count' => 0,
+            'distance_km' => 0,
+            'start_time' => now(),
+            'status' => 'ACTIVE',
+        ]);
+        DelayAlert::query()->create([
+            'trip_history_id' => $trip->id,
+            'driver_id' => $driver->id,
+            'user_id' => $driverUser->id,
+            'reason_type' => 'TRAFFIC',
+            'delay_duration_minutes' => 10,
+            'note' => 'Traffic jam',
+            'driver_lat' => 33.3,
+            'driver_lng' => 44.3,
+        ]);
+
+        $this->get(route('dashboard.delay_alerts'))
+            ->assertOk()
+            ->assertSee('TRAFFIC', false)
+            ->assertSee('10', false);
+
+        SosAlert::query()->create([
+            'trip_history_id' => $trip->id,
+            'driver_id' => $driver->id,
+            'user_id' => $driverUser->id,
+            'emergency_type' => 'SOS',
+            'status' => 'TRIGGERED',
+            'driver_lat' => 33.3128,
+            'driver_lng' => 44.3615,
+            'triggered_at' => now(),
+        ]);
+
+        $this->get(route('dashboard.sos_alerts'))
+            ->assertOk()
+            ->assertSee('SOS', false)
+            ->assertSee('TRIGGERED', false);
+
+        TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'bus_number' => 'B2',
+            'route_title' => 'Finalized Trip',
+            'location' => 'L2',
+            'students_count' => 0,
+            'distance_km' => 0,
+            'start_time' => now()->subHour(),
+            'end_time' => now()->subMinutes(5),
+            'final_lat' => 33.3123,
+            'final_lng' => 44.3610,
+            'note' => 'تمت الرحلة بنجاح',
+            'status' => 'COMPLETED',
+        ]);
+
+        $this->get(route('dashboard.trip_finalization_reports'))
+            ->assertOk()
+            ->assertSee('TRP-', false)
+            ->assertSee('COMPLETED', false)
+            ->assertSee('33.3123, 44.361', false)
+            ->assertSee('تمت الرحلة بنجاح', false);
     }
 
     public function test_staff_sees_only_school_scoped_payment_rows(): void
@@ -322,5 +409,63 @@ class WebDashboardReportsTest extends TestCase
         ])->assertRedirect(route('dashboard.trip_requests.show', $visibleReq));
 
         $this->assertSame('rejected', $visibleReq->fresh()->status);
+    }
+
+    public function test_driver_dashboard_shows_active_sos_card_when_exists(): void
+    {
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'School SOS Home',
+            'province' => 'P',
+            'district' => '1',
+            'address' => 'A',
+            'status' => 'active',
+        ]);
+        $driverUser = User::factory()->create(['phone' => '9647909000311', 'school_id' => $school->id]);
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'SOS',
+            'father_name' => 'Driver',
+            'grandfather_name' => 'Home',
+            'last_name' => 'Card',
+            'age' => 31,
+            'id_card_number' => 'IDC-HOME-SOS',
+            'license_number' => 'LIC-HOME-SOS',
+            'primary_phone' => '7770000311',
+            'emergency_phone' => '7770001311',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+        $trip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => 'MORNING_PICKUP',
+            'bus_number' => 'B-SOS-H',
+            'route_title' => 'SOS HOME',
+            'location' => 'L',
+            'students_count' => 0,
+            'distance_km' => 0,
+            'start_time' => now(),
+            'status' => 'ACTIVE',
+            'students_preview' => [],
+        ]);
+        $sos = SosAlert::query()->create([
+            'trip_history_id' => $trip->id,
+            'driver_id' => $driver->id,
+            'user_id' => $driverUser->id,
+            'emergency_type' => 'SOS',
+            'status' => 'TRIGGERED',
+            'driver_lat' => 33.3128,
+            'driver_lng' => 44.3615,
+            'triggered_at' => now(),
+        ]);
+
+        $this->actingAs($driverUser);
+        $this->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee(__('dashboard.driver_active_sos_title'), false)
+            ->assertSee('SOS-'.$sos->id, false)
+            ->assertSee('TRP-'.$trip->id, false);
     }
 }

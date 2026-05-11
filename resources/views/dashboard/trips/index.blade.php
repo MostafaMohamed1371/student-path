@@ -22,9 +22,7 @@
                         <th>{{ __('dashboard.route_title') }}</th>
                         <th>{{ __('dashboard.trip_start_time') }}</th>
                         <th>{{ __('dashboard.trip_status') }}</th>
-                        @if(auth()->user()?->is_admin)
-                            <th>{{ __('dashboard.actions') }}</th>
-                        @endif
+                        <th>{{ __('dashboard.actions') }}</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -36,20 +34,21 @@
                             <td>{{ $trip->route_title ?: '—' }}</td>
                             <td>{{ $trip->start_time }}</td>
                             <td>{{ $trip->status }}</td>
-                            @if(auth()->user()?->is_admin)
-                            <td style="display:flex;gap:8px;">
-                                <a href="{{ route('dashboard.trips.edit', $trip) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.edit') }}</a>
-                                <form method="post" action="{{ route('dashboard.trips.destroy', $trip) }}" onsubmit="return confirm('{{ __('dashboard.confirm_delete') }}')">
-                                    @csrf
-                                    @method('delete')
-                                    <button type="submit" class="btn-muted">{{ __('dashboard.delete') }}</button>
-                                </form>
+                            <td style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <a href="{{ route('dashboard.trips.show', $trip) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.action_view') }}</a>
+                                @if(auth()->user()?->is_admin)
+                                    <a href="{{ route('dashboard.trips.edit', $trip) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.edit') }}</a>
+                                    <form method="post" action="{{ route('dashboard.trips.destroy', $trip) }}" onsubmit="return confirm('{{ __('dashboard.confirm_delete') }}')" style="display:inline;">
+                                        @csrf
+                                        @method('delete')
+                                        <button type="submit" class="btn-muted">{{ __('dashboard.delete') }}</button>
+                                    </form>
+                                @endif
                             </td>
-                            @endif
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="{{ auth()->user()?->is_admin ? 7 : 6 }}">{{ __('dashboard.no_trips') }}</td>
+                            <td colspan="7">{{ __('dashboard.no_trips') }}</td>
                         </tr>
                     @endforelse
                     </tbody>

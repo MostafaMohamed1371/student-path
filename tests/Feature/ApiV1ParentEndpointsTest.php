@@ -433,6 +433,7 @@ class ApiV1ParentEndpointsTest extends TestCase
 
         $available = $this->getJson('/api/trips/available?student_id='.$student->id)
             ->assertOk()
+            ->assertJsonPath('pagination.total', 2)
             ->json('data');
         $this->assertTrue(collect($available)->contains(fn (array $row) => (int) $row['id'] === $laterTrip->id));
 
@@ -1034,6 +1035,8 @@ class ApiV1ParentEndpointsTest extends TestCase
             'name' => 'Bus TL',
             'number' => 'TL-100',
             'type' => 'Bus (Toyota)',
+            'vehicle_model_year' => 2018,
+            'ac_status' => 'yes',
             'city' => 'Baghdad',
             'capacity' => 14,
             'color' => 'white',
@@ -1065,7 +1068,7 @@ class ApiV1ParentEndpointsTest extends TestCase
 
         Sanctum::actingAs($parent);
 
-        $this->getJson('/api/transport-lines/drivers')
+        $listWithoutStudentId = $this->getJson('/api/transport-lines/drivers')
             ->assertOk()
             ->assertJsonPath('data.schoolIds.0', (string) $school->id)
             ->assertJsonCount(1, 'data.drivers')
@@ -1081,8 +1084,12 @@ class ApiV1ParentEndpointsTest extends TestCase
             ->assertJsonPath('data.drivers.0.plateNumber', 'TL-100')
             ->assertJsonPath('data.drivers.0.currency', 'IQD')
             ->assertJsonPath('data.drivers.0.monthlyPrice', 65000)
-            ->assertJsonPath('data.drivers.0.vehicleModelYear', null)
-            ->assertJsonPath('data.drivers.0.acStatus', null);
+            ->assertJsonPath('data.drivers.0.vehicleModelYear', 2018)
+            ->assertJsonPath('data.drivers.0.acStatus', 'yes');
+
+        $distanceAutoFromOwnedStudent = $listWithoutStudentId->json('data.drivers.0.distanceKm');
+        $this->assertIsNumeric($distanceAutoFromOwnedStudent);
+        $this->assertGreaterThan(0, (float) $distanceAutoFromOwnedStudent);
 
         $this->assertNotContains(
             (string) $inactiveDriver->id,
@@ -1105,6 +1112,12 @@ class ApiV1ParentEndpointsTest extends TestCase
             ->assertJsonPath('data.driver.driverId', (string) $driver->id)
             ->assertJsonPath('data.driver.schoolId', (string) $school->id)
             ->assertJsonPath('data.driver.driverName', 'Captain Test Driver');
+
+        $showAutoKm = $this->getJson('/api/transport-lines/drivers/'.$driver->id)
+            ->assertOk()
+            ->json('data.driver.distanceKm');
+        $this->assertIsNumeric($showAutoKm);
+        $this->assertGreaterThan(0, (float) $showAutoKm);
     }
 
     public function test_v1_transport_lines_drivers_admin_requires_school_id(): void
@@ -1197,6 +1210,248 @@ class ApiV1ParentEndpointsTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'data.drivers')
             ->assertJsonPath('data.drivers.0.driverId', (string) $driverB->id);
+    }
+
+    public function test_v1_orders_list_and_driver_updates_status(): void
+    {
+        $school = $this->makeSchool('Orders School');
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'G Ord',
+            'phone' => '7300000299',
+            'status' => 'active',
+        ]);
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'ليام عبدالله القحطاني',
+            'gender' => 'female',
+            'grade' => 'الصف الاول الاعدادى',
+            'student_phone' => '7400000299',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'father',
+            'district_area' => 'حي المنصور',
+            'nearest_landmark' => 'شارع 14',
+            'status' => 'active',
+        ]);
+
+        $parent = User::factory()->create(['guardian_id' => $guardian->id, 'school_id' => $school->id]);
+        $driverUser = User::factory()->create(['phone' => '9647909000299']);
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'D',
+            'father_name' => 'D',
+            'grandfather_name' => 'D',
+            'last_name' => 'Ord',
+            'age' => 35,
+            'id_card_number' => 'IDC-ORD',
+            'license_number' => 'LIC-ORD',
+            'primary_phone' => '7770000299',
+            'emergency_phone' => '7770001299',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+            'monthly_subscription_price' => 50000,
+        ]);
+        Bus::query()->create([
+            'user_id' => User::factory()->create(['phone' => '9647909000298'])->id,
+            'driver_id' => $driver->id,
+            'name' => 'Bus Ord',
+            'number' => 'ORD-1',
+            'type' => 'Bus',
+            'city' => 'Baghdad',
+            'capacity' => 20,
+            'color' => 'yellow',
+            'fuel_type' => 'diesel',
+            'status' => 'active',
+        ]);
+
+        Sanctum::actingAs($parent);
+        $this->postJson('/api/trip-requests', [
+            'student_id' => $student->id,
+            'driver_id' => $driver->id,
+            'present_type' => 'مسائي',
+        ])
+            ->assertCreated();
+
+        $tripRequest = TripRequest::query()->firstOrFail();
+
+        $this->getJson('/api/orders')
+            ->assertOk()
+            ->assertJsonPath('msg', 'Retrieve Orders Successfully')
+            ->assertJsonPath('data.0.id', $tripRequest->id)
+            ->assertJsonPath('data.0.student.presentType', 'مسائي')
+            ->assertJsonPath('data.0.student.subscribePrice', 50000);
+
+        Sanctum::actingAs($driverUser);
+        $this->getJson('/api/orders')
+            ->assertOk()
+            ->assertJsonPath('meta.pending_count', 1)
+            ->assertJsonPath('meta.total_seats', 20)
+            ->assertJsonPath('pagination.total', 1);
+
+        $this->putJson('/api/orders/'.$tripRequest->id, ['status' => 'accepted', 'order_id' => (string) $tripRequest->id])
+            ->assertOk()
+            ->assertJsonPath('msg', 'Order accepted successfully')
+            ->assertJsonPath('data.id', $tripRequest->id)
+            ->assertJsonPath('data.status', 'accepted');
+
+        $this->assertDatabaseHas('trip_requests', [
+            'id' => $tripRequest->id,
+            'status' => 'accepted',
+        ]);
+        $this->assertNotNull($tripRequest->fresh()->trip_history_id);
+    }
+
+    public function test_v1_trip_request_auto_assigns_driver_by_shift_period(): void
+    {
+        $school = $this->makeSchool('Shift School');
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'G Shift',
+            'phone' => '7300000399',
+            'status' => 'active',
+        ]);
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'Shift Student',
+            'gender' => 'female',
+            'grade' => 'G1',
+            'student_phone' => '7400000399',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'mother',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'status' => 'active',
+        ]);
+        $parent = User::factory()->create(['guardian_id' => $guardian->id, 'school_id' => $school->id]);
+
+        $morningUser = User::factory()->create(['phone' => '9647909000391']);
+        $morningDriver = Driver::query()->create([
+            'user_id' => $morningUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'M',
+            'father_name' => 'M',
+            'grandfather_name' => 'M',
+            'last_name' => 'Driver',
+            'age' => 33,
+            'id_card_number' => 'IDC-SH-1',
+            'license_number' => 'LIC-SH-1',
+            'primary_phone' => '7770000391',
+            'emergency_phone' => '7770001391',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+            'shift_period' => 'MORNING',
+        ]);
+
+        $eveningUser = User::factory()->create(['phone' => '9647909000392']);
+        $eveningDriver = Driver::query()->create([
+            'user_id' => $eveningUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'E',
+            'father_name' => 'E',
+            'grandfather_name' => 'E',
+            'last_name' => 'Driver',
+            'age' => 34,
+            'id_card_number' => 'IDC-SH-2',
+            'license_number' => 'LIC-SH-2',
+            'primary_phone' => '7770000392',
+            'emergency_phone' => '7770001392',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+            'shift_period' => 'EVENING',
+        ]);
+
+        Sanctum::actingAs($parent);
+        $this->postJson('/api/trip-requests', [
+            'student_id' => $student->id,
+            'present_type' => 'مسائي',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.driver_id', $eveningDriver->id);
+
+        $this->postJson('/api/trip-requests', [
+            'student_id' => $student->id,
+            'driver_id' => $morningDriver->id,
+            'present_type' => 'مسائي',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.driver_id.0', 'shift_mismatch');
+    }
+
+    public function test_v1_transport_lines_route_description_uses_driver_without_trip_history(): void
+    {
+        $school = $this->makeSchool('Driver Route School');
+        $school->update(['latitude' => 33.3152, 'longitude' => 44.3661]);
+
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'G DRVRT',
+            'phone' => '7300000299',
+            'status' => 'active',
+        ]);
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'S DRVRT',
+            'gender' => 'male',
+            'grade' => '1',
+            'student_phone' => '7400000299',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'status' => 'active',
+        ]);
+        $student->update(['latitude' => 33.325, 'longitude' => 44.376]);
+
+        $parent = User::factory()->create(['guardian_id' => $guardian->id, 'school_id' => $school->id]);
+        $driverUser = User::factory()->create(['phone' => '9647909000291', 'name' => 'Route Driver']);
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'R',
+            'father_name' => 'D',
+            'grandfather_name' => 'D',
+            'last_name' => 'W',
+            'age' => 35,
+            'id_card_number' => 'IDC-DRVRT',
+            'license_number' => 'LIC-DRVRT',
+            'primary_phone' => '7770000291',
+            'emergency_phone' => '7770000292',
+            'residential_address' => 'Addr',
+            'route_description' => 'Morning — Sector 9 stop',
+            'status' => 'active',
+            'monthly_subscription_price' => 50000,
+        ]);
+
+        $busUser = User::factory()->create(['phone' => '9647909000290']);
+        Bus::query()->create([
+            'user_id' => $busUser->id,
+            'driver_id' => $driver->id,
+            'name' => 'Bus Label Fallback',
+            'number' => 'DRV-RT-1',
+            'type' => 'Van',
+            'city' => 'Baghdad',
+            'capacity' => 10,
+            'color' => 'white',
+            'fuel_type' => 'diesel',
+            'status' => 'active',
+        ]);
+
+        Sanctum::actingAs($parent);
+        $this->getJson('/api/transport-lines/drivers?school_id='.$school->id)
+            ->assertOk()
+            ->assertJsonPath('data.drivers.0.routeDescription', 'Morning — Sector 9 stop');
+
+        $driver->update(['route_description' => null]);
+        $this->getJson('/api/transport-lines/drivers?school_id='.$school->id)
+            ->assertOk()
+            ->assertJsonPath('data.drivers.0.routeDescription', 'Bus Label Fallback');
     }
 
     private function makeSchool(string $nameEn): School

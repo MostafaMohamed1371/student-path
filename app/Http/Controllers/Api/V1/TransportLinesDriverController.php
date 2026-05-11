@@ -28,6 +28,7 @@ class TransportLinesDriverController extends Controller
         $request->validate([
             'school_id' => ['nullable', 'integer', 'exists:schools,id'],
             'student_id' => ['nullable', 'integer', 'exists:students,id'],
+            'shift_period' => ['nullable', 'string', 'in:MORNING,EVENING'],
             'search' => ['nullable', 'string', 'max:120'],
             'min_monthly_price' => ['nullable', 'integer', 'min:0'],
             'max_monthly_price' => ['nullable', 'integer', 'min:0'],
@@ -71,6 +72,10 @@ class TransportLinesDriverController extends Controller
             ->orderBy('school_id')
             ->orderBy('id');
 
+        if ($request->filled('shift_period')) {
+            $driversQuery->where('shift_period', (string) $request->query('shift_period'));
+        }
+
         $search = trim((string) $request->query('search', ''));
         if ($search !== '') {
             $driversQuery->where(function ($q) use ($search): void {
@@ -113,12 +118,18 @@ class TransportLinesDriverController extends Controller
 
         $routeBySchoolAndBus = $this->cardBuilder->latestRouteTitlesBySchoolAndBus($schoolIds, $drivers);
 
-        $cards = $drivers->map(function (Driver $driver) use ($reservedByDriver, $routeBySchoolAndBus, $schools, $request, $student, $queryLat, $queryLng): array {
+        $studentsBySchoolForDistance = ParentContext::representativeStudentsWithLocationBySchool(
+            $request->user(),
+            $schoolIds,
+        );
+
+        $cards = $drivers->map(function (Driver $driver) use ($reservedByDriver, $routeBySchoolAndBus, $schools, $request, $student, $studentsBySchoolForDistance, $queryLat, $queryLng): array {
             $school = $schools->get($driver->school_id);
+            $studentForDistance = $student ?? ($studentsBySchoolForDistance[(int) $driver->school_id] ?? null);
             $distanceKm = $this->cardBuilder->resolveDistanceKmToSchool(
                 $queryLat,
                 $queryLng,
-                $student,
+                $studentForDistance,
                 $request->user(),
                 $school instanceof School ? $school : null,
             );
@@ -170,10 +181,15 @@ class TransportLinesDriverController extends Controller
         $school = School::query()->find((int) $driver->school_id);
         $queryLat = $request->filled('latitude') ? (float) $request->query('latitude') : null;
         $queryLng = $request->filled('longitude') ? (float) $request->query('longitude') : null;
+        $studentsBySchoolForDistance = ParentContext::representativeStudentsWithLocationBySchool(
+            $request->user(),
+            [(int) $driver->school_id],
+        );
+        $studentForDistance = $student ?? ($studentsBySchoolForDistance[(int) $driver->school_id] ?? null);
         $distanceKm = $this->cardBuilder->resolveDistanceKmToSchool(
             $queryLat,
             $queryLng,
-            $student,
+            $studentForDistance,
             $request->user(),
             $school,
         );

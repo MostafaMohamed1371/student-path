@@ -32,10 +32,10 @@ class TripHistoryController extends Controller
 
         if ($validator->fails()) {
             return response()->json([
-                'status' => 400,
+                'status' => 422,
                 'message' => $validator->errors()->first(),
                 'data' => null,
-            ], 400);
+            ], 422);
         }
 
         $page = (int) ($request->query('page', 1));

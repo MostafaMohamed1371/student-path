@@ -10,11 +10,13 @@ use App\Models\Driver;
 use App\Models\Guardian;
 use App\Models\OtpCode;
 use App\Models\School;
+use App\Models\SosAlert;
 use App\Models\Student;
 use App\Models\SupportComplaint;
 use App\Models\TripHistory;
 use App\Models\TripRequest;
 use App\Models\User;
+use App\Services\Trips\DriverTripModuleService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\View\View;
 
@@ -27,6 +29,28 @@ class DashboardHomeController extends Controller
         $authUser = auth()->user();
         $isAdmin = (bool) $authUser?->is_admin;
         $schoolId = $authUser?->scopingSchoolId();
+
+        $driverScheduledTrips = null;
+        $driverTripHomeStats = null;
+        $driverOverviewData = null;
+        $driverPendingOrders = null;
+        $driverActiveSos = null;
+        $authUser?->loadMissing('driver');
+        if ($authUser?->driver instanceof Driver) {
+            $tripModule = app(DriverTripModuleService::class);
+            $driverScheduledTrips = $tripModule->scheduledTripsForDriver($authUser->driver);
+            $driverTripHomeStats = $tripModule->driverHomeTripStats($authUser->driver);
+            $driverOverviewData = $tripModule->driverOverview($authUser->driver);
+            $driverPendingOrders = (int) TripRequest::query()
+                ->where('driver_id', $authUser->driver->id)
+                ->where('status', 'pending')
+                ->count();
+            $driverActiveSos = SosAlert::query()
+                ->where('driver_id', $authUser->driver->id)
+                ->where('status', 'TRIGGERED')
+                ->latest('id')
+                ->first();
+        }
 
         if ($isAdmin) {
             return view('dashboard.index', [
@@ -44,6 +68,11 @@ class DashboardHomeController extends Controller
                 'tripRequestsCount' => TripRequest::query()->count(),
                 'absencesCount' => Absence::query()->count(),
                 'supportComplaintsCount' => SupportComplaint::query()->count(),
+                'driverScheduledTrips' => $driverScheduledTrips,
+                'driverTripHomeStats' => $driverTripHomeStats,
+                'driverOverviewData' => $driverOverviewData,
+                'driverPendingOrders' => $driverPendingOrders,
+                'driverActiveSos' => $driverActiveSos,
             ]);
         }
 
@@ -86,6 +115,11 @@ class DashboardHomeController extends Controller
             'tripRequestsCount' => $tripRequestsCount,
             'absencesCount' => $absencesCount,
             'supportComplaintsCount' => $supportComplaintsCount,
+            'driverScheduledTrips' => $driverScheduledTrips,
+            'driverTripHomeStats' => $driverTripHomeStats,
+            'driverOverviewData' => $driverOverviewData,
+            'driverPendingOrders' => $driverPendingOrders,
+            'driverActiveSos' => $driverActiveSos,
         ]);
     }
 }

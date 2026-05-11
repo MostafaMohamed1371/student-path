@@ -21,7 +21,7 @@ final class ApiResponse
     /**
      * @param  array<string, array<int, string>>|null  $errors
      */
-    public static function error(string $message, ?array $errors = null, int $status = 400): JsonResponse
+    public static function error(string $message, ?array $errors = null, int $status = 422): JsonResponse
     {
         $payload = [
             'success' => false,

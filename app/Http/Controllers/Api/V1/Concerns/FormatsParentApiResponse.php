@@ -24,13 +24,13 @@ trait FormatsParentApiResponse
     /**
      * @param  array<string, mixed>|null  $errors
      */
-    protected function parentError(string $message, ?array $errors = null, int $status = 400): JsonResponse
+    protected function parentError(string $message, ?array $errors = null, int $status = 422, mixed $data = null): JsonResponse
     {
         $payload = [
             'success' => false,
             'message' => $message,
             'msg' => $message,
-            'data' => null,
+            'data' => $data,
         ];
         if ($errors !== null) {
             $payload['errors'] = $errors;

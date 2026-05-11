@@ -12,6 +12,13 @@ class UpdateDashboardDriverRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if ($this->input('route_description') === '') {
+            $this->merge(['route_description' => null]);
+        }
+    }
+
     /** @return array<string, list<string|ValidationRule>> */
     public function rules(): array
     {
@@ -27,11 +34,16 @@ class UpdateDashboardDriverRequest extends FormRequest
             'primary_phone' => ['required', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
             'emergency_phone' => ['required', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
             'residential_address' => ['required', 'string', 'max:255'],
+            'route_description' => ['nullable', 'string', 'max:512'],
             'status' => ['required', 'in:active,inactive'],
             'monthly_subscription_price' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
+            'shift_period' => ['nullable', 'in:MORNING,EVENING'],
+            'profile_image' => ['nullable', 'file', 'image', 'max:4096'],
             'id_card_image' => ['nullable', 'file', 'image', 'max:4096'],
             'license_image' => ['nullable', 'file', 'image', 'max:4096'],
             'non_conviction_certificate' => ['nullable', 'file', 'max:4096'],
+            'rating_avg' => ['nullable', 'numeric', 'min:0', 'max:5'],
+            'rating_count' => ['nullable', 'integer', 'min:0', 'max:999999'],
         ];
     }
 }

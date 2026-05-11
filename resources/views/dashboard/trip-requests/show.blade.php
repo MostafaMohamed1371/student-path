@@ -14,6 +14,13 @@
         <p style="color: var(--text-muted); margin: 0 0 20px;">{{ __('dashboard.trip_request_show_intro') }}</p>
 
         <section class="card" style="margin-bottom: 20px;">
+            @if($tripRequest->present_type || $tripRequest->moving_point || $tripRequest->stop_point || $tripRequest->subscribe_price !== null)
+                <p style="margin: 0 0 8px;"><strong>{{ __('dashboard.order_present_type') }}:</strong> {{ $tripRequest->present_type ?: '—' }}</p>
+                <p style="margin: 0 0 8px;"><strong>{{ __('dashboard.order_moving_point') }}:</strong> {{ $tripRequest->moving_point ?: '—' }}</p>
+                <p style="margin: 0 0 8px;"><strong>{{ __('dashboard.order_stop_point') }}:</strong> {{ $tripRequest->stop_point ?: '—' }}</p>
+                <p style="margin: 0 0 8px;"><strong>{{ __('dashboard.order_subscribe_price') }}:</strong> @if($tripRequest->subscribe_price !== null) {{ number_format((float) $tripRequest->subscribe_price, 2) }} {{ __('dashboard.currency_iqd_short') }} @else — @endif</p>
+                <hr style="margin: 12px 0; border: 0; border-top: 1px solid #e2e8f0;">
+            @endif
             <p style="margin: 0 0 8px;"><strong>{{ __('dashboard.table_col_status') }}:</strong> {{ $tripRequest->status }}</p>
             <p style="margin: 0 0 8px;"><strong>{{ __('dashboard.table_col_user') }}:</strong> {{ $u?->name ?? '—' }}</p>
             <p style="margin: 0 0 8px;"><strong>{{ __('dashboard.table_col_phone') }}:</strong> <span class="mono">{{ $u?->phone ?? '—' }}</span></p>
