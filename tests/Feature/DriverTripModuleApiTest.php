@@ -950,7 +950,7 @@ class DriverTripModuleApiTest extends TestCase
         $this->getJson('/api/scheduled-trips')
             ->assertOk()
             ->assertJsonPath('msg', 'all trips')
-            ->assertJsonPath('pagination.total', 2)
+            ->assertJsonCount(2, 'data')
             ->assertJsonPath('data.0.id', $tMorningOut->id)
             ->assertJsonPath('data.0.title', 'رحلة الصباح - ذهاب')
             ->assertJsonPath('data.0.type', 'MORNING_PICKUP')
@@ -1491,7 +1491,7 @@ class DriverTripModuleApiTest extends TestCase
         // Scheduled trips API now includes the created trip.
         $this->getJson('/api/scheduled-trips')
             ->assertOk()
-            ->assertJsonPath('pagination.total', 1)
+            ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $trip->id);
 
         // Current trip is ACTIVE and student starts at IDLE.

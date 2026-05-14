@@ -13,8 +13,8 @@ use App\Models\InAppNotification;
 use App\Models\SosAlert;
 use App\Models\TripHistory;
 use App\Models\User;
-use App\Services\Trips\DriverTripModuleService;
 use App\Services\Trips\DriverShiftResolver;
+use App\Services\Trips\DriverTripModuleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -30,25 +30,14 @@ class DriverTripController extends Controller
 
     public function scheduledTrips(Request $request): JsonResponse
     {
-        $request->validate([
-            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
-            'page' => ['nullable', 'integer', 'min:1'],
-        ]);
-
         $driver = $this->currentDriver($request);
         if (! $driver instanceof Driver) {
             return $this->parentError('Only drivers can list scheduled trips.', null, 403);
         }
 
-        $result = $this->driverTripModuleService->scheduledTripsForDriverPaginated(
-            $driver,
-            (int) $request->query('per_page', 20),
-            (int) $request->query('page', 1),
-        );
+        $items = $this->driverTripModuleService->scheduledTripsForDriverList($driver);
 
-        return $this->parentSuccess($result['items'], 'all trips', 200, [
-            'pagination' => $result['pagination'],
-        ]);
+        return $this->parentSuccess($items, 'all trips');
     }
 
     public function driverOverview(Request $request): JsonResponse

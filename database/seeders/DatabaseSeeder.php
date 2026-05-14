@@ -32,5 +32,6 @@ class DatabaseSeeder extends Seeder
 
         $this->call(IraqLocationsSeeder::class);
         $this->call(LocationMetaSeeder::class);
+        $this->call(DriverScheduledTripsSeeder::class);
     }
 }

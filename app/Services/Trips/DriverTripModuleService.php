@@ -3,8 +3,9 @@
 namespace App\Services\Trips;
 
 use App\Enums\ScheduledTripCardStatus;
-use App\Enums\TripType;
 use App\Enums\StudentTripStopStatus;
+use App\Enums\TripType;
+use App\Http\Resources\StudentResource;
 use App\Models\Driver;
 use App\Models\School;
 use App\Models\Student;
@@ -13,9 +14,8 @@ use App\Models\TripHistoryStudent;
 use App\Models\User;
 use App\Services\TransportLines\TransportDriverCardBuilder;
 use App\Support\Geo\Haversine;
-use App\Http\Resources\StudentResource;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 final class DriverTripModuleService
@@ -164,63 +164,43 @@ final class DriverTripModuleService
      */
     public function scheduledTripsForDriver(Driver $driver, ?Carbon $onDay = null): array
     {
-        $result = $this->scheduledTripsForDriverPaginated($driver, 20, 1, $onDay);
-
-        return $result['items'];
+        return $this->scheduledTripsForDriverList($driver, $onDay);
     }
 
     /**
-     * @return array{
-     *   items: list<array{id: int, title: string, time: string, status: string, type: string|null}>,
-     *   pagination: array{current_page: int, per_page: int, total: int, last_page: int}
-     * }
+     * All scheduled trip cards for the driver on the given calendar day (app timezone), ordered by start time.
+     *
+     * @return list<array{id: int, title: string, time: string, status: string, type: string|null}>
      */
-    public function scheduledTripsForDriverPaginated(
-        Driver $driver,
-        int $perPage = 20,
-        int $page = 1,
-        ?Carbon $onDay = null,
-    ): array {
+    public function scheduledTripsForDriverList(Driver $driver, ?Carbon $onDay = null): array
+    {
         $onDay ??= now();
         $tz = config('app.timezone') ?: 'UTC';
         $dayStart = $onDay->copy()->timezone($tz)->startOfDay();
         $dayEnd = $onDay->copy()->timezone($tz)->endOfDay();
 
-        /** @var LengthAwarePaginator $paginator */
-        $paginator = TripHistory::query()
+        $trips = TripHistory::query()
             ->where('driver_id', $driver->id)
             ->whereBetween('start_time', [$dayStart, $dayEnd])
             ->orderBy('start_time')
             ->orderBy('id')
-            ->paginate(
-                max(1, min(100, $perPage)),
-                ['*'],
-                'page',
-                max(1, $page)
-            );
+            ->get();
 
         $now = now();
-        $items = collect($paginator->items())->map(fn (TripHistory $trip): array => [
-            'id' => (int) $trip->id,
-            'title' => $this->scheduledTripCardTitle($trip),
-            'time' => $this->formatArabicShortTime(
-                $trip->start_time instanceof Carbon
-                    ? $trip->start_time->copy()->timezone($tz)
-                    : Carbon::parse((string) $trip->start_time)->timezone($tz)
-            ),
-            'status' => $this->scheduledTripCardStatus($trip, $now)->value,
-            'type' => $this->scheduledTripTypeValue($trip),
-        ])->values()->all();
 
-        return [
-            'items' => $items,
-            'pagination' => [
-                'current_page' => $paginator->currentPage(),
-                'per_page' => $paginator->perPage(),
-                'total' => $paginator->total(),
-                'last_page' => $paginator->lastPage(),
-            ],
-        ];
+        return $trips->map(function (TripHistory $trip) use ($now, $tz): array {
+            $start = $trip->start_time instanceof Carbon
+                ? $trip->start_time->copy()->timezone($tz)
+                : Carbon::parse((string) $trip->start_time)->timezone($tz);
+
+            return [
+                'id' => (int) $trip->id,
+                'title' => $this->scheduledTripCardTitle($trip),
+                'time' => $this->formatArabicShortTime($start),
+                'status' => $this->scheduledTripCardStatus($trip, $now)->value,
+                'type' => $this->scheduledTripTypeValue($trip),
+            ];
+        })->values()->all();
     }
 
     /**
@@ -701,7 +681,7 @@ final class DriverTripModuleService
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, TripHistoryStudent>  $rows
+     * @param  Collection<int, TripHistoryStudent>  $rows
      */
     private function queueHeadStudentId($rows): ?int
     {
