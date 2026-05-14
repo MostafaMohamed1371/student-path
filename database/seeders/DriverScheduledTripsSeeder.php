@@ -121,10 +121,11 @@ class DriverScheduledTripsSeeder extends Seeder
         }
 
         $busNumber = 'SEED-BUS-D'.$driver->id;
-        Bus::query()->firstOrCreate(
-            ['driver_id' => $driver->id],
+        // One bus row per user (user_id is unique); attach/update instead of inserting a second bus.
+        Bus::query()->updateOrCreate(
+            ['user_id' => $driver->user_id],
             [
-                'user_id' => $driver->user_id,
+                'driver_id' => $driver->id,
                 'name' => 'Seed Bus',
                 'number' => $busNumber,
                 'type' => 'Bus',
