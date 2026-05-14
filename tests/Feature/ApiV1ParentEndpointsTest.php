@@ -12,6 +12,7 @@ use App\Models\Student;
 use App\Models\TripHistory;
 use App\Models\TripRequest;
 use App\Models\User;
+use Database\Seeders\IraqLocationsSeeder;
 use Database\Seeders\LocationMetaSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -101,6 +102,7 @@ class ApiV1ParentEndpointsTest extends TestCase
 
     public function test_v1_district_areas(): void
     {
+        $this->seed(IraqLocationsSeeder::class);
         $this->seed(LocationMetaSeeder::class);
         $user = User::factory()->create();
         Sanctum::actingAs($user);

@@ -3,8 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use Database\Seeders\IraqLocationsSeeder;
 use Database\Seeders\LocationMetaSeeder;
-use Database\Seeders\NeighborhoodSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -16,8 +16,8 @@ class IraqLocationsApiTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->seed(IraqLocationsSeeder::class);
         $this->seed(LocationMetaSeeder::class);
-        $this->seed(NeighborhoodSeeder::class);
     }
 
     public function test_locations_iraq_returns_nested_districts_areas_neighborhoods(): void

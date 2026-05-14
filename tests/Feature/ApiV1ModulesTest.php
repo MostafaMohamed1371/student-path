@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use Database\Seeders\IraqLocationsSeeder;
 use Database\Seeders\LocationMetaSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -15,6 +16,7 @@ class ApiV1ModulesTest extends TestCase
 
     public function test_v1_wallet_and_meta_endpoints(): void
     {
+        $this->seed(IraqLocationsSeeder::class);
         $this->seed(LocationMetaSeeder::class);
 
         $user = User::factory()->create();
