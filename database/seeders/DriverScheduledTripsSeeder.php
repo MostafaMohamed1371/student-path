@@ -11,10 +11,13 @@ use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Database\Seeder;
 
 /**
- * Creates today's demo {@see TripHistory} rows for the seeded dashboard user so
- * {@code GET /api/scheduled-trips} returns data after {@code php artisan db:seed}.
+ * Creates today's demo {@see TripHistory} rows for **every** {@see Driver} (each linked user sees them on
+ * {@code GET /api/scheduled-trips}).
  *
- * Idempotent: removes previous seed rows (same {@see SEED_TRIP_NOTE}) for that driver, then reinserts.
+ * Idempotent per driver: deletes previous seed rows (same {@see SEED_TRIP_NOTE}) then inserts four slots.
+ *
+ * When {@see config('dashboard.seed_phone_national')} is set, also ensures that dashboard user exists with a
+ * {@see Driver} row so fresh installs still have one dev driver before the loop.
  */
 class DriverScheduledTripsSeeder extends Seeder
 {
@@ -22,21 +25,44 @@ class DriverScheduledTripsSeeder extends Seeder
 
     public function run(): void
     {
+        $this->bootstrapDashboardDriverIfConfigured();
+
+        $drivers = Driver::query()
+            ->whereNotNull('user_id')
+            ->orderBy('id');
+
+        $count = 0;
+        foreach ($drivers->cursor() as $driver) {
+            $this->seedDemoTripsForDriver($driver);
+            $count++;
+        }
+
+        if ($count === 0) {
+            $this->command?->warn('DriverScheduledTripsSeeder: no drivers in database (add drivers, or set DASHBOARD_SEED_PHONE for bootstrap).');
+
+            return;
+        }
+
+        $this->command?->info("DriverScheduledTripsSeeder: seeded today's demo trips for {$count} driver(s). Authenticate as each driver's user for GET /api/scheduled-trips.");
+    }
+
+    /**
+     * Optional: one dev driver tied to {@code DASHBOARD_SEED_PHONE} so {@code php artisan db:seed} on empty DB still has a driver.
+     */
+    private function bootstrapDashboardDriverIfConfigured(): void
+    {
         $national = trim((string) config('dashboard.seed_phone_national'));
         if ($national === '') {
-            $this->command?->warn('dashboard.seed_phone_national empty; skip DriverScheduledTripsSeeder.');
-
             return;
         }
 
         $phone = app(PhoneNormalizer::class)->normalize($national);
         if ($phone === '') {
-            $this->command?->warn('Phone normalizer returned empty for dashboard seed phone; skip DriverScheduledTripsSeeder.');
+            $this->command?->warn('DriverScheduledTripsSeeder: dashboard seed phone normalizes to empty; skip bootstrap.');
 
             return;
         }
 
-        // Same user as DatabaseSeeder so this class works alone: `php artisan db:seed --class=DriverScheduledTripsSeeder`
         $user = User::query()->updateOrCreate(
             ['phone' => $phone],
             [
@@ -59,7 +85,7 @@ class DriverScheduledTripsSeeder extends Seeder
             ]
         );
 
-        $driver = Driver::query()->firstOrCreate(
+        Driver::query()->firstOrCreate(
             ['user_id' => $user->id],
             [
                 'school_id' => $school->id,
@@ -76,16 +102,29 @@ class DriverScheduledTripsSeeder extends Seeder
                 'status' => 'active',
             ]
         );
+    }
 
-        if ((int) $driver->school_id !== (int) $school->id) {
-            $driver->forceFill(['school_id' => $school->id])->save();
+    private function seedDemoTripsForDriver(Driver $driver): void
+    {
+        $driver->loadMissing('user');
+        if ($driver->user === null) {
+            $this->command?->warn('DriverScheduledTripsSeeder: driver '.$driver->id.' has no user_id; skip.');
+
+            return;
         }
 
-        $busNumber = 'SEED-BUS-U'.$user->id;
+        $school = School::query()->find($driver->school_id);
+        if ($school === null) {
+            $this->command?->warn('DriverScheduledTripsSeeder: driver '.$driver->id.' has missing school_id '.$driver->school_id.'; skip.');
+
+            return;
+        }
+
+        $busNumber = 'SEED-BUS-D'.$driver->id;
         Bus::query()->firstOrCreate(
             ['driver_id' => $driver->id],
             [
-                'user_id' => $user->id,
+                'user_id' => $driver->user_id,
                 'name' => 'Seed Bus',
                 'number' => $busNumber,
                 'type' => 'Bus',
@@ -103,7 +142,6 @@ class DriverScheduledTripsSeeder extends Seeder
             ->delete();
 
         $tz = config('app.timezone') ?: 'UTC';
-        // Match DriverTripModuleService::scheduledTripsForDriverList (uses now() in app TZ for "today").
         $day = now()->timezone($tz)->startOfDay();
 
         foreach (
@@ -130,8 +168,5 @@ class DriverScheduledTripsSeeder extends Seeder
                 'students_preview' => [],
             ]);
         }
-
-        $this->command?->info('DriverScheduledTripsSeeder: demo trips for driver '.$driver->id.' (user '.$user->id.').');
-        $this->command?->info('Call GET /api/scheduled-trips as this driver: Bearer token for user with phone '.$phone.' (DASHBOARD_SEED_PHONE national digits → 964…).');
     }
 }
