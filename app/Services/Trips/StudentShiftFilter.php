@@ -7,8 +7,6 @@ use Illuminate\Database\Eloquent\Builder;
 
 final class StudentShiftFilter
 {
-    public const BOTH = 'BOTH';
-
     public function __construct(
         private readonly DriverShiftResolver $driverShiftResolver,
     ) {}
@@ -32,10 +30,7 @@ final class StudentShiftFilter
             return;
         }
 
-        $query->where(function (Builder $q) use ($shift): void {
-            $q->where('shift_period', $shift)
-                ->orWhere('shift_period', self::BOTH);
-        });
+        $query->where('shift_period', $shift);
     }
 
     public function studentMatchesTripType(Student $student, ?string $tripType): bool
@@ -46,9 +41,6 @@ final class StudentShiftFilter
         }
 
         $studentShift = strtoupper(trim((string) ($student->shift_period ?? '')));
-        if ($studentShift === self::BOTH) {
-            return true;
-        }
 
         return $studentShift === $shift;
     }

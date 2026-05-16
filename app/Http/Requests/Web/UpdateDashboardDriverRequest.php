@@ -37,7 +37,7 @@ class UpdateDashboardDriverRequest extends FormRequest
             'route_description' => ['nullable', 'string', 'max:512'],
             'status' => ['required', 'in:active,inactive'],
             'monthly_subscription_price' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
-            'shift_period' => ['nullable', 'in:MORNING,EVENING'],
+            'shift_period' => ['nullable', 'in:MORNING,EVENING,BOTH'],
             'profile_image' => ['nullable', 'file', 'image', 'max:4096'],
             'id_card_image' => ['nullable', 'file', 'image', 'max:4096'],
             'license_image' => ['nullable', 'file', 'image', 'max:4096'],

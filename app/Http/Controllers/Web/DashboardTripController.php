@@ -327,7 +327,8 @@ class DashboardTripController extends Controller
         if ($shift !== null) {
             $query->where(function (Builder $q) use ($shift): void {
                 $q->whereNull('shift_period')
-                    ->orWhere('shift_period', $shift);
+                    ->orWhere('shift_period', $shift)
+                    ->orWhere('shift_period', 'BOTH');
             });
         }
 
@@ -343,7 +344,6 @@ class DashboardTripController extends Controller
         $shiftLabel = match ($shift) {
             DriverShiftResolver::MORNING => __('dashboard.student_shift_period_morning'),
             DriverShiftResolver::EVENING => __('dashboard.student_shift_period_evening'),
-            StudentShiftFilter::BOTH => __('dashboard.student_shift_period_both'),
             default => __('dashboard.student_shift_period_unspecified'),
         };
 

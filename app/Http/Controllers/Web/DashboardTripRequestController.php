@@ -311,7 +311,11 @@ class DashboardTripRequestController extends Controller
             ->orderBy('id');
 
         if ($targetShift !== null) {
-            $matching = (clone $query)->where('shift_period', $targetShift)->value('id');
+            $matching = (clone $query)
+                ->where(function ($q) use ($targetShift): void {
+                    $q->where('shift_period', $targetShift)->orWhere('shift_period', 'BOTH');
+                })
+                ->value('id');
             if ($matching !== null) {
                 return $matching;
             }

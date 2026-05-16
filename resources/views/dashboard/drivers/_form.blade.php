@@ -123,6 +123,7 @@
             <option value="">{{ __('dashboard.shift_period_unspecified') }}</option>
             <option value="MORNING" @selected(old('shift_period', $driver->shift_period ?? '') === 'MORNING')>{{ __('dashboard.shift_period_morning') }}</option>
             <option value="EVENING" @selected(old('shift_period', $driver->shift_period ?? '') === 'EVENING')>{{ __('dashboard.shift_period_evening') }}</option>
+            <option value="BOTH" @selected(old('shift_period', $driver->shift_period ?? '') === 'BOTH')>{{ __('dashboard.shift_period_both') }}</option>
         </select>
     </div>
 </div>

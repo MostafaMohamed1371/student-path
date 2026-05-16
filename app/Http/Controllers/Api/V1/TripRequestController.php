@@ -95,7 +95,10 @@ class TripRequestController extends Controller
                     422
                 );
             }
-            if ($targetShift !== null && $chosen->shift_period !== null && $chosen->shift_period !== $targetShift) {
+            if ($targetShift !== null
+                && $chosen->shift_period !== null
+                && $chosen->shift_period !== 'BOTH'
+                && $chosen->shift_period !== $targetShift) {
                 return $this->parentError(
                     'Selected driver shift does not match the requested trip period.',
                     ['driver_id' => ['shift_mismatch']],
@@ -111,7 +114,9 @@ class TripRequestController extends Controller
 
             if ($targetShift !== null) {
                 $driverId = (clone $driverQuery)
-                    ->where('shift_period', $targetShift)
+                    ->where(function ($q) use ($targetShift): void {
+                        $q->where('shift_period', $targetShift)->orWhere('shift_period', 'BOTH');
+                    })
                     ->value('id');
                 if ($driverId === null) {
                     $driverId = $driverQuery->value('id');

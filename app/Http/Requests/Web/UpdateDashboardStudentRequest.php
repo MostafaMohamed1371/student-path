@@ -29,7 +29,7 @@ class UpdateDashboardStudentRequest extends FormRequest
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'status' => ['required', 'in:active,inactive'],
-            'shift_period' => ['nullable', 'in:MORNING,EVENING,BOTH'],
+            'shift_period' => ['nullable', 'in:MORNING,EVENING'],
         ];
     }
 }

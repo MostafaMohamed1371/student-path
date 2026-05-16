@@ -18,12 +18,11 @@ class StudentShiftFilterTest extends TestCase
         $this->assertFalse($filter->studentMatchesTripType($student, 'EVENING_PICKUP'));
     }
 
-    public function test_both_shift_student_matches_morning_and_evening_trips(): void
+    public function test_unset_student_shift_does_not_match_typed_trip(): void
     {
         $filter = new StudentShiftFilter(new DriverShiftResolver);
-        $student = new Student(['shift_period' => 'BOTH']);
+        $student = new Student(['shift_period' => null]);
 
-        $this->assertTrue($filter->studentMatchesTripType($student, 'MORNING_PICKUP'));
-        $this->assertTrue($filter->studentMatchesTripType($student, 'EVENING_PICKUP'));
+        $this->assertFalse($filter->studentMatchesTripType($student, 'MORNING_PICKUP'));
     }
 }
