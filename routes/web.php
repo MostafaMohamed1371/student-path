@@ -79,6 +79,7 @@ Route::middleware('auth')->group(function (): void {
 
     Route::get('/dashboard/trips', [DashboardTripController::class, 'index'])->name('dashboard.trips.index');
     Route::get('/dashboard/trips/create', [DashboardTripController::class, 'create'])->name('dashboard.trips.create');
+    Route::get('/dashboard/trips/form-options', [DashboardTripController::class, 'formOptions'])->name('dashboard.trips.form_options');
     Route::post('/dashboard/trips', [DashboardTripController::class, 'store'])->name('dashboard.trips.store');
     Route::get('/dashboard/trips/{trip}', [DashboardTripController::class, 'show'])->name('dashboard.trips.show');
     Route::get('/dashboard/trips/{trip}/edit', [DashboardTripController::class, 'edit'])->name('dashboard.trips.edit');

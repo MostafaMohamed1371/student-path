@@ -11,16 +11,24 @@ use App\Models\School;
 use App\Models\Student;
 use App\Models\TripHistory;
 use App\Models\TripHistoryStudent;
+use App\Services\Trips\DriverShiftResolver;
 use App\Services\Trips\DriverTripModuleService;
+use App\Services\Trips\StudentShiftFilter;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class DashboardTripController extends Controller
 {
     use ManagesDashboardScoping;
+
+    public function __construct(
+        private readonly StudentShiftFilter $studentShiftFilter,
+    ) {}
 
     public function index(): View
     {
@@ -51,11 +59,25 @@ class DashboardTripController extends Controller
             return $this->redirectToSchoolCreateForAdminsOrHomeForStaff('dashboard.create_school_first');
         }
 
-        $drivers = Driver::query()->orderBy('first_name')->orderBy('last_name')->get();
         $tripTypes = collect(TripType::cases())->map(fn (TripType $t): string => $t->value)->all();
-        $students = Student::query()->orderBy('full_name')->limit(1000)->get();
+        $schoolId = (int) old('school_id', 0);
+        $tripType = old('trip_type');
+        $selectedStudentIds = array_map('intval', old('student_ids', []));
+        $drivers = $schoolId > 0
+            ? $this->driversForTripForm($schoolId, is_string($tripType) ? $tripType : null)
+            : collect();
+        $students = $schoolId > 0
+            ? $this->studentsForTripForm($schoolId, is_string($tripType) ? $tripType : null, $selectedStudentIds)
+            : collect();
 
-        return view('dashboard.trips.create', compact('schools', 'drivers', 'tripTypes', 'students'));
+        return view('dashboard.trips.create', [
+            'schools' => $schools,
+            'drivers' => $drivers,
+            'tripTypes' => $tripTypes,
+            'students' => $students,
+            'selectedStudentIds' => $selectedStudentIds,
+            'formOptionsUrl' => route('dashboard.trips.form_options'),
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -79,12 +101,54 @@ class DashboardTripController extends Controller
     {
         abort_unless($this->isAdmin(), 403);
         $schools = School::query()->orderBy('name_en')->get();
-        $drivers = Driver::query()->orderBy('first_name')->orderBy('last_name')->get();
         $tripTypes = collect(TripType::cases())->map(fn (TripType $t): string => $t->value)->all();
-        $students = Student::query()->orderBy('full_name')->limit(1000)->get();
-        $selectedStudentIds = $trip->tripHistoryStudents()->pluck('student_id')->all();
+        $schoolId = (int) old('school_id', $trip->school_id);
+        $tripType = old('trip_type', $trip->trip_type);
+        $selectedStudentIds = array_map(
+            'intval',
+            old('student_ids', $trip->tripHistoryStudents()->pluck('student_id')->all()),
+        );
+        $drivers = $this->driversForTripForm($schoolId, is_string($tripType) ? $tripType : null);
+        $students = $this->studentsForTripForm($schoolId, is_string($tripType) ? $tripType : null, $selectedStudentIds);
 
-        return view('dashboard.trips.edit', compact('trip', 'schools', 'drivers', 'tripTypes', 'students', 'selectedStudentIds'));
+        return view('dashboard.trips.edit', [
+            'trip' => $trip,
+            'schools' => $schools,
+            'drivers' => $drivers,
+            'tripTypes' => $tripTypes,
+            'students' => $students,
+            'selectedStudentIds' => $selectedStudentIds,
+            'formOptionsUrl' => route('dashboard.trips.form_options'),
+        ]);
+    }
+
+    public function formOptions(Request $request): JsonResponse
+    {
+        abort_unless($this->isAdmin(), 403);
+
+        $validated = $request->validate([
+            'school_id' => ['required', 'integer', 'exists:schools,id'],
+            'trip_type' => ['nullable', 'string', 'max:32'],
+            'include_student_ids' => ['nullable', 'array'],
+            'include_student_ids.*' => ['integer'],
+        ]);
+
+        $schoolId = (int) $validated['school_id'];
+        $tripType = isset($validated['trip_type']) && trim((string) $validated['trip_type']) !== ''
+            ? trim((string) $validated['trip_type'])
+            : null;
+        $includeIds = array_map('intval', $validated['include_student_ids'] ?? []);
+
+        return response()->json([
+            'students' => $this->studentsForTripForm($schoolId, $tripType, $includeIds)
+                ->map(fn (Student $s): array => $this->studentOptionRow($s))
+                ->values()
+                ->all(),
+            'drivers' => $this->driversForTripForm($schoolId, $tripType)
+                ->map(fn (Driver $d): array => $this->driverOptionRow($d))
+                ->values()
+                ->all(),
+        ]);
     }
 
     public function update(Request $request, TripHistory $trip): RedirectResponse
@@ -152,10 +216,18 @@ class DashboardTripController extends Controller
             return;
         }
 
+        $tripType = is_string($trip->trip_type) && $trip->trip_type !== '' ? $trip->trip_type : null;
+
         foreach ($unique as $sid) {
-            if (! Student::query()->whereKey($sid)->where('school_id', $schoolId)->exists()) {
+            $student = Student::query()->whereKey($sid)->where('school_id', $schoolId)->first();
+            if (! $student) {
                 throw ValidationException::withMessages([
                     'student_ids' => [__('dashboard.trip_students_school_mismatch')],
+                ]);
+            }
+            if (! $this->studentShiftFilter->studentMatchesTripType($student, $tripType)) {
+                throw ValidationException::withMessages([
+                    'student_ids' => [__('dashboard.trip_students_shift_mismatch')],
                 ]);
             }
         }
@@ -199,6 +271,97 @@ class DashboardTripController extends Controller
     private function isAdmin(): bool
     {
         return (bool) auth()->user()?->is_admin;
+    }
+
+    /**
+     * @param  list<int>  $includeStudentIds
+     * @return Collection<int, Student>
+     */
+    private function studentsForTripForm(int $schoolId, ?string $tripType, array $includeStudentIds = []): Collection
+    {
+        if ($schoolId <= 0) {
+            return collect();
+        }
+
+        $query = Student::query()
+            ->where('school_id', $schoolId)
+            ->where('status', 'active')
+            ->orderBy('full_name');
+
+        $this->studentShiftFilter->applyToStudentQuery($query, $tripType);
+
+        $rows = $query->get();
+
+        if ($includeStudentIds !== []) {
+            $existing = $rows->pluck('id')->map(fn ($id): int => (int) $id)->all();
+            $missing = array_values(array_diff($includeStudentIds, $existing));
+            if ($missing !== []) {
+                $extra = Student::query()
+                    ->where('school_id', $schoolId)
+                    ->whereIn('id', $missing)
+                    ->orderBy('full_name')
+                    ->get();
+                $rows = $rows->merge($extra)->sortBy('full_name', SORT_NATURAL | SORT_FLAG_CASE)->values();
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return Collection<int, Driver>
+     */
+    private function driversForTripForm(int $schoolId, ?string $tripType): Collection
+    {
+        if ($schoolId <= 0) {
+            return collect();
+        }
+
+        $query = Driver::query()
+            ->where('school_id', $schoolId)
+            ->where('status', 'active')
+            ->orderBy('first_name')
+            ->orderBy('last_name');
+
+        $shift = $this->studentShiftFilter->shiftFromTripType($tripType);
+        if ($shift !== null) {
+            $query->where(function (Builder $q) use ($shift): void {
+                $q->whereNull('shift_period')
+                    ->orWhere('shift_period', $shift);
+            });
+        }
+
+        return $query->get();
+    }
+
+    /**
+     * @return array{id: int, label: string}
+     */
+    private function studentOptionRow(Student $student): array
+    {
+        $shift = strtoupper(trim((string) ($student->shift_period ?? '')));
+        $shiftLabel = match ($shift) {
+            DriverShiftResolver::MORNING => __('dashboard.student_shift_period_morning'),
+            DriverShiftResolver::EVENING => __('dashboard.student_shift_period_evening'),
+            StudentShiftFilter::BOTH => __('dashboard.student_shift_period_both'),
+            default => __('dashboard.student_shift_period_unspecified'),
+        };
+
+        return [
+            'id' => (int) $student->id,
+            'label' => trim((string) $student->full_name).' — '.trim((string) $student->grade).' ('.$shiftLabel.') #'.$student->id,
+        ];
+    }
+
+    /**
+     * @return array{id: int, label: string}
+     */
+    private function driverOptionRow(Driver $driver): array
+    {
+        return [
+            'id' => (int) $driver->id,
+            'label' => trim(($driver->first_name ?? '').' '.($driver->last_name ?? '')).' (#'.(int) $driver->id.')',
+        ];
     }
 }
 

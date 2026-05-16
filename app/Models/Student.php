@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'latitude',
     'longitude',
     'status',
+    'shift_period',
 ])]
 class Student extends Model
 {

@@ -125,6 +125,15 @@
         <input class="input" id="longitude" name="longitude" value="{{ old('longitude', $student->longitude ?? '') }}" />
     </div>
     <div>
+        <label class="field-label" for="shift_period">{{ __('dashboard.student_shift_period') }}</label>
+        <select class="input" id="shift_period" name="shift_period">
+            <option value="">{{ __('dashboard.student_shift_period_unspecified') }}</option>
+            <option value="MORNING" @selected(old('shift_period', $student->shift_period ?? '') === 'MORNING')>{{ __('dashboard.student_shift_period_morning') }}</option>
+            <option value="EVENING" @selected(old('shift_period', $student->shift_period ?? '') === 'EVENING')>{{ __('dashboard.student_shift_period_evening') }}</option>
+            <option value="BOTH" @selected(old('shift_period', $student->shift_period ?? '') === 'BOTH')>{{ __('dashboard.student_shift_period_both') }}</option>
+        </select>
+    </div>
+    <div>
         <label class="field-label" for="status">{{ __('dashboard.status') }}</label>
         <select class="input" id="status" name="status" required>
             <option value="active" @selected(old('status', $student->status ?? 'active') === 'active')>{{ __('dashboard.active') }}</option>

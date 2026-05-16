@@ -6,12 +6,12 @@
     @php($title = __('dashboard.add_trip'))
     @component('dashboard.partials.shell', ['title' => $title])
         <section class="card">
-            <form method="post" action="{{ route('dashboard.trips.store') }}" class="form-grid">
+            <form method="post" action="{{ route('dashboard.trips.store') }}" class="form-grid" id="trip_form">
                 @csrf
 
                 <label>
                     <span>{{ __('dashboard.school') }}</span>
-                    <select name="school_id" required>
+                    <select id="trip_form_school_id" name="school_id" required>
                         <option value="">{{ __('dashboard.select_school') }}</option>
                         @foreach($schools as $school)
                             <option value="{{ $school->id }}" @selected(old('school_id') == $school->id)>{{ $school->name_en }}</option>
@@ -20,23 +20,23 @@
                 </label>
 
                 <label>
-                    <span>{{ __('dashboard.trip_field_driver') }}</span>
-                    <select name="driver_id">
+                    <span>{{ __('dashboard.trip_field_type') }}</span>
+                    <select id="trip_form_trip_type" name="trip_type">
                         <option value="">—</option>
-                        @foreach(($drivers ?? []) as $d)
-                            <option value="{{ $d->id }}" @selected((string) old('driver_id') === (string) $d->id)>
-                                {{ trim(($d->first_name ?? '').' '.($d->last_name ?? '')) }} (#{{ $d->id }})
-                            </option>
+                        @foreach(($tripTypes ?? []) as $tt)
+                            <option value="{{ $tt }}" @selected(old('trip_type') === $tt)>{{ $tt }}</option>
                         @endforeach
                     </select>
                 </label>
 
                 <label>
-                    <span>{{ __('dashboard.trip_field_type') }}</span>
-                    <select name="trip_type">
+                    <span>{{ __('dashboard.trip_field_driver') }}</span>
+                    <select id="trip_form_driver_id" name="driver_id">
                         <option value="">—</option>
-                        @foreach(($tripTypes ?? []) as $tt)
-                            <option value="{{ $tt }}" @selected(old('trip_type') === $tt)>{{ $tt }}</option>
+                        @foreach(($drivers ?? []) as $d)
+                            <option value="{{ $d->id }}" @selected((string) old('driver_id') === (string) $d->id)>
+                                {{ trim(($d->first_name ?? '').' '.($d->last_name ?? '')) }} (#{{ $d->id }})
+                            </option>
                         @endforeach
                     </select>
                 </label>
@@ -58,16 +58,12 @@
                         <option value="COMPLETED" @selected(old('status')==='COMPLETED')>COMPLETED</option>
                     </select>
                 </label>
-                <label style="grid-column:1 / -1;">
-                    <span>{{ __('dashboard.trip_students_select') }}</span>
-                    <select name="student_ids[]" multiple size="8" style="width:100%;max-width:520px;">
-                        @foreach(($students ?? []) as $s)
-                            <option value="{{ $s->id }}" @selected(collect(old('student_ids', []))->contains($s->id))>
-                                {{ $s->full_name }} — {{ $s->grade }} (#{{ $s->id }})
-                            </option>
-                        @endforeach
-                    </select>
-                </label>
+
+                @include('dashboard.trips._student_select', [
+                    'students' => $students,
+                    'selectedStudentIds' => $selectedStudentIds ?? [],
+                ])
+
                 <label style="grid-column:1 / -1;"><span>{{ __('dashboard.notes') }}</span><textarea name="note" rows="3">{{ old('note') }}</textarea></label>
 
                 <div style="grid-column:1 / -1;display:flex;gap:10px;flex-wrap:wrap;">
@@ -77,5 +73,5 @@
             </form>
         </section>
     @endcomponent
+    @include('dashboard.trips._form_options_script', ['formOptionsUrl' => $formOptionsUrl ?? ''])
 @endsection
-
