@@ -64,10 +64,10 @@ class DriverController extends Controller
 
     public function store(StoreDriverRequest $request, PhoneNormalizer $phoneNormalizer): JsonResponse
     {
-        if ($resp = $this->ensureApiAdminForMutations($request->user())) {
+        $validated = $request->validated();
+        if ($resp = $this->ensureApiCanMutateSchoolRoster($request->user(), (int) $validated['schoolId'])) {
             return $resp;
         }
-        $validated = $request->validated();
         $user = $this->resolveDriverUser($validated, $phoneNormalizer);
 
         $driver = Driver::query()->create([
@@ -99,10 +99,11 @@ class DriverController extends Controller
 
     public function update(UpdateDriverRequest $request, Driver $driver, PhoneNormalizer $phoneNormalizer): JsonResponse
     {
-        if ($resp = $this->ensureApiAdminForMutations($request->user())) {
+        $validated = $request->validated();
+        $targetSchool = (int) ($validated['schoolId'] ?? $driver->school_id);
+        if ($resp = $this->ensureApiCanMutateSchoolRoster($request->user(), $targetSchool)) {
             return $resp;
         }
-        $validated = $request->validated();
 
         $payload = [
             'school_id' => $validated['schoolId'] ?? $driver->school_id,
@@ -149,7 +150,7 @@ class DriverController extends Controller
 
     public function destroy(Request $request, Driver $driver): JsonResponse
     {
-        if ($resp = $this->ensureApiAdminForMutations($request->user())) {
+        if ($resp = $this->ensureApiCanMutateSchoolRoster($request->user(), (int) $driver->school_id)) {
             return $resp;
         }
         $driver->delete();

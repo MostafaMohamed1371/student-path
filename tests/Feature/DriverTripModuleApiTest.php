@@ -83,7 +83,8 @@ class DriverTripModuleApiTest extends TestCase
             'location' => 'Loc',
             'students_count' => 1,
             'distance_km' => 1,
-            'start_time' => now()->subHour(),
+            'start_time' => now()->subMinutes(10),
+            'driver_started_at' => null,
             'end_time' => null,
             'status' => 'ACTIVE',
             'students_preview' => [['id' => (string) $student->id, 'name' => $student->full_name]],
@@ -99,6 +100,10 @@ class DriverTripModuleApiTest extends TestCase
         Sanctum::actingAs($driverUser);
 
         $sid = 'ST-'.str_pad((string) $student->id, 3, '0', STR_PAD_LEFT);
+
+        $this->postJson('/api/trips/TRP-'.$trip->id.'/start')
+            ->assertOk()
+            ->assertJsonPath('success', true);
 
         $this->getJson('/api/trips/current-trip')
             ->assertOk()
@@ -191,7 +196,8 @@ class DriverTripModuleApiTest extends TestCase
             'location' => 'L',
             'students_count' => 2,
             'distance_km' => 2,
-            'start_time' => now()->subMinutes(30),
+            'start_time' => now()->subMinutes(10),
+            'driver_started_at' => now()->subMinutes(5),
             'end_time' => null,
             'status' => 'ACTIVE',
             'students_preview' => [],
@@ -607,7 +613,8 @@ class DriverTripModuleApiTest extends TestCase
             'location' => 'L',
             'students_count' => 1,
             'distance_km' => 1,
-            'start_time' => now()->subHour(),
+            'start_time' => now()->subMinutes(10),
+            'driver_started_at' => now()->subMinutes(5),
             'end_time' => null,
             'status' => 'ACTIVE',
             'students_preview' => [['id' => (string) $student->id, 'name' => $student->full_name]],
@@ -672,13 +679,15 @@ class DriverTripModuleApiTest extends TestCase
             'location' => 'L',
             'students_count' => 0,
             'distance_km' => 0,
-            'start_time' => now()->subMinutes(30),
+            'start_time' => now()->subMinutes(10),
             'end_time' => null,
             'status' => 'ACTIVE',
             'students_preview' => [],
         ]);
 
         Sanctum::actingAs($driverUser);
+
+        $this->postJson('/api/trips/TRP-'.$trip->id.'/start')->assertOk();
 
         $this->putJson('/api/trips/end-trip')
             ->assertOk()
@@ -694,6 +703,116 @@ class DriverTripModuleApiTest extends TestCase
         $this->putJson('/api/trips/end-trip')
             ->assertStatus(422)
             ->assertJsonPath('msg', 'No active trip.');
+    }
+
+    public function test_driver_cannot_start_trip_outside_window(): void
+    {
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'S',
+            'province' => 'P',
+            'district' => 'D',
+            'address' => 'A',
+            'status' => 'active',
+        ]);
+
+        $driverUser = User::factory()->create(['phone' => '9647909000888']);
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'W',
+            'father_name' => 'W',
+            'grandfather_name' => 'W',
+            'last_name' => 'T',
+            'age' => 30,
+            'id_card_number' => 'IDC-WIN',
+            'license_number' => 'LIC-WIN',
+            'primary_phone' => '7770000888',
+            'emergency_phone' => '7770001888',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+
+        $trip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'bus_number' => 'B',
+            'route_title' => 'Future',
+            'location' => 'L',
+            'students_count' => 0,
+            'distance_km' => 0,
+            'start_time' => now()->addHours(2),
+            'end_time' => null,
+            'status' => 'ACTIVE',
+            'students_preview' => [],
+        ]);
+
+        Sanctum::actingAs($driverUser);
+
+        $this->postJson('/api/trips/TRP-'.$trip->id.'/start')
+            ->assertStatus(422)
+            ->assertJsonPath('msg', 'Trip is not available to start yet.');
+
+        $this->getJson('/api/trips/current-trip')
+            ->assertOk()
+            ->assertJsonPath('data', null);
+    }
+
+    public function test_current_trip_requires_explicit_start(): void
+    {
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'S',
+            'province' => 'P',
+            'district' => 'D',
+            'address' => 'A',
+            'status' => 'active',
+        ]);
+
+        $driverUser = User::factory()->create(['phone' => '9647909000887']);
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'S',
+            'father_name' => 'S',
+            'grandfather_name' => 'S',
+            'last_name' => 'T',
+            'age' => 30,
+            'id_card_number' => 'IDC-STR',
+            'license_number' => 'LIC-STR',
+            'primary_phone' => '7770000887',
+            'emergency_phone' => '7770001887',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+
+        $trip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'bus_number' => 'B',
+            'route_title' => 'Past start',
+            'location' => 'L',
+            'students_count' => 0,
+            'distance_km' => 0,
+            'start_time' => now()->subMinutes(10),
+            'end_time' => null,
+            'status' => 'ACTIVE',
+            'students_preview' => [],
+        ]);
+
+        Sanctum::actingAs($driverUser);
+
+        $this->getJson('/api/trips/current-trip')
+            ->assertOk()
+            ->assertJsonPath('data', null);
+
+        $this->postJson('/api/trips/TRP-'.$trip->id.'/start')
+            ->assertOk()
+            ->assertJsonPath('data.trip_id', 'TRP-'.$trip->id);
+
+        $this->getJson('/api/trips/current-trip')
+            ->assertOk()
+            ->assertJsonPath('data.trip_id', 'TRP-'.$trip->id);
     }
 
     public function test_driver_get_trip_details_by_public_id(): void
@@ -943,9 +1062,13 @@ class DriverTripModuleApiTest extends TestCase
             'students_preview' => [],
         ]);
 
-        $this->travelTo($today->copy()->setTime(8, 0, 0));
+        $this->travelTo($today->copy()->setTime(7, 10, 0));
 
         Sanctum::actingAs($driverUser);
+
+        $this->postJson('/api/trips/TRP-'.$tMorningOut->id.'/start')->assertOk();
+
+        $this->travelTo($today->copy()->setTime(8, 0, 0));
 
         $this->getJson('/api/scheduled-trips')
             ->assertOk()
@@ -990,7 +1113,7 @@ class DriverTripModuleApiTest extends TestCase
             'status' => 'active',
         ]);
 
-        TripHistory::query()->create([
+        $morningTrip = TripHistory::query()->create([
             'school_id' => $school->id,
             'driver_id' => $driver->id,
             'trip_type' => 'MORNING_PICKUP',
@@ -999,13 +1122,13 @@ class DriverTripModuleApiTest extends TestCase
             'location' => 'L',
             'students_count' => 0,
             'distance_km' => 0,
-            'start_time' => now()->subHour(),
+            'start_time' => now()->subMinutes(10),
             'end_time' => null,
             'status' => 'ACTIVE',
             'students_preview' => [],
         ]);
 
-        TripHistory::query()->create([
+        $eveningTrip = TripHistory::query()->create([
             'school_id' => $school->id,
             'driver_id' => $driver->id,
             'trip_type' => 'EVENING_PICKUP',
@@ -1014,7 +1137,7 @@ class DriverTripModuleApiTest extends TestCase
             'location' => 'L',
             'students_count' => 0,
             'distance_km' => 0,
-            'start_time' => now()->subMinutes(30),
+            'start_time' => now()->subMinutes(10),
             'end_time' => null,
             'status' => 'ACTIVE',
             'students_preview' => [],
@@ -1022,9 +1145,15 @@ class DriverTripModuleApiTest extends TestCase
 
         Sanctum::actingAs($driverUser);
 
+        $this->postJson('/api/trips/TRP-'.$morningTrip->id.'/start')->assertOk();
+
         $this->getJson('/api/trips/current-trip?shift_period=MORNING')
             ->assertOk()
             ->assertJsonPath('data.trip_type', 'MORNING_PICKUP');
+
+        $this->putJson('/api/trips/end-trip')->assertOk();
+
+        $this->postJson('/api/trips/TRP-'.$eveningTrip->id.'/start')->assertOk();
 
         $this->getJson('/api/trips/current-trip?'.http_build_query(['shift_period' => 'مسائي']))
             ->assertOk()
@@ -1493,6 +1622,10 @@ class DriverTripModuleApiTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $trip->id);
+
+        $this->postJson('/api/trips/'.$tripPublicId.'/start')
+            ->assertOk()
+            ->assertJsonPath('data.trip_id', $tripPublicId);
 
         // Current trip is ACTIVE and student starts at IDLE.
         $this->getJson('/api/trips/current-trip')

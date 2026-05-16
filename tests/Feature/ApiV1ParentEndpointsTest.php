@@ -308,7 +308,7 @@ class ApiV1ParentEndpointsTest extends TestCase
             ->assertJsonPath('data.fullName', 'Child C');
     }
 
-    public function test_v1_parent_can_create_student_when_guardian_linked(): void
+    public function test_v1_school_staff_can_create_student_via_parent_students_endpoint(): void
     {
         $school = $this->makeSchool('Add Student School');
         $guardian = Guardian::query()->create([
@@ -317,13 +317,16 @@ class ApiV1ParentEndpointsTest extends TestCase
             'phone' => '7300000002',
             'status' => 'active',
         ]);
-        $user = User::factory()->create([
-            'guardian_id' => $guardian->id,
+        $staff = User::factory()->create([
+            'phone' => '9647908111111',
             'school_id' => $school->id,
+            'is_admin' => false,
         ]);
-        Sanctum::actingAs($user);
+        Sanctum::actingAs($staff);
 
         $this->postJson('/api/students', [
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
             'full_name' => 'New Child',
             'gender' => 'female',
             'grade' => '2',
@@ -345,6 +348,38 @@ class ApiV1ParentEndpointsTest extends TestCase
         $this->assertDatabaseMissing('trip_requests', [
             'student_id' => $newStudentId,
         ]);
+    }
+
+    public function test_v1_guardian_cannot_create_student_via_parent_students_endpoint(): void
+    {
+        $school = $this->makeSchool('Guardian Block School');
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'Guardian Only',
+            'phone' => '7300000099',
+            'status' => 'active',
+        ]);
+        $parent = User::factory()->create([
+            'guardian_id' => $guardian->id,
+            'school_id' => null,
+            'is_admin' => false,
+        ]);
+        Sanctum::actingAs($parent);
+
+        $this->postJson('/api/students', [
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'Blocked Child',
+            'gender' => 'male',
+            'grade' => '1',
+            'student_phone' => '7400000099',
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'status' => 'active',
+        ])
+            ->assertStatus(403)
+            ->assertJsonPath('success', false);
     }
 
     public function test_v1_trips_available_active_show_and_driver(): void
@@ -705,8 +740,12 @@ class ApiV1ParentEndpointsTest extends TestCase
             'nearest_landmark' => 'L',
             'status' => 'active',
         ]);
-        $user = User::factory()->create(['guardian_id' => $guardian->id, 'school_id' => $school->id]);
-        Sanctum::actingAs($user);
+        $staff = User::factory()->create([
+            'phone' => '9647908122222',
+            'school_id' => $school->id,
+            'is_admin' => false,
+        ]);
+        Sanctum::actingAs($staff);
 
         $this->putJson('/api/students/'.$student->id, ['full_name' => 'After'])
             ->assertOk()
@@ -714,6 +753,40 @@ class ApiV1ParentEndpointsTest extends TestCase
 
         $this->deleteJson('/api/students/'.$student->id)->assertOk();
         $this->assertDatabaseMissing('students', ['id' => $student->id]);
+    }
+
+    public function test_v1_guardian_cannot_update_or_delete_student_via_parent_students_endpoint(): void
+    {
+        $school = $this->makeSchool('Guardian Mutate Block');
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'G Mutate',
+            'phone' => '7300000071',
+            'status' => 'active',
+        ]);
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'Child',
+            'gender' => 'male',
+            'grade' => '1',
+            'student_phone' => '7400000071',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'status' => 'active',
+        ]);
+        $parent = User::factory()->create([
+            'guardian_id' => $guardian->id,
+            'school_id' => null,
+            'is_admin' => false,
+        ]);
+        Sanctum::actingAs($parent);
+
+        $this->putJson('/api/students/'.$student->id, ['full_name' => 'Hack'])->assertStatus(403);
+        $this->deleteJson('/api/students/'.$student->id)->assertStatus(403);
     }
 
     public function test_v1_absence_update_and_delete(): void

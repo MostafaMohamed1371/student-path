@@ -68,18 +68,14 @@ class ParentStudentController extends Controller
         return $this->parentSuccess($base);
     }
 
+    /**
+     * Create students: global admin or school-linked staff only (not guardians/parents).
+     */
     public function store(Request $request): JsonResponse
     {
-        $guardian = ParentContext::guardian($request->user());
-        if (! $guardian instanceof Guardian) {
-            return $this->parentError(
-                'Link your account to a guardian record (matching phone or guardian_id) to add students.',
-                null,
-                403
-            );
-        }
-
         $validated = $request->validate([
+            'school_id' => ['required', 'integer', 'exists:schools,id'],
+            'guardian_id' => ['required', 'integer', 'exists:guardians,id'],
             'full_name' => ['required', 'string', 'max:255'],
             'gender' => ['required', 'string', 'max:32'],
             'date_of_birth' => ['nullable', 'date'],
@@ -94,8 +90,17 @@ class ParentStudentController extends Controller
             'status' => ['required', 'string', 'max:32'],
         ]);
 
+        if ($resp = $this->ensureApiCanMutateSchoolRoster($request->user(), (int) $validated['school_id'])) {
+            return $resp;
+        }
+
+        $guardian = Guardian::query()->findOrFail($validated['guardian_id']);
+        if ((int) $guardian->school_id !== (int) $validated['school_id']) {
+            return $this->parentError('Guardian does not belong to this school.', null, 403);
+        }
+
         $student = Student::query()->create([
-            'school_id' => $guardian->school_id,
+            'school_id' => $validated['school_id'],
             'guardian_id' => $guardian->id,
             'full_name' => $validated['full_name'],
             'gender' => $validated['gender'],
@@ -123,11 +128,13 @@ class ParentStudentController extends Controller
 
     public function update(Request $request, Student $student): JsonResponse
     {
-        if ($resp = $this->ensureParentCanMutateStudent($request, $student)) {
+        if ($resp = $this->ensureSchoolRosterCanMutateStudent($request, $student)) {
             return $resp;
         }
 
         $validated = $request->validate([
+            'school_id' => ['sometimes', 'integer', 'exists:schools,id'],
+            'guardian_id' => ['sometimes', 'integer', 'exists:guardians,id'],
             'full_name' => ['sometimes', 'string', 'max:255'],
             'gender' => ['sometimes', 'string', 'max:32'],
             'date_of_birth' => ['sometimes', 'nullable', 'date'],
@@ -142,8 +149,16 @@ class ParentStudentController extends Controller
             'status' => ['sometimes', 'string', 'max:32'],
         ]);
 
-        $guardian = ParentContext::guardian($request->user());
-        if ($guardian instanceof Guardian && (int) $student->guardian_id === (int) $guardian->id) {
+        $targetSchool = (int) ($validated['school_id'] ?? $student->school_id);
+        if ($resp = $this->ensureApiCanMutateSchoolRoster($request->user(), $targetSchool)) {
+            return $resp;
+        }
+
+        if (isset($validated['guardian_id'])) {
+            $guardian = Guardian::query()->findOrFail($validated['guardian_id']);
+            if ((int) $guardian->school_id !== $targetSchool) {
+                return $this->parentError('Guardian does not belong to this school.', null, 403);
+            }
             $validated['guardian_name'] = $guardian->full_name;
             $validated['guardian_primary_phone'] = $guardian->phone;
             $validated['guardian_backup_phone'] = $guardian->backup_phone;
@@ -162,7 +177,7 @@ class ParentStudentController extends Controller
 
     public function destroy(Request $request, Student $student): JsonResponse
     {
-        if ($resp = $this->ensureParentCanMutateStudent($request, $student)) {
+        if ($resp = $this->ensureSchoolRosterCanMutateStudent($request, $student)) {
             return $resp;
         }
 
@@ -188,19 +203,8 @@ class ParentStudentController extends Controller
         return null;
     }
 
-    private function ensureParentCanMutateStudent(Request $request, Student $student): ?JsonResponse
+    private function ensureSchoolRosterCanMutateStudent(Request $request, Student $student): ?JsonResponse
     {
-        $user = $request->user();
-        if ($this->isApiAdmin($user)) {
-            return null;
-        }
-        if ($resp = $this->ensureApiTargetsOwnSchoolOrAdmin($user, (int) $student->school_id)) {
-            return $resp;
-        }
-        if (! ParentContext::ownsStudent($user, (int) $student->id)) {
-            return $this->parentError('forbidden', null, 403);
-        }
-
-        return null;
+        return $this->ensureApiCanMutateSchoolRoster($request->user(), (int) $student->school_id);
     }
 }

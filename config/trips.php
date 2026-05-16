@@ -23,4 +23,16 @@ return [
     */
     'default_waiting_minutes' => (int) env('TRIP_DEFAULT_WAITING_MINUTES', 5),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Driver trip start window (minutes)
+    |--------------------------------------------------------------------------
+    |
+    | POST /api/trips/{id}/start is allowed only when now() is between
+    | start_time - early and min(end_time, start_time + late).
+    |
+    */
+    'driver_start_early_minutes' => (int) env('TRIP_DRIVER_START_EARLY_MINUTES', 15),
+    'driver_start_late_minutes' => (int) env('TRIP_DRIVER_START_LATE_MINUTES', 30),
+
 ];

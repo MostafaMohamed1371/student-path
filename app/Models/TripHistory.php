@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'students_count',
     'distance_km',
     'start_time',
+    'driver_started_at',
     'end_time',
     'final_lat',
     'final_lng',
@@ -31,6 +32,7 @@ class TripHistory extends Model
         return [
             'students_preview' => 'array',
             'start_time' => 'datetime',
+            'driver_started_at' => 'datetime',
             'end_time' => 'datetime',
             'final_lat' => 'float',
             'final_lng' => 'float',

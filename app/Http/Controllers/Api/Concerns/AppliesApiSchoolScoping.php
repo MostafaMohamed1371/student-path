@@ -110,8 +110,7 @@ trait AppliesApiSchoolScoping
     }
 
     /**
-     * Reject any non-admin. Use for create/update/destroy to match dashboard: only {@see User::is_admin}
-     * may mutate schools, students, guardians, and drivers.
+     * Reject any non-admin (e.g. schools CRUD, trip org mutations).
      */
     protected function ensureApiAdminForMutations(User $user): ?JsonResponse
     {
@@ -120,6 +119,23 @@ trait AppliesApiSchoolScoping
         }
 
         return null;
+    }
+
+    /**
+     * Global admin or school-linked user ({@see User::$school_id}) may create/update/delete
+     * drivers, guardians, and students for that school only.
+     */
+    protected function ensureApiCanMutateSchoolRoster(User $user, int $targetSchoolId): ?JsonResponse
+    {
+        if ($this->isApiAdmin($user)) {
+            return null;
+        }
+
+        if (! $user->school_id) {
+            return $this->apiForbiddenResponse('forbidden');
+        }
+
+        return $this->ensureApiTargetsOwnSchoolOrAdmin($user, $targetSchoolId);
     }
 
     /**

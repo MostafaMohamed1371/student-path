@@ -253,7 +253,8 @@ final class DriverTripModuleService
     {
         $query = TripHistory::query()
             ->where('driver_id', $driver->id)
-            ->where('start_time', '<=', now())
+            ->whereNotNull('driver_started_at')
+            ->where('driver_started_at', '<=', now())
             ->where(function ($q): void {
                 $q->whereNull('end_time')->orWhere('end_time', '>=', now());
             })
@@ -267,6 +268,137 @@ final class DriverTripModuleService
         }
 
         return $query->first();
+    }
+
+    /**
+     * @return array{0: \Illuminate\Support\Carbon, 1: \Illuminate\Support\Carbon}
+     */
+    public function driverTripStartWindow(TripHistory $trip): array
+    {
+        $start = $trip->start_time instanceof Carbon
+            ? $trip->start_time->copy()
+            : Carbon::parse((string) $trip->start_time);
+
+        $early = (int) config('trips.driver_start_early_minutes', 15);
+        $late = (int) config('trips.driver_start_late_minutes', 30);
+
+        $windowStart = $start->copy()->subMinutes($early);
+        $latestStart = $start->copy()->addMinutes($late);
+
+        $end = $trip->end_time
+            ? ($trip->end_time instanceof Carbon
+                ? $trip->end_time->copy()
+                : Carbon::parse((string) $trip->end_time))
+            : null;
+
+        $windowEnd = ($end !== null && $end->lt($latestStart)) ? $end : $latestStart;
+
+        return [$windowStart, $windowEnd];
+    }
+
+    public function canDriverStartTripNow(TripHistory $trip, ?Carbon $now = null): bool
+    {
+        $now ??= now();
+        [$windowStart, $windowEnd] = $this->driverTripStartWindow($trip);
+
+        return $now->gte($windowStart) && $now->lte($windowEnd);
+    }
+
+    public function otherStartedTripForDriver(Driver $driver, ?int $exceptTripId = null): ?TripHistory
+    {
+        $query = TripHistory::query()
+            ->where('driver_id', $driver->id)
+            ->whereNotNull('driver_started_at')
+            ->whereNotIn('status', ['CANCELLED', 'COMPLETED'])
+            ->where(function ($q): void {
+                $q->whereNull('end_time')->orWhere('end_time', '>=', now());
+            })
+            ->orderByDesc('id');
+
+        if ($exceptTripId !== null) {
+            $query->where('id', '!=', $exceptTripId);
+        }
+
+        return $query->first();
+    }
+
+    /**
+     * @return array{
+     *   success: bool,
+     *   message: string,
+     *   http_status?: int,
+     *   data?: array<string, mixed>|null
+     * }
+     */
+    public function startTripForDriver(Driver $driver, int $tripId): array
+    {
+        $trip = TripHistory::query()->find($tripId);
+        if (! $trip) {
+            return ['success' => false, 'message' => 'Trip not found.', 'http_status' => 404];
+        }
+
+        if ((int) ($trip->driver_id ?? 0) !== (int) $driver->id) {
+            return ['success' => false, 'message' => 'forbidden', 'http_status' => 403];
+        }
+
+        $st = strtoupper((string) ($trip->status ?? ''));
+        if ($st === 'CANCELLED') {
+            return ['success' => false, 'message' => 'Cannot start a cancelled trip.', 'http_status' => 422];
+        }
+        if ($st === 'COMPLETED') {
+            return ['success' => false, 'message' => 'Trip is already completed.', 'http_status' => 422];
+        }
+
+        if ($trip->driver_started_at !== null) {
+            $payload = $this->currentTripPayload($trip->fresh());
+
+            return [
+                'success' => true,
+                'message' => 'Trip already started.',
+                'data' => $payload,
+            ];
+        }
+
+        if (! $this->canDriverStartTripNow($trip)) {
+            [$windowStart] = $this->driverTripStartWindow($trip);
+            if (now()->lt($windowStart)) {
+                return [
+                    'success' => false,
+                    'message' => 'Trip is not available to start yet.',
+                    'http_status' => 422,
+                ];
+            }
+
+            return [
+                'success' => false,
+                'message' => 'Trip start window has ended.',
+                'http_status' => 422,
+            ];
+        }
+
+        if ($this->otherStartedTripForDriver($driver, $tripId) instanceof TripHistory) {
+            return [
+                'success' => false,
+                'message' => 'Another trip is already in progress.',
+                'http_status' => 422,
+            ];
+        }
+
+        DB::transaction(function () use ($trip): void {
+            $trip->forceFill([
+                'driver_started_at' => now(),
+                'status' => 'ACTIVE',
+            ])->save();
+        });
+
+        $trip->refresh();
+        $payload = $this->currentTripPayload($trip);
+
+        return [
+            'success' => true,
+            'message' => 'تم بدء الرحلة بنجاح',
+            'data' => $payload,
+        ];
     }
 
     /**
@@ -910,9 +1042,6 @@ final class DriverTripModuleService
             return ScheduledTripCardStatus::COMPLETED;
         }
 
-        $start = $trip->start_time instanceof Carbon
-            ? $trip->start_time->copy()
-            : Carbon::parse((string) $trip->start_time);
         $end = $trip->end_time
             ? ($trip->end_time instanceof Carbon
                 ? $trip->end_time->copy()
@@ -923,8 +1052,13 @@ final class DriverTripModuleService
             return ScheduledTripCardStatus::COMPLETED;
         }
 
-        if ($start->lte($now) && ($end === null || $end->gte($now))) {
+        if ($trip->driver_started_at !== null) {
             return ScheduledTripCardStatus::ONGOING;
+        }
+
+        [, $windowEnd] = $this->driverTripStartWindow($trip);
+        if ($now->gt($windowEnd)) {
+            return ScheduledTripCardStatus::COMPLETED;
         }
 
         return ScheduledTripCardStatus::UPCOMING;

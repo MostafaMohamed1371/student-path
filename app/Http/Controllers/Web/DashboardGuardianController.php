@@ -2,12 +2,11 @@
 
 namespace App\Http\Controllers\Web;
 
-use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
 use App\Http\Requests\Web\StoreDashboardGuardianRequest;
 use App\Http\Requests\Web\UpdateDashboardGuardianRequest;
 use App\Models\Guardian;
-use App\Models\School;
 use App\Models\User;
 use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Database\Eloquent\Builder;
@@ -32,8 +31,8 @@ class DashboardGuardianController extends Controller
 
     public function create(): View|RedirectResponse
     {
-        abort_unless($this->isAdmin(), 403);
-        $schools = School::query()->orderBy('name_en')->get();
+        $this->abortUnlessCanMutateSchoolRoster();
+        $schools = $this->schoolsForRosterForm();
         if ($schools->isEmpty()) {
             return $this->redirectToSchoolCreateForAdminsOrHomeForStaff('dashboard.create_school_first_guardians');
         }
@@ -43,8 +42,9 @@ class DashboardGuardianController extends Controller
 
     public function store(StoreDashboardGuardianRequest $request, PhoneNormalizer $phoneNormalizer): RedirectResponse
     {
-        abort_unless($this->isAdmin(), 403);
-        $validated = $request->validated();
+        $this->abortUnlessCanMutateSchoolRoster();
+        $validated = $this->enforceRosterSchoolIdForStaff($request->validated());
+        $this->abortUnlessCanMutateSchoolRosterForSchool((int) $validated['school_id']);
 
         $guardian = Guardian::query()->create($validated);
         $this->syncGuardianUser($guardian, $phoneNormalizer);
@@ -55,16 +55,17 @@ class DashboardGuardianController extends Controller
 
     public function edit(Guardian $guardian): View
     {
-        abort_unless($this->isAdmin(), 403);
-        $schools = School::query()->orderBy('name_en')->get();
+        $this->abortUnlessCanMutateSchoolRosterForSchool((int) $guardian->school_id);
+        $schools = $this->schoolsForRosterForm();
 
         return view('dashboard.guardians.edit', compact('guardian', 'schools'));
     }
 
     public function update(UpdateDashboardGuardianRequest $request, Guardian $guardian, PhoneNormalizer $phoneNormalizer): RedirectResponse
     {
-        abort_unless($this->isAdmin(), 403);
-        $validated = $request->validated();
+        $validated = $this->enforceRosterSchoolIdForStaff($request->validated());
+        $this->abortUnlessCanMutateSchoolRosterForSchool((int) ($validated['school_id'] ?? $guardian->school_id));
+
         $guardian->update($validated);
         $this->syncGuardianUser($guardian->fresh(), $phoneNormalizer);
 
@@ -74,7 +75,7 @@ class DashboardGuardianController extends Controller
 
     public function destroy(Guardian $guardian): RedirectResponse
     {
-        abort_unless($this->isAdmin(), 403);
+        $this->abortUnlessCanMutateSchoolRosterForSchool((int) $guardian->school_id);
         $guardian->delete();
 
         return redirect()->route('dashboard.guardians.index')
@@ -100,10 +101,4 @@ class DashboardGuardianController extends Controller
             ]
         );
     }
-
-    private function isAdmin(): bool
-    {
-        return (bool) auth()->user()?->is_admin;
-    }
-
 }

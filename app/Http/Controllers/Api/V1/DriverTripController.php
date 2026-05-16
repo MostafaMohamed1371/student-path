@@ -78,6 +78,33 @@ class DriverTripController extends Controller
         return $this->parentSuccess($data, 'تم جلب بيانات الرحلة');
     }
 
+    public function startTrip(Request $request, string $trip): JsonResponse
+    {
+        $driver = $this->currentDriver($request);
+        if (! $driver instanceof Driver) {
+            return $this->parentError('Only drivers can start a trip.', null, 403);
+        }
+
+        $tripPk = $this->driverTripModuleService->parseTripPublicId($trip);
+        if ($tripPk === null) {
+            return $this->parentError('Invalid trip id.', null, 422);
+        }
+
+        $result = $this->driverTripModuleService->startTripForDriver($driver, $tripPk);
+        if (! ($result['success'] ?? false)) {
+            return $this->parentError(
+                (string) ($result['message'] ?? 'Unable to start trip.'),
+                null,
+                (int) ($result['http_status'] ?? 422),
+            );
+        }
+
+        return $this->parentSuccess(
+            $result['data'] ?? null,
+            (string) ($result['message'] ?? 'success'),
+        );
+    }
+
     public function currentTrip(Request $request): JsonResponse
     {
         $request->validate([

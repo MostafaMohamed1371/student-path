@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Web\Concerns;
 
+use App\Models\Guardian;
+use App\Models\School;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Collection;
 
 /**
  * Non-admins: scope data to {@see \App\Models\User::scopingSchoolId()}.
@@ -24,6 +26,7 @@ trait ManagesDashboardScoping
         $id = auth()->user()?->scopingSchoolId();
         if ($id === null) {
             $query->whereRaw('0 = 1');
+
             return;
         }
         $query->where($column, $id);
@@ -40,6 +43,7 @@ trait ManagesDashboardScoping
         $id = auth()->user()?->scopingSchoolId();
         if ($id === null) {
             $query->whereRaw('0 = 1');
+
             return;
         }
         $query->where('id', $id);
@@ -56,8 +60,79 @@ trait ManagesDashboardScoping
         $id = auth()->user()?->scopingSchoolId();
         if ($id === null) {
             $query->whereRaw('0 = 1');
+
             return;
         }
         $query->whereHas('driver', fn (Builder $q) => $q->where('school_id', $id));
+    }
+
+    /** Global admin or user with {@see User::$school_id} (school staff). */
+    protected function canMutateSchoolRoster(): bool
+    {
+        $user = auth()->user();
+        if (! $user) {
+            return false;
+        }
+
+        return (bool) $user->is_admin || $user->school_id !== null;
+    }
+
+    protected function abortUnlessCanMutateSchoolRoster(): void
+    {
+        abort_unless($this->canMutateSchoolRoster(), 403);
+    }
+
+    protected function abortUnlessCanMutateSchoolRosterForSchool(int $schoolId): void
+    {
+        $this->abortUnlessCanMutateSchoolRoster();
+        if ((bool) auth()->user()?->is_admin) {
+            return;
+        }
+        $sid = auth()->user()?->scopingSchoolId();
+        abort_unless($sid !== null && (int) $sid === $schoolId, 403);
+    }
+
+    /**
+     * Force non-admin creates to the user's scoping school.
+     *
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    protected function enforceRosterSchoolIdForStaff(array $validated): array
+    {
+        if ((bool) auth()->user()?->is_admin) {
+            return $validated;
+        }
+        $sid = auth()->user()?->scopingSchoolId();
+        if ($sid !== null) {
+            $validated['school_id'] = $sid;
+        }
+
+        return $validated;
+    }
+
+    /** @return Collection<int, School> */
+    protected function schoolsForRosterForm(): Collection
+    {
+        if ((bool) auth()->user()?->is_admin) {
+            return School::query()->orderBy('name_en')->get();
+        }
+        $sid = auth()->user()?->scopingSchoolId();
+        if ($sid === null) {
+            return collect();
+        }
+
+        return School::query()->where('id', $sid)->orderBy('name_en')->get();
+    }
+
+    /** @return Collection<int, Guardian> */
+    protected function guardiansForRosterForm(): Collection
+    {
+        $q = Guardian::query()->orderBy('full_name');
+        if (! (bool) auth()->user()?->is_admin) {
+            $this->constrainToScopingSchool($q);
+        }
+
+        return $q->get();
     }
 }

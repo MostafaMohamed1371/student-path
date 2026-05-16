@@ -117,7 +117,7 @@ class ApiSchoolScopingTest extends TestCase
             ->assertJsonPath('success', false);
     }
 
-    public function test_non_admin_cannot_mutate_students_or_guardians_via_api(): void
+    public function test_school_staff_can_mutate_roster_in_own_school_via_api(): void
     {
         $school = $this->makeSchool('Scoped S');
         $guardian = Guardian::query()->create([
@@ -139,9 +139,9 @@ class ApiSchoolScopingTest extends TestCase
 
         $this->postJson('/api/org/guardians', [
             'schoolId' => $school->id, 'fullName' => 'New G', 'phone' => '7500000000', 'status' => 'active',
-        ])->assertStatus(403);
-        $this->putJson("/api/org/guardians/{$guardian->id}", ['fullName' => 'Changed'])->assertStatus(403);
-        $this->deleteJson("/api/org/guardians/{$guardian->id}")->assertStatus(403);
+        ])->assertCreated();
+
+        $this->putJson("/api/org/guardians/{$guardian->id}", ['fullName' => 'Changed'])->assertOk();
 
         $this->postJson('/api/org/students', [
             'schoolId' => $school->id,
@@ -154,29 +154,9 @@ class ApiSchoolScopingTest extends TestCase
             'districtArea' => 'D2',
             'nearestLandmark' => 'L2',
             'status' => 'active',
-        ])->assertStatus(403);
-        $this->putJson("/api/org/students/{$student->id}", ['grade' => '2'])->assertStatus(403);
-        $this->deleteJson("/api/org/students/{$student->id}")->assertStatus(403);
-    }
+        ])->assertCreated();
 
-    public function test_non_admin_cannot_mutate_drivers_resource_via_api(): void
-    {
-        $school = $this->makeSchool('D School');
-        $u = User::factory()->create(['phone' => '9647909000000']);
-        $driver = Driver::query()->create([
-            'user_id' => $u->id,
-            'school_id' => $school->id,
-            'first_name' => 'A', 'father_name' => 'A', 'grandfather_name' => 'A', 'last_name' => 'A',
-            'age' => 35, 'id_card_number' => 'DID1', 'license_number' => 'LIC1',
-            'primary_phone' => '7700000000', 'emergency_phone' => '7700000001',
-            'residential_address' => 'R', 'status' => 'active',
-        ]);
-        $staff = User::factory()->create([
-            'phone' => '9647909100000',
-            'school_id' => $school->id,
-            'is_admin' => false,
-        ]);
-        Sanctum::actingAs($staff);
+        $this->putJson("/api/org/students/{$student->id}", ['grade' => '2'])->assertOk();
 
         $this->postJson('/api/org/drivers', [
             'schoolId' => $school->id,
@@ -184,9 +164,62 @@ class ApiSchoolScopingTest extends TestCase
             'age' => 30, 'idCardNumber' => 'NEW1', 'licenseNumber' => 'LNEW',
             'primaryPhone' => '7800000000', 'emergencyPhone' => '7800000001',
             'residentialAddress' => 'A', 'status' => 'active',
+        ])->assertCreated();
+    }
+
+    public function test_school_staff_cannot_mutate_roster_for_other_school_via_api(): void
+    {
+        $schoolA = $this->makeSchool('School A');
+        $schoolB = $this->makeSchool('School B');
+        $guardianB = Guardian::query()->create([
+            'school_id' => $schoolB->id, 'full_name' => 'Parent B', 'phone' => '7300000001', 'status' => 'active',
+        ]);
+
+        $staffA = User::factory()->create([
+            'phone' => '9647909100000',
+            'school_id' => $schoolA->id,
+            'is_admin' => false,
+        ]);
+        Sanctum::actingAs($staffA);
+
+        $this->postJson('/api/org/guardians', [
+            'schoolId' => $schoolB->id, 'fullName' => 'New G', 'phone' => '7500000001', 'status' => 'active',
         ])->assertStatus(403);
-        $this->putJson("/api/org/drivers/{$driver->id}", ['firstName' => 'B'])->assertStatus(403);
-        $this->deleteJson("/api/org/drivers/{$driver->id}")->assertStatus(403);
+
+        $this->putJson("/api/org/guardians/{$guardianB->id}", ['fullName' => 'Changed'])->assertStatus(403);
+        $this->deleteJson("/api/org/guardians/{$guardianB->id}")->assertStatus(403);
+    }
+
+    public function test_user_without_school_id_cannot_mutate_roster_via_api(): void
+    {
+        $school = $this->makeSchool('D School');
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id, 'full_name' => 'P', 'phone' => '7300000099', 'status' => 'active',
+        ]);
+
+        $plainUser = User::factory()->create([
+            'phone' => '9647909200000',
+            'school_id' => null,
+            'is_admin' => false,
+        ]);
+        Sanctum::actingAs($plainUser);
+
+        $this->postJson('/api/org/guardians', [
+            'schoolId' => $school->id, 'fullName' => 'New G', 'phone' => '7500000099', 'status' => 'active',
+        ])->assertStatus(403);
+
+        $this->postJson('/api/org/students', [
+            'schoolId' => $school->id,
+            'guardianId' => $guardian->id,
+            'fullName' => 'Child',
+            'gender' => 'male',
+            'grade' => '1',
+            'studentPhone' => '7600000099',
+            'relationship' => 'father',
+            'districtArea' => 'D',
+            'nearestLandmark' => 'L',
+            'status' => 'active',
+        ])->assertStatus(403);
     }
 
     private function makeSchool(string $nameEn): School

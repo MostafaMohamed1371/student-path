@@ -46,10 +46,10 @@ class StudentController extends Controller
 
     public function store(StoreStudentRequest $request, PhoneNormalizer $phoneNormalizer): JsonResponse
     {
-        if ($resp = $this->ensureApiAdminForMutations($request->user())) {
+        $validated = $request->validated();
+        if ($resp = $this->ensureApiCanMutateSchoolRoster($request->user(), (int) $validated['schoolId'])) {
             return $resp;
         }
-        $validated = $request->validated();
         $guardian = Guardian::query()->findOrFail($validated['guardianId']);
         if ((int) $guardian->school_id !== (int) $validated['schoolId']) {
             return $this->apiForbiddenResponse('forbidden');
@@ -88,11 +88,11 @@ class StudentController extends Controller
 
     public function update(UpdateStudentRequest $request, Student $student, PhoneNormalizer $phoneNormalizer): JsonResponse
     {
-        if ($resp = $this->ensureApiAdminForMutations($request->user())) {
-            return $resp;
-        }
         $validated = $request->validated();
         $targetSchool = (int) ($validated['schoolId'] ?? $student->school_id);
+        if ($resp = $this->ensureApiCanMutateSchoolRoster($request->user(), $targetSchool)) {
+            return $resp;
+        }
         $guardian = null;
         if (isset($validated['guardianId'])) {
             $guardian = Guardian::query()->findOrFail($validated['guardianId']);
@@ -140,7 +140,7 @@ class StudentController extends Controller
 
     public function destroy(Request $request, Student $student): JsonResponse
     {
-        if ($resp = $this->ensureApiAdminForMutations($request->user())) {
+        if ($resp = $this->ensureApiCanMutateSchoolRoster($request->user(), (int) $student->school_id)) {
             return $resp;
         }
         $student->delete();

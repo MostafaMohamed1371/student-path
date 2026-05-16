@@ -2,12 +2,11 @@
 
 namespace App\Http\Controllers\Web;
 
-use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
 use App\Http\Requests\Web\StoreDashboardDriverRequest;
 use App\Http\Requests\Web\UpdateDashboardDriverRequest;
 use App\Models\Driver;
-use App\Models\School;
 use App\Models\User;
 use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Database\Eloquent\Builder;
@@ -34,8 +33,8 @@ class DashboardDriverController extends Controller
 
     public function create(): View|RedirectResponse
     {
-        abort_unless($this->isAdmin(), 403);
-        $schools = School::query()->orderBy('name_en')->get();
+        $this->abortUnlessCanMutateSchoolRoster();
+        $schools = $this->schoolsForRosterForm();
         if ($schools->isEmpty()) {
             return $this->redirectToSchoolCreateForAdminsOrHomeForStaff('dashboard.create_school_first');
         }
@@ -45,8 +44,9 @@ class DashboardDriverController extends Controller
 
     public function store(StoreDashboardDriverRequest $request, PhoneNormalizer $phoneNormalizer): RedirectResponse
     {
-        abort_unless($this->isAdmin(), 403);
-        $validated = $request->validated();
+        $this->abortUnlessCanMutateSchoolRoster();
+        $validated = $this->enforceRosterSchoolIdForStaff($request->validated());
+        $this->abortUnlessCanMutateSchoolRosterForSchool((int) $validated['school_id']);
         $ratingAvg = Arr::pull($validated, 'rating_avg');
         $ratingCount = Arr::pull($validated, 'rating_count');
         $patchExistingUserRatings = $request->filled('rating_avg') || $request->filled('rating_count');
@@ -66,17 +66,17 @@ class DashboardDriverController extends Controller
 
     public function edit(Driver $driver): View
     {
-        abort_unless($this->isAdmin(), 403);
+        $this->abortUnlessCanMutateSchoolRosterForSchool((int) $driver->school_id);
         $driver->loadMissing('user');
-        $schools = School::query()->orderBy('name_en')->get();
+        $schools = $this->schoolsForRosterForm();
 
         return view('dashboard.drivers.edit', compact('driver', 'schools'));
     }
 
     public function update(UpdateDashboardDriverRequest $request, Driver $driver, PhoneNormalizer $phoneNormalizer): RedirectResponse
     {
-        abort_unless($this->isAdmin(), 403);
-        $validated = $request->validated();
+        $validated = $this->enforceRosterSchoolIdForStaff($request->validated());
+        $this->abortUnlessCanMutateSchoolRosterForSchool((int) ($validated['school_id'] ?? $driver->school_id));
         $ratingAvg = Arr::pull($validated, 'rating_avg');
         $ratingCount = Arr::pull($validated, 'rating_count');
         $user = $this->resolveDriverUser($validated, $phoneNormalizer, $ratingAvg, $ratingCount, true, false);
@@ -95,7 +95,7 @@ class DashboardDriverController extends Controller
 
     public function destroy(Driver $driver): RedirectResponse
     {
-        abort_unless($this->isAdmin(), 403);
+        $this->abortUnlessCanMutateSchoolRosterForSchool((int) $driver->school_id);
         foreach (['id_card_image', 'license_image', 'non_conviction_certificate'] as $fileField) {
             if ($driver->{$fileField}) {
                 Storage::disk('public')->delete((string) $driver->{$fileField});
@@ -210,10 +210,5 @@ class DashboardDriverController extends Controller
         }
 
         return max(0, min(999999, (int) $value));
-    }
-
-    private function isAdmin(): bool
-    {
-        return (bool) auth()->user()?->is_admin;
     }
 }
