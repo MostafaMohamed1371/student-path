@@ -5,18 +5,27 @@
 <script>
 (function () {
     const url = @json($formOptionsUrl ?? '');
+    const exceptTripId = @json(isset($exceptTripId) && $exceptTripId ? (int) $exceptTripId : null);
     const schoolSelect = document.getElementById('trip_form_school_id');
     const tripTypeSelect = document.getElementById('trip_form_trip_type');
     const driverSelect = document.getElementById('trip_form_driver_id');
     const studentsSelect = document.getElementById('trip_form_student_ids');
     const busNumberInput = document.getElementById('trip_form_bus_number');
     const studentsCountInput = document.getElementById('trip_form_students_count');
+    const routeTitleInput = document.getElementById('trip_form_route_title');
+    const locationInput = document.getElementById('trip_form_location');
+    const distanceKmInput = document.getElementById('trip_form_distance_km');
+    const routeHint = document.getElementById('trip_form_route_hint');
+    const studentsFilterHint = document.getElementById('trip_form_students_filter_hint');
     if (!url || !schoolSelect || !tripTypeSelect || !driverSelect || !studentsSelect) {
         return;
     }
 
     const placeholderSchool = @json($tripFormPlaceholderSchool);
     const placeholderShift = @json($tripFormPlaceholderShift);
+    const routeFromDriverHint = @json(__('dashboard.trip_route_from_driver_route'));
+    const noRouteForDriverHint = @json(__('dashboard.trip_no_route_for_driver'));
+    const studentsRouteFilterHint = @json(__('dashboard.trip_students_route_filter_help'));
 
     let driversCache = [];
 
@@ -67,6 +76,19 @@
             if (studentsCountInput) {
                 studentsCountInput.value = '0';
             }
+            if (routeTitleInput) {
+                routeTitleInput.value = '';
+            }
+            if (locationInput) {
+                locationInput.value = '';
+            }
+            if (distanceKmInput) {
+                distanceKmInput.value = '0';
+            }
+            if (routeHint) {
+                routeHint.style.display = 'none';
+                routeHint.textContent = '';
+            }
             return;
         }
 
@@ -80,6 +102,37 @@
         }
         if (studentsCountInput && row.students_count != null) {
             studentsCountInput.value = String(row.students_count);
+        }
+
+        if (row.transport_route_id) {
+            if (routeTitleInput && row.route_title) {
+                routeTitleInput.value = row.route_title;
+            }
+            if (locationInput && row.location) {
+                locationInput.value = row.location;
+            }
+            if (distanceKmInput && row.distance_km != null && !isNaN(parseFloat(row.distance_km))) {
+                distanceKmInput.value = String(Number(parseFloat(row.distance_km).toFixed(2)));
+            }
+            if (routeHint) {
+                routeHint.style.display = 'block';
+                var distText = (row.distance_km != null && !isNaN(parseFloat(row.distance_km)))
+                    ? ' (' + Number(parseFloat(row.distance_km).toFixed(2)) + ' km)'
+                    : '';
+                routeHint.textContent = routeFromDriverHint + distText;
+            }
+            if (Array.isArray(row.route_student_ids) && row.route_student_ids.length > 0) {
+                const routeIds = row.route_student_ids.map(String);
+                Array.from(studentsSelect.options).forEach(function (opt) {
+                    opt.selected = routeIds.indexOf(opt.value) !== -1;
+                });
+                if (studentsCountInput) {
+                    studentsCountInput.value = String(routeIds.length);
+                }
+            }
+        } else if (routeHint) {
+            routeHint.style.display = 'block';
+            routeHint.textContent = noRouteForDriverHint;
         }
     }
 
@@ -96,6 +149,9 @@
             hint.disabled = true;
             hint.textContent = placeholderSchool;
             studentsSelect.appendChild(hint);
+            if (studentsFilterHint) {
+                studentsFilterHint.style.display = 'none';
+            }
             applyDriverBusFields();
             return;
         }
@@ -108,11 +164,21 @@
             hint.disabled = true;
             hint.textContent = placeholderShift;
             studentsSelect.appendChild(hint);
+            if (studentsFilterHint) {
+                studentsFilterHint.style.display = 'none';
+            }
             applyDriverBusFields();
             return;
         }
 
         const params = new URLSearchParams({ school_id: schoolId, trip_type: tripType });
+        const driverId = String(driverSelect.value || '');
+        if (driverId) {
+            params.set('driver_id', driverId);
+        }
+        if (exceptTripId) {
+            params.set('except_trip_id', String(exceptTripId));
+        }
         includeIds.forEach(function (id) { params.append('include_student_ids[]', String(id)); });
 
         try {
@@ -126,6 +192,15 @@
             driversCache = data.drivers || [];
             setSelectOptions(driverSelect, driversCache, '—', true);
             setMultiSelectOptions(studentsSelect, data.students || [], includeIds);
+            if (studentsFilterHint) {
+                if (data.route_filter_active && data.corridor_max_km != null) {
+                    studentsFilterHint.style.display = 'block';
+                    studentsFilterHint.textContent = studentsRouteFilterHint.replace(':km', String(data.corridor_max_km));
+                } else {
+                    studentsFilterHint.style.display = 'none';
+                    studentsFilterHint.textContent = '';
+                }
+            }
             applyDriverBusFields();
         } catch (e) {
             console.error(e);
@@ -137,7 +212,7 @@
         refreshTripFormOptions();
     });
     tripTypeSelect.addEventListener('change', refreshTripFormOptions);
-    driverSelect.addEventListener('change', applyDriverBusFields);
+    driverSelect.addEventListener('change', refreshTripFormOptions);
     refreshTripFormOptions();
 })();
 </script>

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
@@ -50,5 +51,10 @@ class Driver extends Model
     public function bus(): HasOne
     {
         return $this->hasOne(Bus::class);
+    }
+
+    public function transportRoutes(): HasMany
+    {
+        return $this->hasMany(TransportRoute::class);
     }
 }

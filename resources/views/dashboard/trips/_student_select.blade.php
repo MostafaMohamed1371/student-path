@@ -1,7 +1,8 @@
 @php($sel = $selectedStudentIds ?? [])
 <label style="grid-column:1 / -1;">
     <span>{{ __('dashboard.trip_students_select') }}</span>
-    <p style="margin:4px 0 8px;font-size:12px;color:#64748b;">{{ __('dashboard.trip_students_select_help') }}</p>
+    <p style="margin:4px 0 8px;font-size:12px;color:#64748b;">{{ __('dashboard.trip_students_select_help') }} {{ __('dashboard.trip_students_select_help_assigned') }}</p>
+    <p id="trip_form_students_filter_hint" class="help" style="margin:0 0 8px;display:none;"></p>
     <select id="trip_form_student_ids" name="student_ids[]" multiple size="8" style="width:100%;max-width:520px;">
         @forelse(($students ?? []) as $s)
             <option value="{{ $s->id }}" @selected(collect($sel)->contains($s->id))>

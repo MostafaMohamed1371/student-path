@@ -2,11 +2,13 @@
 
 use App\Http\Controllers\Web\DashboardAbsenceController;
 use App\Http\Controllers\Web\DashboardBusController;
+use App\Http\Controllers\Web\DashboardGeocodeController;
 use App\Http\Controllers\Web\DashboardDriverController;
 use App\Http\Controllers\Web\DashboardGuardianController;
 use App\Http\Controllers\Web\DashboardHomeController;
 use App\Http\Controllers\Web\DashboardLoginController;
 use App\Http\Controllers\Web\DashboardProfileController;
+use App\Http\Controllers\Web\DashboardRouteController;
 use App\Http\Controllers\Web\DashboardReportsController;
 use App\Http\Controllers\Web\DashboardSchoolController;
 use App\Http\Controllers\Web\DashboardStudentController;
@@ -48,6 +50,9 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/dashboard/buses/{bus}/edit', [DashboardBusController::class, 'edit'])->name('dashboard.buses.edit');
     Route::put('/dashboard/buses/{bus}', [DashboardBusController::class, 'update'])->name('dashboard.buses.update');
     Route::delete('/dashboard/buses/{bus}', [DashboardBusController::class, 'destroy'])->name('dashboard.buses.destroy');
+
+    Route::get('/dashboard/geocode/reverse', [DashboardGeocodeController::class, 'reverse'])
+        ->name('dashboard.geocode.reverse');
 
     Route::get('/dashboard/schools', [DashboardSchoolController::class, 'index'])->name('dashboard.schools.index');
     Route::get('/dashboard/schools/create', [DashboardSchoolController::class, 'create'])->name('dashboard.schools.create');
@@ -99,6 +104,18 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/dashboard/delay-alerts', [DashboardReportsController::class, 'delayAlerts'])->name('dashboard.delay_alerts');
     Route::get('/dashboard/sos-alerts', [DashboardReportsController::class, 'sosAlerts'])->name('dashboard.sos_alerts');
     Route::get('/dashboard/trip-finalization-reports', [DashboardReportsController::class, 'tripFinalizationReports'])->name('dashboard.trip_finalization_reports');
+
+    Route::get('/dashboard/routes', [DashboardRouteController::class, 'index'])->name('dashboard.routes.index');
+    Route::get('/dashboard/routes/create', [DashboardRouteController::class, 'create'])->name('dashboard.routes.create');
+    Route::post('/dashboard/routes', [DashboardRouteController::class, 'store'])->name('dashboard.routes.store');
+    Route::get('/dashboard/routes/form-options', [DashboardRouteController::class, 'formOptions'])->name('dashboard.routes.form_options');
+    Route::post('/dashboard/routes/auto-assign', [DashboardRouteController::class, 'autoAssign'])->name('dashboard.routes.auto_assign');
+    Route::post('/dashboard/routes/assign-route-matching', [DashboardRouteController::class, 'assignRouteMatching'])->name('dashboard.routes.assign_route_matching');
+    Route::post('/dashboard/routes/assign-student', [DashboardRouteController::class, 'assignStudent'])->name('dashboard.routes.assign_student');
+    Route::get('/dashboard/routes/{route}/edit', [DashboardRouteController::class, 'edit'])->name('dashboard.routes.edit');
+    Route::put('/dashboard/routes/{route}', [DashboardRouteController::class, 'update'])->name('dashboard.routes.update');
+    Route::delete('/dashboard/routes/{route}', [DashboardRouteController::class, 'destroy'])->name('dashboard.routes.destroy');
+    Route::delete('/dashboard/routes/students/{routeStudent}', [DashboardRouteController::class, 'removeStudent'])->name('dashboard.routes.remove_student');
 
     Route::get('/dashboard/trip-requests', [DashboardTripRequestController::class, 'index'])->name('dashboard.trip_requests.index');
     Route::get('/dashboard/trip-requests/create', [DashboardTripRequestController::class, 'create'])->name('dashboard.trip_requests.create');

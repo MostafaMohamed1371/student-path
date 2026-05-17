@@ -35,7 +35,7 @@
 
     <div>
         <label class="field-label">&nbsp;</label>
-        <p class="help" style="margin-top: 10px;">Click on map to set school location.</p>
+        <p class="help" style="margin-top: 10px;">{{ __('dashboard.school_map_click_help') }}</p>
     </div>
 </div>
 
@@ -120,6 +120,11 @@
         const mapEl = document.getElementById('school-map');
         const latInput = document.getElementById('latitude');
         const lngInput = document.getElementById('longitude');
+        const addressInput = document.getElementById('address');
+        const provinceInput = document.getElementById('province');
+        const districtInput = document.getElementById('district');
+        const reverseUrl = @json(route('dashboard.geocode.reverse'));
+        const addressLoadingLabel = @json(__('dashboard.school_map_address_loading'));
         if (!mapEl || !latInput || !lngInput || typeof L === 'undefined') {
             return;
         }
@@ -144,8 +149,68 @@
             lngInput.value = Number(newLng).toFixed(7);
         };
 
+        let reverseRequestId = 0;
+
+        async function fillAddressFromMap(lat, lng) {
+            if (!addressInput || !reverseUrl) {
+                return;
+            }
+
+            const requestId = ++reverseRequestId;
+            const previousAddress = addressInput.value;
+            addressInput.value = addressLoadingLabel;
+            addressInput.disabled = true;
+
+            try {
+                const params = new URLSearchParams({
+                    latitude: String(lat),
+                    longitude: String(lng),
+                });
+                const res = await fetch(reverseUrl + '?' + params.toString(), {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+
+                if (requestId !== reverseRequestId) {
+                    return;
+                }
+
+                if (!res.ok) {
+                    addressInput.value = previousAddress;
+                    return;
+                }
+
+                const json = await res.json();
+                const data = json.data || {};
+                if (data.address) {
+                    addressInput.value = data.address;
+                } else {
+                    addressInput.value = previousAddress;
+                }
+
+                if (provinceInput && !provinceInput.value.trim() && data.province) {
+                    provinceInput.value = data.province;
+                }
+                if (districtInput && !districtInput.value.trim() && data.district) {
+                    districtInput.value = data.district;
+                }
+            } catch (e) {
+                if (requestId === reverseRequestId) {
+                    addressInput.value = previousAddress;
+                }
+                console.error(e);
+            } finally {
+                if (requestId === reverseRequestId) {
+                    addressInput.disabled = false;
+                }
+            }
+        }
+
         map.on('click', function (event) {
             setLocation(event.latlng.lat, event.latlng.lng);
+            fillAddressFromMap(event.latlng.lat, event.latlng.lng);
         });
 
         latInput.addEventListener('change', function () {

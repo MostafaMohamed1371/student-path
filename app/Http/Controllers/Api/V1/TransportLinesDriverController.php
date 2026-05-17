@@ -5,10 +5,13 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Api\Concerns\AppliesApiSchoolScoping;
 use App\Http\Controllers\Api\V1\Concerns\FormatsParentApiResponse;
 use App\Http\Controllers\Controller;
+use App\Enums\TripType;
 use App\Models\Driver;
 use App\Models\Guardian;
 use App\Models\School;
 use App\Models\Student;
+use App\Models\TransportRoute;
+use App\Services\Routes\RouteAssignmentPlanner;
 use App\Services\TransportLines\TransportDriverCardBuilder;
 use App\Support\ParentContext;
 use Illuminate\Http\JsonResponse;
@@ -21,6 +24,7 @@ class TransportLinesDriverController extends Controller
 
     public function __construct(
         private readonly TransportDriverCardBuilder $cardBuilder,
+        private readonly RouteAssignmentPlanner $routeAssignmentPlanner,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -29,6 +33,9 @@ class TransportLinesDriverController extends Controller
             'school_id' => ['nullable', 'integer', 'exists:schools,id'],
             'student_id' => ['nullable', 'integer', 'exists:students,id'],
             'shift_period' => ['nullable', 'string', 'in:MORNING,EVENING'],
+            'trip_type' => ['nullable', 'string', 'max:32'],
+            'matches_route_only' => ['nullable', 'boolean'],
+            'has_transport_route' => ['nullable', 'boolean'],
             'search' => ['nullable', 'string', 'max:120'],
             'min_monthly_price' => ['nullable', 'integer', 'min:0'],
             'max_monthly_price' => ['nullable', 'integer', 'min:0'],
@@ -76,6 +83,31 @@ class TransportLinesDriverController extends Controller
             $driversQuery->where('shift_period', (string) $request->query('shift_period'));
         }
 
+        $tripType = trim((string) $request->query('trip_type', ''));
+        if ($tripType !== '' && ! in_array($tripType, array_map(static fn (TripType $t): string => $t->value, TripType::cases()), true)) {
+            return $this->parentError('Invalid trip_type.', null, 422);
+        }
+
+        if ($request->boolean('has_transport_route') || $tripType !== '') {
+            $driversQuery->whereHas('transportRoutes', function ($q) use ($tripType): void {
+                $q->where('status', 'active')
+                    ->whereNotNull('start_latitude')
+                    ->whereNotNull('start_longitude');
+                if ($tripType !== '') {
+                    $q->where('trip_type', $tripType);
+                }
+            });
+        }
+
+        if ($student !== null && $request->boolean('matches_route_only')) {
+            $matchingDriverIds = $this->matchingDriverIdsForStudent($student, $schoolIds, $tripType !== '' ? $tripType : null);
+            if ($matchingDriverIds === []) {
+                $driversQuery->whereRaw('1 = 0');
+            } else {
+                $driversQuery->whereIn('id', $matchingDriverIds);
+            }
+        }
+
         $search = trim((string) $request->query('search', ''));
         if ($search !== '') {
             $driversQuery->where(function ($q) use ($search): void {
@@ -117,13 +149,17 @@ class TransportLinesDriverController extends Controller
         $reservedByDriver = $this->cardBuilder->reservedCountsByDriverId($drivers);
 
         $routeBySchoolAndBus = $this->cardBuilder->latestRouteTitlesBySchoolAndBus($schoolIds, $drivers);
+        $transportRoutesByDriver = $this->cardBuilder->activeTransportRoutesByDriverId(
+            $drivers,
+            $tripType !== '' ? $tripType : null,
+        );
 
         $studentsBySchoolForDistance = ParentContext::representativeStudentsWithLocationBySchool(
             $request->user(),
             $schoolIds,
         );
 
-        $cards = $drivers->map(function (Driver $driver) use ($reservedByDriver, $routeBySchoolAndBus, $schools, $request, $student, $studentsBySchoolForDistance, $queryLat, $queryLng): array {
+        $cards = $drivers->map(function (Driver $driver) use ($reservedByDriver, $routeBySchoolAndBus, $transportRoutesByDriver, $schools, $request, $student, $studentsBySchoolForDistance, $queryLat, $queryLng): array {
             $school = $schools->get($driver->school_id);
             $studentForDistance = $student ?? ($studentsBySchoolForDistance[(int) $driver->school_id] ?? null);
             $distanceKm = $this->cardBuilder->resolveDistanceKmToSchool(
@@ -134,8 +170,21 @@ class TransportLinesDriverController extends Controller
                 $school instanceof School ? $school : null,
             );
 
-            return $this->cardBuilder->buildCard($driver, $reservedByDriver, $routeBySchoolAndBus, $distanceKm);
+            $transportRoute = $transportRoutesByDriver->get($driver->id);
+
+            return $this->cardBuilder->buildCard(
+                $driver,
+                $reservedByDriver,
+                $routeBySchoolAndBus,
+                $distanceKm,
+                $transportRoute instanceof TransportRoute ? $transportRoute : null,
+                $studentForDistance,
+            );
         })->values()->all();
+
+        if ($student !== null) {
+            $cards = $this->sortDriverCardsByRouteMatch($cards);
+        }
 
         return $this->parentSuccess([
             'schoolIds' => array_map(static fn (int $id): string => (string) $id, $schoolIds),
@@ -163,6 +212,7 @@ class TransportLinesDriverController extends Controller
 
         $request->validate([
             'student_id' => ['nullable', 'integer', 'exists:students,id'],
+            'trip_type' => ['nullable', 'string', 'max:32'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
         ]);
@@ -194,14 +244,83 @@ class TransportLinesDriverController extends Controller
             $school,
         );
 
+        $tripType = trim((string) $request->query('trip_type', ''));
+        if ($tripType !== '' && ! in_array($tripType, array_map(static fn (TripType $t): string => $t->value, TripType::cases()), true)) {
+            return $this->parentError('Invalid trip_type.', null, 422);
+        }
+
         $reserved = $this->cardBuilder->reservedCountsByDriverId(collect([$driver]));
         $routes = $this->cardBuilder->latestRouteTitlesBySchoolAndBus([(int) $driver->school_id], collect([$driver]));
+        $transportRoutes = $this->cardBuilder->activeTransportRoutesByDriverId(
+            collect([$driver]),
+            $tripType !== '' ? $tripType : null,
+        );
+        $transportRoute = $transportRoutes->get($driver->id);
 
-        $card = $this->cardBuilder->buildCard($driver, $reserved, $routes, $distanceKm);
+        $card = $this->cardBuilder->buildCard(
+            $driver,
+            $reserved,
+            $routes,
+            $distanceKm,
+            $transportRoute instanceof TransportRoute ? $transportRoute : null,
+            $studentForDistance,
+        );
 
         return $this->parentSuccess([
             'driver' => $card,
         ]);
+    }
+
+    /**
+     * @param  list<int>  $schoolIds
+     * @return list<int>
+     */
+    private function matchingDriverIdsForStudent(Student $student, array $schoolIds, ?string $tripType): array
+    {
+        $query = TransportRoute::query()
+            ->with('school')
+            ->whereIn('school_id', $schoolIds)
+            ->where('school_id', (int) $student->school_id)
+            ->where('status', 'active')
+            ->whereNotNull('start_latitude')
+            ->whereNotNull('start_longitude');
+
+        if ($tripType !== null && $tripType !== '') {
+            $query->where('trip_type', $tripType);
+        }
+
+        return $query->get()
+            ->filter(fn (TransportRoute $route): bool => $this->routeAssignmentPlanner->studentMatchesRouteCorridor($student, $route))
+            ->pluck('driver_id')
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $cards
+     * @return list<array<string, mixed>>
+     */
+    private function sortDriverCardsByRouteMatch(array $cards): array
+    {
+        usort($cards, function (array $a, array $b): int {
+            $aMatch = ($a['matchesStudentRoute'] ?? false) === true ? 1 : 0;
+            $bMatch = ($b['matchesStudentRoute'] ?? false) === true ? 1 : 0;
+            if ($aMatch !== $bMatch) {
+                return $bMatch <=> $aMatch;
+            }
+
+            $aDist = $a['distanceKm'] ?? null;
+            $bDist = $b['distanceKm'] ?? null;
+            if ($aDist !== null && $bDist !== null) {
+                return $aDist <=> $bDist;
+            }
+
+            return 0;
+        });
+
+        return $cards;
     }
 
     /**

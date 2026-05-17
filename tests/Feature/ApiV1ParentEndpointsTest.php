@@ -1529,6 +1529,130 @@ class ApiV1ParentEndpointsTest extends TestCase
             ->assertJsonPath('data.drivers.0.routeDescription', 'Bus Label Fallback');
     }
 
+    public function test_v1_transport_lines_drivers_matches_student_to_transport_route_corridor(): void
+    {
+        $school = $this->makeSchool('Route Match School');
+        $school->update(['latitude' => 33.31, 'longitude' => 44.36, 'address' => 'School Campus']);
+
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'G Route',
+            'phone' => '7300000399',
+            'status' => 'active',
+        ]);
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'Student Route',
+            'gender' => 'male',
+            'grade' => '1',
+            'student_phone' => '7400000399',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'latitude' => 33.3106,
+            'longitude' => 44.3606,
+            'status' => 'active',
+            'shift_period' => 'MORNING',
+        ]);
+
+        $parent = User::factory()->create(['guardian_id' => $guardian->id, 'school_id' => $school->id]);
+
+        $matchingUser = User::factory()->create(['phone' => '9647909000391', 'name' => 'Matching Driver']);
+        $matchingDriver = Driver::query()->create([
+            'user_id' => $matchingUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'Match',
+            'father_name' => 'D',
+            'grandfather_name' => 'D',
+            'last_name' => 'W',
+            'age' => 35,
+            'id_card_number' => 'IDC-MATCH',
+            'license_number' => 'LIC-MATCH',
+            'primary_phone' => '7770000391',
+            'emergency_phone' => '7770000392',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+            'shift_period' => 'MORNING',
+        ]);
+        $otherUser = User::factory()->create(['phone' => '9647909000392', 'name' => 'Other Driver']);
+        $otherDriver = Driver::query()->create([
+            'user_id' => $otherUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'Other',
+            'father_name' => 'D',
+            'grandfather_name' => 'D',
+            'last_name' => 'W',
+            'age' => 36,
+            'id_card_number' => 'IDC-OTHER',
+            'license_number' => 'LIC-OTHER',
+            'primary_phone' => '7770000393',
+            'emergency_phone' => '7770000394',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+            'shift_period' => 'MORNING',
+        ]);
+
+        Bus::query()->create([
+            'user_id' => User::factory()->create()->id,
+            'driver_id' => $matchingDriver->id,
+            'name' => 'Bus M',
+            'number' => 'M-1',
+            'type' => 'Van',
+            'city' => 'Baghdad',
+            'capacity' => 12,
+            'color' => 'white',
+            'fuel_type' => 'diesel',
+            'status' => 'active',
+        ]);
+        Bus::query()->create([
+            'user_id' => User::factory()->create()->id,
+            'driver_id' => $otherDriver->id,
+            'name' => 'Bus O',
+            'number' => 'O-1',
+            'type' => 'Van',
+            'city' => 'Baghdad',
+            'capacity' => 12,
+            'color' => 'white',
+            'fuel_type' => 'diesel',
+            'status' => 'active',
+        ]);
+
+        \App\Models\TransportRoute::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $matchingDriver->id,
+            'name' => 'Morning Route A',
+            'trip_type' => \App\Enums\TripType::MORNING_PICKUP->value,
+            'shift_period' => 'MORNING',
+            'start_address' => 'Depot A',
+            'start_latitude' => 33.311,
+            'start_longitude' => 44.361,
+            'status' => 'active',
+        ]);
+        Sanctum::actingAs($parent);
+
+        $list = $this->getJson('/api/transport-lines/drivers?student_id='.$student->id)
+            ->assertOk()
+            ->json('data.drivers');
+
+        $matchingCard = collect($list)->firstWhere('driverId', (string) $matchingDriver->id);
+        $otherCard = collect($list)->firstWhere('driverId', (string) $otherDriver->id);
+        $this->assertNotNull($matchingCard);
+        $this->assertTrue($matchingCard['matchesStudentRoute'] ?? false);
+        $this->assertSame('MORNING_PICKUP', $matchingCard['route']['tripType'] ?? null);
+        $this->assertSame('Depot A', $matchingCard['route']['startAddress'] ?? null);
+        $this->assertNotNull($otherCard);
+        $this->assertNull($otherCard['route'] ?? null);
+        $this->assertNull($otherCard['matchesStudentRoute'] ?? null);
+
+        $this->getJson('/api/transport-lines/drivers?student_id='.$student->id.'&trip_type=MORNING_PICKUP&matches_route_only=1')
+            ->assertOk()
+            ->assertJsonCount(1, 'data.drivers')
+            ->assertJsonPath('data.drivers.0.driverId', (string) $matchingDriver->id);
+    }
+
     private function makeSchool(string $nameEn): School
     {
         return School::query()->create([

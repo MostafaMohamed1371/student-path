@@ -11,9 +11,13 @@ use App\Models\School;
 use App\Models\Student;
 use App\Models\TripHistory;
 use App\Models\TripHistoryStudent;
+use App\Models\TransportRoute;
+use App\Services\Routes\RouteAssignmentPlanner;
 use App\Services\Trips\DriverShiftResolver;
 use App\Services\Trips\DriverTripModuleService;
 use App\Services\Trips\StudentShiftFilter;
+use App\Services\Trips\TripStudentAvailability;
+use App\Services\Trips\TripTransportRouteApplier;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -28,6 +32,9 @@ class DashboardTripController extends Controller
 
     public function __construct(
         private readonly StudentShiftFilter $studentShiftFilter,
+        private readonly TripStudentAvailability $tripStudentAvailability,
+        private readonly TripTransportRouteApplier $tripTransportRouteApplier,
+        private readonly RouteAssignmentPlanner $routeAssignmentPlanner,
     ) {}
 
     public function index(): View
@@ -63,11 +70,18 @@ class DashboardTripController extends Controller
         $schoolId = (int) old('school_id', auth()->user()?->scopingSchoolId() ?? 0);
         $tripType = old('trip_type');
         $selectedStudentIds = array_map('intval', old('student_ids', []));
+        $driverId = (int) old('driver_id', 0);
         $drivers = $schoolId > 0
             ? $this->driversForTripForm($schoolId, is_string($tripType) ? $tripType : null)
             : collect();
         $students = $schoolId > 0
-            ? $this->studentsForTripForm($schoolId, is_string($tripType) ? $tripType : null, $selectedStudentIds)
+            ? $this->studentsForTripForm(
+                $schoolId,
+                is_string($tripType) ? $tripType : null,
+                $selectedStudentIds,
+                null,
+                $driverId > 0 ? $driverId : null,
+            )
             : collect();
 
         return view('dashboard.trips.create', [
@@ -77,6 +91,7 @@ class DashboardTripController extends Controller
             'students' => $students,
             'selectedStudentIds' => $selectedStudentIds,
             'formOptionsUrl' => route('dashboard.trips.form_options'),
+            'exceptTripId' => null,
         ]);
     }
 
@@ -92,6 +107,8 @@ class DashboardTripController extends Controller
 
         $studentIds = $validated['student_ids'] ?? [];
         unset($validated['student_ids']);
+
+        $validated = $this->tripTransportRouteApplier->applyRouteToTripAttributes($validated);
 
         $trip = TripHistory::query()->create($validated);
 
@@ -116,7 +133,14 @@ class DashboardTripController extends Controller
             old('student_ids', $trip->tripHistoryStudents()->pluck('student_id')->all()),
         );
         $drivers = $this->driversForTripForm($schoolId, is_string($tripType) ? $tripType : null);
-        $students = $this->studentsForTripForm($schoolId, is_string($tripType) ? $tripType : null, $selectedStudentIds);
+        $driverId = (int) old('driver_id', $trip->driver_id ?? 0);
+        $students = $this->studentsForTripForm(
+            $schoolId,
+            is_string($tripType) ? $tripType : null,
+            $selectedStudentIds,
+            (int) $trip->id,
+            $driverId > 0 ? $driverId : null,
+        );
 
         return view('dashboard.trips.edit', [
             'trip' => $trip,
@@ -126,6 +150,7 @@ class DashboardTripController extends Controller
             'students' => $students,
             'selectedStudentIds' => $selectedStudentIds,
             'formOptionsUrl' => route('dashboard.trips.form_options'),
+            'exceptTripId' => (int) $trip->id,
         ]);
     }
 
@@ -136,8 +161,10 @@ class DashboardTripController extends Controller
         $validated = $request->validate([
             'school_id' => ['required', 'integer', 'exists:schools,id'],
             'trip_type' => ['nullable', 'string', 'max:32'],
+            'driver_id' => ['nullable', 'integer', 'exists:drivers,id'],
             'include_student_ids' => ['nullable', 'array'],
             'include_student_ids.*' => ['integer'],
+            'except_trip_id' => ['nullable', 'integer', 'exists:trip_histories,id'],
         ]);
 
         $schoolId = (int) $validated['school_id'];
@@ -145,17 +172,33 @@ class DashboardTripController extends Controller
         $tripType = isset($validated['trip_type']) && trim((string) $validated['trip_type']) !== ''
             ? trim((string) $validated['trip_type'])
             : null;
+        $driverId = isset($validated['driver_id']) ? (int) $validated['driver_id'] : null;
+        if ($driverId !== null && $driverId > 0) {
+            $this->assertDriverBelongsToSchool($driverId, $schoolId);
+        }
         $includeIds = array_map('intval', $validated['include_student_ids'] ?? []);
+        $exceptTripId = isset($validated['except_trip_id']) ? (int) $validated['except_trip_id'] : null;
+
+        $drivers = $this->driversForTripForm($schoolId, $tripType);
+        $routesByDriver = $this->tripTransportRouteApplier->routesByDriverId($drivers, $schoolId, $tripType);
+        $activeRoute = $this->transportRouteForDriver($schoolId, $tripType, $driverId);
 
         return response()->json([
-            'students' => $this->studentsForTripForm($schoolId, $tripType, $includeIds)
+            'students' => $this->studentsForTripForm($schoolId, $tripType, $includeIds, $exceptTripId, $driverId)
                 ->map(fn (Student $s): array => $this->studentOptionRow($s))
                 ->values()
                 ->all(),
-            'drivers' => $this->driversForTripForm($schoolId, $tripType)
-                ->map(fn (Driver $d): array => $this->driverOptionRow($d))
+            'drivers' => $drivers
+                ->map(fn (Driver $d): array => $this->driverOptionRow(
+                    $d,
+                    $routesByDriver->get($d->id),
+                ))
                 ->values()
                 ->all(),
+            'route_filter_active' => $activeRoute !== null,
+            'corridor_max_km' => $activeRoute !== null
+                ? round((float) config('routes.corridor_max_meters', 3000) / 1000, 1)
+                : null,
         ]);
     }
 
@@ -172,6 +215,8 @@ class DashboardTripController extends Controller
 
         $studentIds = array_key_exists('student_ids', $validated) ? $validated['student_ids'] : null;
         unset($validated['student_ids']);
+
+        $validated = $this->tripTransportRouteApplier->applyRouteToTripAttributes($validated);
 
         $trip->update($validated);
 
@@ -240,6 +285,13 @@ class DashboardTripController extends Controller
 
         $tripType = is_string($trip->trip_type) && $trip->trip_type !== '' ? $trip->trip_type : null;
 
+        $this->tripStudentAvailability->assertStudentsAvailableForTrip($unique, $schoolId, (int) $trip->id);
+
+        $previouslyOnTrip = $trip->tripHistoryStudents()
+            ->pluck('student_id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+
         foreach ($unique as $sid) {
             $student = Student::query()->whereKey($sid)->where('school_id', $schoolId)->first();
             if (! $student) {
@@ -251,6 +303,25 @@ class DashboardTripController extends Controller
                 throw ValidationException::withMessages([
                     'student_ids' => [__('dashboard.trip_students_shift_mismatch')],
                 ]);
+            }
+        }
+
+        $route = $this->transportRouteForDriver(
+            $schoolId,
+            $tripType,
+            $trip->driver_id !== null ? (int) $trip->driver_id : null,
+        );
+        if ($route !== null) {
+            foreach ($unique as $sid) {
+                if (in_array($sid, $previouslyOnTrip, true)) {
+                    continue;
+                }
+                $student = Student::query()->find($sid);
+                if ($student && ! $this->routeAssignmentPlanner->studentEligibleForDriverRoute($student, $route)) {
+                    throw ValidationException::withMessages([
+                        'student_ids' => [__('dashboard.trip_students_off_route')],
+                    ]);
+                }
             }
         }
 
@@ -306,16 +377,27 @@ class DashboardTripController extends Controller
      * @param  list<int>  $includeStudentIds
      * @return Collection<int, Student>
      */
-    private function studentsForTripForm(int $schoolId, ?string $tripType, array $includeStudentIds = []): Collection
-    {
+    private function studentsForTripForm(
+        int $schoolId,
+        ?string $tripType,
+        array $includeStudentIds = [],
+        ?int $exceptTripId = null,
+        ?int $driverId = null,
+    ): Collection {
         if ($schoolId <= 0) {
             return collect();
         }
+
+        $bookedIds = $this->tripStudentAvailability->studentIdsOnActiveTrips($schoolId, $exceptTripId);
 
         $query = Student::query()
             ->where('school_id', $schoolId)
             ->where('status', 'active')
             ->orderBy('full_name');
+
+        if ($bookedIds !== []) {
+            $query->whereNotIn('id', $bookedIds);
+        }
 
         $this->studentShiftFilter->applyToStudentQuery($query, $tripType);
 
@@ -334,7 +416,43 @@ class DashboardTripController extends Controller
             }
         }
 
+        $route = $this->transportRouteForDriver($schoolId, $tripType, $driverId);
+        if ($route !== null) {
+            $rows = $this->routeAssignmentPlanner->filterStudentsForDriverRoute($rows, $route);
+
+            if ($includeStudentIds !== []) {
+                $present = $rows->pluck('id')->map(fn ($id): int => (int) $id)->all();
+                $missingSelected = array_values(array_diff($includeStudentIds, $present));
+                if ($missingSelected !== []) {
+                    $extra = Student::query()
+                        ->where('school_id', $schoolId)
+                        ->whereIn('id', $missingSelected)
+                        ->orderBy('full_name')
+                        ->get();
+                    $rows = $rows->merge($extra)->sortBy('full_name', SORT_NATURAL | SORT_FLAG_CASE)->values();
+                }
+            }
+        }
+
         return $rows;
+    }
+
+    private function transportRouteForDriver(int $schoolId, ?string $tripType, ?int $driverId): ?TransportRoute
+    {
+        if ($schoolId <= 0 || $driverId === null || $driverId <= 0) {
+            return null;
+        }
+
+        $tripType = trim((string) ($tripType ?? ''));
+        if ($tripType === '') {
+            return null;
+        }
+
+        return $this->tripTransportRouteApplier->findRouteForTrip([
+            'school_id' => $schoolId,
+            'driver_id' => $driverId,
+            'trip_type' => $tripType,
+        ]);
     }
 
     /**
@@ -384,11 +502,24 @@ class DashboardTripController extends Controller
     }
 
     /**
-     * @return array{id: int, label: string, bus_number: string|null, students_count: int}
+     * @return array{
+     *     id: int,
+     *     label: string,
+     *     bus_number: string|null,
+     *     students_count: int,
+     *     route_title: string|null,
+     *     location: string|null,
+     *     distance_km: float|null,
+     *     transport_route_id: int|null,
+     *     route_student_ids: list<int>,
+     *     start_address: string|null,
+     *     end_address: string|null
+     * }
      */
-    private function driverOptionRow(Driver $driver): array
+    private function driverOptionRow(Driver $driver, ?\App\Models\TransportRoute $transportRoute = null): array
     {
         $bus = $driver->relationLoaded('bus') ? $driver->bus : $driver->bus()->first();
+        $routePayload = $this->tripTransportRouteApplier->driverRouteFormPayload($transportRoute) ?? [];
 
         return [
             'id' => (int) $driver->id,
@@ -397,6 +528,13 @@ class DashboardTripController extends Controller
                 ? trim((string) $bus->number)
                 : null,
             'students_count' => $bus !== null ? max(0, (int) $bus->capacity) : 0,
+            'route_title' => $routePayload['route_title'] ?? null,
+            'location' => $routePayload['location'] ?? null,
+            'distance_km' => isset($routePayload['distance_km']) ? (float) $routePayload['distance_km'] : null,
+            'transport_route_id' => isset($routePayload['transport_route_id']) ? (int) $routePayload['transport_route_id'] : null,
+            'route_student_ids' => $routePayload['route_student_ids'] ?? [],
+            'start_address' => $routePayload['start_address'] ?? null,
+            'end_address' => $routePayload['end_address'] ?? null,
         ];
     }
 }

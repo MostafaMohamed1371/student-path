@@ -6,13 +6,18 @@ use App\Models\Bus;
 use App\Models\Driver;
 use App\Models\School;
 use App\Models\Student;
+use App\Models\TransportRoute;
 use App\Models\TripHistory;
 use App\Models\TripRequest;
 use App\Models\User;
+use App\Services\Routes\RouteAssignmentPlanner;
 use Illuminate\Support\Collection;
 
 final class TransportDriverCardBuilder
 {
+    public function __construct(
+        private readonly RouteAssignmentPlanner $routeAssignmentPlanner,
+    ) {}
     /**
      * @param  Collection<int, Driver>  $drivers
      * @return Collection<int|string, int>
@@ -74,6 +79,38 @@ final class TransportDriverCardBuilder
         }
 
         return $out;
+    }
+
+    /**
+     * Active transport routes for drivers (one route per driver per trip type).
+     *
+     * @param  Collection<int, Driver>  $drivers
+     * @return Collection<int, TransportRoute> keyed by driver_id
+     */
+    public function activeTransportRoutesByDriverId(Collection $drivers, ?string $tripType = null): Collection
+    {
+        if ($drivers->isEmpty()) {
+            return collect();
+        }
+
+        $driverIds = $drivers->pluck('id')->filter()->values()->all();
+        if ($driverIds === []) {
+            return collect();
+        }
+
+        $query = TransportRoute::query()
+            ->with('school')
+            ->whereIn('driver_id', $driverIds)
+            ->where('status', 'active')
+            ->whereNotNull('start_latitude')
+            ->whereNotNull('start_longitude');
+
+        $tripType = trim((string) ($tripType ?? ''));
+        if ($tripType !== '') {
+            $query->where('trip_type', $tripType);
+        }
+
+        return $query->get()->keyBy('driver_id');
     }
 
     public function resolveViewerLatLng(?float $queryLat, ?float $queryLng, ?User $user): ?array
@@ -166,6 +203,8 @@ final class TransportDriverCardBuilder
         Collection $reservedByDriver,
         array $routeBySchoolAndBus,
         ?float $distanceKm,
+        ?TransportRoute $transportRoute = null,
+        ?Student $studentForRouteMatch = null,
     ): array {
         $driver->loadMissing(['user', 'bus']);
         $user = $driver->user;
@@ -180,7 +219,15 @@ final class TransportDriverCardBuilder
 
         $plate = $bus?->number;
         $routeKey = $plate !== null ? (int) $driver->school_id.'|'.(string) $plate : '';
-        $routeDescription = $this->resolveRouteDescription($driver, $bus, $routeKey, $routeBySchoolAndBus);
+        $routeDescription = $this->resolveRouteDescription($driver, $bus, $routeKey, $routeBySchoolAndBus, $transportRoute);
+
+        $matchesStudentRoute = null;
+        if ($studentForRouteMatch !== null && $transportRoute !== null) {
+            $matchesStudentRoute = $this->routeAssignmentPlanner->studentMatchesRouteCorridor(
+                $studentForRouteMatch,
+                $transportRoute,
+            );
+        }
 
         return [
             'schoolId' => (string) $driver->school_id,
@@ -188,6 +235,8 @@ final class TransportDriverCardBuilder
             'driverName' => $this->driverDisplayName($driver),
             'profileImageUrl' => $this->normalizePublicAssetUrl($user?->image),
             'routeDescription' => $routeDescription,
+            'route' => $transportRoute !== null ? $this->formatTransportRoute($transportRoute) : null,
+            'matchesStudentRoute' => $matchesStudentRoute,
             'ratingAvg' => $ratingAvg,
             'ratingCount' => $ratingCount,
             'vehicleType' => $bus?->type,
@@ -207,10 +256,49 @@ final class TransportDriverCardBuilder
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function formatTransportRoute(TransportRoute $route): array
+    {
+        $route->loadMissing('school');
+
+        return [
+            'routeId' => (string) $route->id,
+            'name' => $route->name,
+            'tripType' => $route->trip_type,
+            'startAddress' => $route->start_address,
+            'startLatitude' => $route->start_latitude !== null ? (float) $route->start_latitude : null,
+            'startLongitude' => $route->start_longitude !== null ? (float) $route->start_longitude : null,
+            'schoolAddress' => $route->school?->address,
+            'schoolLatitude' => $route->school?->latitude !== null ? (float) $route->school->latitude : null,
+            'schoolLongitude' => $route->school?->longitude !== null ? (float) $route->school->longitude : null,
+        ];
+    }
+
+    /**
      * @param  array<string, string>  $routeBySchoolAndBus
      */
-    private function resolveRouteDescription(Driver $driver, ?Bus $bus, string $routeKey, array $routeBySchoolAndBus): ?string
-    {
+    private function resolveRouteDescription(
+        Driver $driver,
+        ?Bus $bus,
+        string $routeKey,
+        array $routeBySchoolAndBus,
+        ?TransportRoute $transportRoute = null,
+    ): ?string {
+        if ($transportRoute !== null) {
+            $name = trim((string) $transportRoute->name);
+            $start = trim((string) ($transportRoute->start_address ?? ''));
+            if ($name !== '' && $start !== '') {
+                return $name.' — '.$start;
+            }
+            if ($name !== '') {
+                return $name;
+            }
+            if ($start !== '') {
+                return $start;
+            }
+        }
+
         $fromHistory = ($routeKey !== '' && isset($routeBySchoolAndBus[$routeKey]))
             ? trim((string) $routeBySchoolAndBus[$routeKey])
             : '';
