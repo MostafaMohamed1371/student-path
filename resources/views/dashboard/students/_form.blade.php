@@ -14,7 +14,8 @@
 <div class="form-grid">
     <div>
         <label class="field-label" for="full_name">{{ __('dashboard.full_name') }}</label>
-        <input class="input" id="full_name" name="full_name" value="{{ old('full_name', $student->full_name ?? '') }}" required />
+        <input class="input" id="full_name" name="full_name" value="{{ old('full_name', $student->full_name ?? '') }}" required autocomplete="name" />
+        <p style="margin:4px 0 0;font-size:12px;color:#64748b;">{{ __('dashboard.student_full_name_help') }}</p>
     </div>
     <div>
         <label class="field-label" for="gender">{{ __('dashboard.gender') }}</label>
@@ -47,7 +48,7 @@
     <div>
         <label class="field-label" for="school_id">{{ __('dashboard.school') }}</label>
         @if(auth()->user()?->is_admin)
-            <select class="input" id="school_id" name="school_id" required>
+            <select class="input" id="student_form_school_id" name="school_id" required>
                 <option value="">{{ __('dashboard.select_school') }}</option>
                 @foreach(($schools ?? collect()) as $school)
                     <option value="{{ $school->id }}" @selected((string) old('school_id', $student->school_id ?? '') === (string) $school->id)>
@@ -58,7 +59,7 @@
         @else
             @php($fixedSchoolId = (string) old('school_id', $student->school_id ?? auth()->user()?->school_id))
             @php($fixedSchool = ($schools ?? collect())->firstWhere('id', (int) $fixedSchoolId))
-            <input type="hidden" name="school_id" value="{{ $fixedSchoolId }}">
+            <input type="hidden" id="student_form_school_id_hidden" name="school_id" value="{{ $fixedSchoolId }}">
             <input class="input" value="{{ $fixedSchool?->name_en ?: '—' }}" disabled />
         @endif
     </div>
@@ -79,8 +80,9 @@
 
 <div class="form-grid">
     <div>
-        <label class="field-label" for="guardian_id">{{ __('dashboard.guardian') }}</label>
-        <select class="input" id="guardian_id" name="guardian_id" required>
+        <label class="field-label" for="student_form_guardian_id">{{ __('dashboard.guardian') }}</label>
+        <p style="margin:4px 0 8px;font-size:12px;color:#64748b;">{{ __('dashboard.student_guardian_filter_help') }}</p>
+        <select class="input" id="student_form_guardian_id" name="guardian_id" required>
             <option value="">{{ __('dashboard.select_guardian') }}</option>
             @foreach(($guardians ?? collect()) as $guardian)
                 <option value="{{ $guardian->id }}" @selected((string) old('guardian_id', $student->guardian_id ?? '') === (string) $guardian->id)>

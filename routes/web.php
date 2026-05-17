@@ -65,6 +65,7 @@ Route::middleware('auth')->group(function (): void {
 
     Route::get('/dashboard/students', [DashboardStudentController::class, 'index'])->name('dashboard.students.index');
     Route::get('/dashboard/students/create', [DashboardStudentController::class, 'create'])->name('dashboard.students.create');
+    Route::get('/dashboard/students/form-guardians', [DashboardStudentController::class, 'formGuardians'])->name('dashboard.students.form_guardians');
     Route::post('/dashboard/students', [DashboardStudentController::class, 'store'])->name('dashboard.students.store');
     Route::get('/dashboard/students/{student}/edit', [DashboardStudentController::class, 'edit'])->name('dashboard.students.edit');
     Route::put('/dashboard/students/{student}', [DashboardStudentController::class, 'update'])->name('dashboard.students.update');

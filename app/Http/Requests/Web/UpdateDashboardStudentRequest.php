@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Web;
 
+use App\Rules\FullNameWordCount;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateDashboardStudentRequest extends FormRequest
@@ -15,7 +16,7 @@ class UpdateDashboardStudentRequest extends FormRequest
     {
         return [
             'school_id' => ['required', 'integer', 'exists:schools,id'],
-            'full_name' => ['required', 'string', 'max:255'],
+            'full_name' => ['required', 'string', 'max:255', new FullNameWordCount(3, 4)],
             'gender' => ['required', 'in:male,female'],
             'date_of_birth' => ['nullable', 'date'],
             'age' => ['nullable', 'integer', 'min:3', 'max:30'],

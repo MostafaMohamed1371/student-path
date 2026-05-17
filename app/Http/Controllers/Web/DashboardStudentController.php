@@ -11,8 +11,11 @@ use App\Models\Student;
 use App\Models\User;
 use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
@@ -36,18 +39,51 @@ class DashboardStudentController extends Controller
     {
         $this->abortUnlessCanMutateSchoolRoster();
         $schools = $this->schoolsForRosterForm();
-        $guardians = $this->guardiansForRosterForm();
 
         if ($schools->isEmpty()) {
             return $this->redirectToSchoolCreateForAdminsOrHomeForStaff('dashboard.create_school_first_students');
         }
 
-        if ($guardians->isEmpty()) {
+        $schoolId = (int) old('school_id', auth()->user()?->scopingSchoolId() ?? 0);
+        if ($schoolId > 0 && $this->guardiansForSchool($schoolId)->isEmpty()) {
             return redirect()->route('dashboard.guardians.create')
                 ->with('error', __('dashboard.create_guardian_first_students'));
         }
 
-        return view('dashboard.students.create', compact('schools', 'guardians'));
+        $guardians = $schoolId > 0
+            ? $this->guardiansForSchool($schoolId, (int) old('guardian_id', 0))
+            : collect();
+
+        return view('dashboard.students.create', [
+            'schools' => $schools,
+            'guardians' => $guardians,
+            'formGuardiansUrl' => route('dashboard.students.form_guardians'),
+        ]);
+    }
+
+    public function formGuardians(Request $request): JsonResponse
+    {
+        $this->abortUnlessCanMutateSchoolRoster();
+
+        $validated = $request->validate([
+            'school_id' => ['required', 'integer', 'exists:schools,id'],
+            'include_guardian_id' => ['nullable', 'integer'],
+        ]);
+
+        $schoolId = (int) $validated['school_id'];
+        $this->abortUnlessCanMutateSchoolRosterForSchool($schoolId);
+
+        $includeId = (int) ($validated['include_guardian_id'] ?? 0);
+
+        return response()->json([
+            'guardians' => $this->guardiansForSchool($schoolId, $includeId)
+                ->map(fn (Guardian $g): array => [
+                    'id' => (int) $g->id,
+                    'label' => trim((string) $g->full_name).' ('.(string) $g->phone.')',
+                ])
+                ->values()
+                ->all(),
+        ]);
     }
 
     public function store(StoreDashboardStudentRequest $request, PhoneNormalizer $phoneNormalizer): RedirectResponse
@@ -79,9 +115,18 @@ class DashboardStudentController extends Controller
     {
         $this->abortUnlessCanMutateSchoolRosterForSchool((int) $student->school_id);
         $schools = $this->schoolsForRosterForm();
-        $guardians = $this->guardiansForRosterForm();
+        $schoolId = (int) old('school_id', $student->school_id);
+        $guardians = $this->guardiansForSchool(
+            $schoolId,
+            (int) old('guardian_id', $student->guardian_id),
+        );
 
-        return view('dashboard.students.edit', compact('student', 'schools', 'guardians'));
+        return view('dashboard.students.edit', [
+            'student' => $student,
+            'schools' => $schools,
+            'guardians' => $guardians,
+            'formGuardiansUrl' => route('dashboard.students.form_guardians'),
+        ]);
     }
 
     public function update(UpdateDashboardStudentRequest $request, Student $student, PhoneNormalizer $phoneNormalizer): RedirectResponse
@@ -153,5 +198,33 @@ class DashboardStudentController extends Controller
                 'phone_verified_at' => now(),
             ]
         );
+    }
+
+    /**
+     * @return Collection<int, Guardian>
+     */
+    private function guardiansForSchool(int $schoolId, int $includeGuardianId = 0): Collection
+    {
+        if ($schoolId <= 0) {
+            return collect();
+        }
+
+        $rows = Guardian::query()
+            ->where('school_id', $schoolId)
+            ->where('status', 'active')
+            ->orderBy('full_name')
+            ->get();
+
+        if ($includeGuardianId > 0 && ! $rows->contains('id', $includeGuardianId)) {
+            $extra = Guardian::query()
+                ->where('school_id', $schoolId)
+                ->whereKey($includeGuardianId)
+                ->first();
+            if ($extra) {
+                $rows = $rows->push($extra)->sortBy('full_name', SORT_NATURAL | SORT_FLAG_CASE)->values();
+            }
+        }
+
+        return $rows;
     }
 }
