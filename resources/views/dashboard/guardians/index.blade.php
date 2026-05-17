@@ -5,7 +5,7 @@
 @section('content')
     @php($title = __('dashboard.menu_guardians'))
     @component('dashboard.partials.shell', ['title' => $title])
-        @if(auth()->user()?->is_admin)
+        @if(auth()->user()?->canMutateSchoolRoster())
         <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
             <a href="{{ route('dashboard.guardians.create') }}" class="btn-primary" style="width:auto;padding:10px 14px;text-decoration:none;">{{ __('dashboard.add_guardian') }}</a>
         </div>
@@ -23,7 +23,7 @@
                         <th>{{ __('dashboard.id_card_number') }}</th>
                         <th>{{ __('dashboard.children_count') }}</th>
                         <th>{{ __('dashboard.status') }}</th>
-                        @if(auth()->user()?->is_admin)
+                        @if(auth()->user()?->canMutateSchoolRoster())
                             <th>{{ __('dashboard.actions') }}</th>
                         @endif
                     </tr>
@@ -42,7 +42,7 @@
                                     {{ $guardian->status === 'active' ? __('dashboard.active') : __('dashboard.inactive') }}
                                 </span>
                             </td>
-                            @if(auth()->user()?->is_admin)
+                            @if(auth()->user()?->canMutateSchoolRoster())
                             <td style="display:flex;gap:8px;">
                                 <a href="{{ route('dashboard.guardians.edit', $guardian) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.edit') }}</a>
                                 <form method="post" action="{{ route('dashboard.guardians.destroy', $guardian) }}" onsubmit="return confirm('{{ __('dashboard.confirm_delete') }}')">
@@ -55,7 +55,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="{{ auth()->user()?->is_admin ? 8 : 7 }}">{{ __('dashboard.no_guardians') }}</td>
+                            <td colspan="{{ auth()->user()?->canMutateSchoolRoster() ? 8 : 7 }}">{{ __('dashboard.no_guardians') }}</td>
                         </tr>
                     @endforelse
                     </tbody>

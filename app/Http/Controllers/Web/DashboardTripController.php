@@ -53,14 +53,14 @@ class DashboardTripController extends Controller
 
     public function create(): View|RedirectResponse
     {
-        abort_unless($this->isAdmin(), 403);
-        $schools = School::query()->orderBy('name_en')->get();
+        $this->abortUnlessCanMutateSchoolRoster();
+        $schools = $this->schoolsForRosterForm();
         if ($schools->isEmpty()) {
             return $this->redirectToSchoolCreateForAdminsOrHomeForStaff('dashboard.create_school_first');
         }
 
         $tripTypes = collect(TripType::cases())->map(fn (TripType $t): string => $t->value)->all();
-        $schoolId = (int) old('school_id', 0);
+        $schoolId = (int) old('school_id', auth()->user()?->scopingSchoolId() ?? 0);
         $tripType = old('trip_type');
         $selectedStudentIds = array_map('intval', old('student_ids', []));
         $drivers = $schoolId > 0
@@ -82,8 +82,14 @@ class DashboardTripController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        abort_unless($this->isAdmin(), 403);
-        $validated = $request->validate($this->rules());
+        $this->abortUnlessCanMutateSchoolRoster();
+        $validated = $this->enforceRosterSchoolIdForStaff($request->validate($this->rules(forCreate: true)));
+        $this->abortUnlessCanMutateSchoolRosterForSchool((int) $validated['school_id']);
+        $this->assertDriverBelongsToSchool(
+            isset($validated['driver_id']) ? (int) $validated['driver_id'] : null,
+            (int) $validated['school_id'],
+        );
+
         $studentIds = $validated['student_ids'] ?? [];
         unset($validated['student_ids']);
 
@@ -99,8 +105,9 @@ class DashboardTripController extends Controller
 
     public function edit(TripHistory $trip): View
     {
-        abort_unless($this->isAdmin(), 403);
-        $schools = School::query()->orderBy('name_en')->get();
+        abort_unless($this->tripHistoryVisible($trip), 404);
+        $this->abortUnlessCanMutateSchoolRoster();
+        $schools = $this->schoolsForRosterForm();
         $tripTypes = collect(TripType::cases())->map(fn (TripType $t): string => $t->value)->all();
         $schoolId = (int) old('school_id', $trip->school_id);
         $tripType = old('trip_type', $trip->trip_type);
@@ -124,7 +131,7 @@ class DashboardTripController extends Controller
 
     public function formOptions(Request $request): JsonResponse
     {
-        abort_unless($this->isAdmin(), 403);
+        $this->abortUnlessCanMutateSchoolRoster();
 
         $validated = $request->validate([
             'school_id' => ['required', 'integer', 'exists:schools,id'],
@@ -134,6 +141,7 @@ class DashboardTripController extends Controller
         ]);
 
         $schoolId = (int) $validated['school_id'];
+        $this->abortUnlessCanMutateSchoolRosterForSchool($schoolId);
         $tripType = isset($validated['trip_type']) && trim((string) $validated['trip_type']) !== ''
             ? trim((string) $validated['trip_type'])
             : null;
@@ -153,8 +161,15 @@ class DashboardTripController extends Controller
 
     public function update(Request $request, TripHistory $trip): RedirectResponse
     {
-        abort_unless($this->isAdmin(), 403);
-        $validated = $request->validate($this->rules(true));
+        abort_unless($this->tripHistoryVisible($trip), 404);
+        $this->abortUnlessCanMutateSchoolRoster();
+        $validated = $this->enforceRosterSchoolIdForStaff($request->validate($this->rules(true)));
+        $this->abortUnlessCanMutateSchoolRosterForSchool((int) ($validated['school_id'] ?? $trip->school_id));
+        $this->assertDriverBelongsToSchool(
+            isset($validated['driver_id']) ? (int) $validated['driver_id'] : null,
+            (int) ($validated['school_id'] ?? $trip->school_id),
+        );
+
         $studentIds = array_key_exists('student_ids', $validated) ? $validated['student_ids'] : null;
         unset($validated['student_ids']);
 
@@ -170,16 +185,23 @@ class DashboardTripController extends Controller
 
     public function destroy(TripHistory $trip): RedirectResponse
     {
-        abort_unless($this->isAdmin(), 403);
+        abort_unless($this->tripHistoryVisible($trip), 404);
+        $this->abortUnlessCanMutateSchoolRosterForSchool((int) $trip->school_id);
         $trip->delete();
 
         return redirect()->route('dashboard.trips.index')
             ->with('success', __('dashboard.trip_deleted'));
     }
 
-    private function rules(bool $partial = false): array
+    /**
+     * @param  bool  $forCreate  Create form allows only ACTIVE and PRESENT.
+     */
+    private function rules(bool $partial = false, bool $forCreate = false): array
     {
         $required = $partial ? 'sometimes' : 'required';
+        $statusValues = $forCreate
+            ? 'ACTIVE,PRESENT'
+            : 'PRESENT,ABSENT,CANCELLED,ACTIVE,COMPLETED';
 
         return [
             'school_id' => [$required, 'integer', 'exists:schools,id'],
@@ -192,7 +214,7 @@ class DashboardTripController extends Controller
             'distance_km' => [$required, 'numeric', 'min:0'],
             'start_time' => [$required, 'date'],
             'end_time' => ['nullable', 'date', 'after_or_equal:start_time'],
-            'status' => [$required, 'in:PRESENT,ABSENT,CANCELLED,ACTIVE,COMPLETED'],
+            'status' => [$required, 'in:'.$statusValues],
             'note' => ['nullable', 'string'],
             'student_ids' => [$partial ? 'sometimes' : 'nullable', 'array'],
             'student_ids.*' => ['integer', 'exists:students,id'],
@@ -268,9 +290,16 @@ class DashboardTripController extends Controller
         return (int) $trip->school_id === (int) $id;
     }
 
-    private function isAdmin(): bool
+    private function assertDriverBelongsToSchool(?int $driverId, int $schoolId): void
     {
-        return (bool) auth()->user()?->is_admin;
+        if ($driverId === null || $driverId <= 0) {
+            return;
+        }
+
+        abort_unless(
+            Driver::query()->whereKey($driverId)->where('school_id', $schoolId)->exists(),
+            403,
+        );
     }
 
     /**
@@ -318,6 +347,7 @@ class DashboardTripController extends Controller
         }
 
         $query = Driver::query()
+            ->with('bus')
             ->where('school_id', $schoolId)
             ->where('status', 'active')
             ->orderBy('first_name')
@@ -354,13 +384,19 @@ class DashboardTripController extends Controller
     }
 
     /**
-     * @return array{id: int, label: string}
+     * @return array{id: int, label: string, bus_number: string|null, students_count: int}
      */
     private function driverOptionRow(Driver $driver): array
     {
+        $bus = $driver->relationLoaded('bus') ? $driver->bus : $driver->bus()->first();
+
         return [
             'id' => (int) $driver->id,
             'label' => trim(($driver->first_name ?? '').' '.($driver->last_name ?? '')).' (#'.(int) $driver->id.')',
+            'bus_number' => $bus?->number !== null && trim((string) $bus->number) !== ''
+                ? trim((string) $bus->number)
+                : null,
+            'students_count' => $bus !== null ? max(0, (int) $bus->capacity) : 0,
         ];
     }
 }

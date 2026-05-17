@@ -41,10 +41,10 @@
                     </select>
                 </label>
 
-                <label><span>{{ __('dashboard.bus_number') }}</span><input name="bus_number" value="{{ old('bus_number', $trip->bus_number) }}" required></label>
+                <label><span>{{ __('dashboard.bus_number') }}</span><input id="trip_form_bus_number" name="bus_number" value="{{ old('bus_number', $trip->bus_number) }}" required></label>
                 <label><span>{{ __('dashboard.route_title') }}</span><input name="route_title" value="{{ old('route_title', $trip->route_title) }}"></label>
                 <label><span>{{ __('dashboard.location') }}</span><input name="location" value="{{ old('location', $trip->location) }}"></label>
-                <label><span>{{ __('dashboard.students_count') }}</span><input type="number" min="0" name="students_count" value="{{ old('students_count', $trip->students_count) }}" required></label>
+                <label><span>{{ __('dashboard.students_count') }}</span><input id="trip_form_students_count" type="number" min="0" name="students_count" value="{{ old('students_count', $trip->students_count) }}" required></label>
                 <label><span>{{ __('dashboard.distance_km') }}</span><input type="number" step="0.01" min="0" name="distance_km" value="{{ old('distance_km', $trip->distance_km) }}" required></label>
                 <label><span>{{ __('dashboard.trip_start_time') }}</span><input type="datetime-local" name="start_time" value="{{ old('start_time', optional($trip->start_time)->format('Y-m-d\TH:i')) }}" required></label>
                 <label><span>{{ __('dashboard.trip_end_time') }}</span><input type="datetime-local" name="end_time" value="{{ old('end_time', optional($trip->end_time)->format('Y-m-d\TH:i')) }}"></label>

@@ -14,6 +14,7 @@ use App\Models\TripHistoryStudent;
 use App\Models\User;
 use App\Services\TransportLines\TransportDriverCardBuilder;
 use App\Support\Geo\Haversine;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -251,15 +252,7 @@ final class DriverTripModuleService
 
     public function activeTripForDriverByShift(Driver $driver, ?string $targetShift): ?TripHistory
     {
-        $query = TripHistory::query()
-            ->where('driver_id', $driver->id)
-            ->whereNotNull('driver_started_at')
-            ->where('driver_started_at', '<=', now())
-            ->where(function ($q): void {
-                $q->whereNull('end_time')->orWhere('end_time', '>=', now());
-            })
-            ->whereNotIn('status', ['CANCELLED', 'COMPLETED'])
-            ->orderByDesc('id');
+        $query = TripHistory::query()->tap(fn (Builder $q) => $this->applyInProgressStartedTripScope($q, $driver));
 
         if ($targetShift === 'MORNING') {
             $query->whereIn('trip_type', [TripType::MORNING_PICKUP->value, TripType::MORNING_RETURN->value]);
@@ -267,7 +260,7 @@ final class DriverTripModuleService
             $query->whereIn('trip_type', [TripType::EVENING_PICKUP->value, TripType::EVENING_RETURN->value]);
         }
 
-        return $query->first();
+        return $query->orderByDesc('id')->first();
     }
 
     /**
@@ -306,20 +299,25 @@ final class DriverTripModuleService
 
     public function otherStartedTripForDriver(Driver $driver, ?int $exceptTripId = null): ?TripHistory
     {
-        $query = TripHistory::query()
-            ->where('driver_id', $driver->id)
-            ->whereNotNull('driver_started_at')
-            ->whereNotIn('status', ['CANCELLED', 'COMPLETED'])
-            ->where(function ($q): void {
-                $q->whereNull('end_time')->orWhere('end_time', '>=', now());
-            })
-            ->orderByDesc('id');
+        $query = TripHistory::query()->tap(fn (Builder $q) => $this->applyInProgressStartedTripScope($q, $driver));
 
         if ($exceptTripId !== null) {
             $query->where('id', '!=', $exceptTripId);
         }
 
-        return $query->first();
+        return $query->orderByDesc('id')->first();
+    }
+
+    /**
+     * A trip the driver has started and not finished (COMPLETED/CANCELLED), regardless of scheduled end_time.
+     */
+    private function applyInProgressStartedTripScope(Builder $query, Driver $driver): void
+    {
+        $query
+            ->where('driver_id', $driver->id)
+            ->whereNotNull('driver_started_at')
+            ->where('driver_started_at', '<=', now())
+            ->whereNotIn('status', ['CANCELLED', 'COMPLETED']);
     }
 
     /**
@@ -376,7 +374,33 @@ final class DriverTripModuleService
             ];
         }
 
-        if ($this->otherStartedTripForDriver($driver, $tripId) instanceof TripHistory) {
+        $blocking = null;
+        DB::transaction(function () use ($driver, $trip, $tripId, &$blocking): void {
+            $blocking = TripHistory::query()
+                ->where('driver_id', $driver->id)
+                ->whereNotNull('driver_started_at')
+                ->whereNotIn('status', ['CANCELLED', 'COMPLETED'])
+                ->where('id', '!=', $tripId)
+                ->lockForUpdate()
+                ->orderByDesc('id')
+                ->first();
+
+            if ($blocking instanceof TripHistory) {
+                return;
+            }
+
+            $locked = TripHistory::query()->whereKey($trip->id)->lockForUpdate()->first();
+            if ($locked === null || $locked->driver_started_at !== null) {
+                return;
+            }
+
+            $locked->forceFill([
+                'driver_started_at' => now(),
+                'status' => 'ACTIVE',
+            ])->save();
+        });
+
+        if ($blocking instanceof TripHistory) {
             return [
                 'success' => false,
                 'message' => 'Another trip is already in progress.',
@@ -384,14 +408,11 @@ final class DriverTripModuleService
             ];
         }
 
-        DB::transaction(function () use ($trip): void {
-            $trip->forceFill([
-                'driver_started_at' => now(),
-                'status' => 'ACTIVE',
-            ])->save();
-        });
-
         $trip->refresh();
+        if ($trip->driver_started_at === null) {
+            return ['success' => false, 'message' => 'Unable to start trip.', 'http_status' => 422];
+        }
+
         $payload = $this->currentTripPayload($trip);
 
         return [
@@ -517,10 +538,8 @@ final class DriverTripModuleService
         return [
             'id' => $this->externalTripId($trip),
             'title' => $this->tripDisplayTitle($trip),
-            'students_number' => $count.' طالب',
+            'students_number' => $count,
             'distance_km' => $distanceKmNumeric,
-            'distanceKm' => $distanceKmNumeric,
-            'distance_in_km' => $distanceKmNumeric === null ? null : $this->formatDistanceKmArabic($distanceKmNumeric),
             'estimated_start_time' => $start->format('Y-m-d\TH:i:s'),
             'date_label' => $this->arabicTripDateLabel($start),
             'location' => $locationOut,

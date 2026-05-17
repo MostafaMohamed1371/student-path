@@ -705,6 +705,84 @@ class DriverTripModuleApiTest extends TestCase
             ->assertJsonPath('msg', 'No active trip.');
     }
 
+    public function test_driver_cannot_start_second_trip_while_another_is_in_progress(): void
+    {
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'S',
+            'province' => 'P',
+            'district' => 'D',
+            'address' => 'A',
+            'status' => 'active',
+        ]);
+
+        $driverUser = User::factory()->create(['phone' => '9647909000994']);
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'D',
+            'father_name' => 'D',
+            'grandfather_name' => 'D',
+            'last_name' => 'T',
+            'age' => 30,
+            'id_card_number' => 'IDC-DUP',
+            'license_number' => 'LIC-DUP',
+            'primary_phone' => '7770000994',
+            'emergency_phone' => '7770001994',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+
+        $tripA = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => 'MORNING_PICKUP',
+            'bus_number' => 'B-A',
+            'route_title' => 'Route A',
+            'location' => 'L',
+            'students_count' => 0,
+            'distance_km' => 0,
+            'start_time' => now()->subMinutes(10),
+            'end_time' => null,
+            'status' => 'ACTIVE',
+            'students_preview' => [],
+        ]);
+
+        $tripB = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => 'MORNING_RETURN',
+            'bus_number' => 'B-B',
+            'route_title' => 'Route B',
+            'location' => 'L',
+            'students_count' => 0,
+            'distance_km' => 0,
+            'start_time' => now()->subMinutes(5),
+            'end_time' => now()->addHour(),
+            'status' => 'ACTIVE',
+            'students_preview' => [],
+        ]);
+
+        Sanctum::actingAs($driverUser);
+
+        $this->postJson('/api/trips/TRP-'.$tripA->id.'/start')->assertOk();
+
+        $tripA->refresh();
+        $tripA->forceFill(['end_time' => now()->subMinutes(1)])->save();
+
+        $this->postJson('/api/trips/TRP-'.$tripB->id.'/start')
+            ->assertStatus(422)
+            ->assertJsonPath('msg', 'Another trip is already in progress.');
+
+        $this->getJson('/api/trips/current-trip')
+            ->assertOk()
+            ->assertJsonPath('data.trip_id', 'TRP-'.$tripA->id);
+
+        $this->putJson('/api/trips/end-trip')->assertOk();
+
+        $this->postJson('/api/trips/TRP-'.$tripB->id.'/start')->assertOk();
+    }
+
     public function test_driver_cannot_start_trip_outside_window(): void
     {
         $school = School::query()->create([
@@ -898,8 +976,9 @@ class DriverTripModuleApiTest extends TestCase
             ->assertJsonPath('data.title', 'رحلة الصباح - إعدادية بغداد للبنين')
             ->assertJsonPath('data.location', 'حي المنصور، بغداد')
             ->assertJsonPath('data.distance_km', 12)
-            ->assertJsonPath('data.distance_in_km', '12 كم')
-            ->assertJsonPath('data.students_number', '1 طالب')
+            ->assertJsonMissingPath('data.distanceKm')
+            ->assertJsonMissingPath('data.distance_in_km')
+            ->assertJsonPath('data.students_number', 1)
             ->assertJsonPath('data.students.0.name', 'رودينا علي الدين')
             ->assertJsonPath('data.students.0.grade', 'الصف الرابع')
             ->assertJsonPath('data.students.0.pickup_point', 'النقطة الأولى - شارع الربيع');
@@ -985,7 +1064,8 @@ class DriverTripModuleApiTest extends TestCase
         $this->getJson('/api/driver/trips/TRP-'.$trip->id)
             ->assertOk()
             ->assertJsonPath('data.distance_km', null)
-            ->assertJsonPath('data.distance_in_km', null)
+            ->assertJsonMissingPath('data.distanceKm')
+            ->assertJsonMissingPath('data.distance_in_km')
             ->assertJsonPath('data.location', 'الكرادة، بغداد');
     }
 
@@ -1783,7 +1863,8 @@ class DriverTripModuleApiTest extends TestCase
             ->json('data');
 
         $this->assertEqualsWithDelta((float) $expectedKm, (float) $data['distance_km'], 0.05);
-        $this->assertEqualsWithDelta((float) $expectedKm, (float) $data['distanceKm'], 0.05);
+        $this->assertArrayNotHasKey('distanceKm', $data);
+        $this->assertArrayNotHasKey('distance_in_km', $data);
         $this->assertStringContainsString('Guardian home to school', (string) $data['location']);
         $this->assertStringContainsString('House A, Baghdad', (string) $data['location']);
         $this->assertStringContainsString('المدرسة', (string) $data['location']);

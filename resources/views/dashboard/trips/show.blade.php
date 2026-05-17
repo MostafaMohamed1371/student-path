@@ -12,7 +12,7 @@
                 <h3 style="margin: 0 0 12px;">{{ __('dashboard.trip_detail_preview') }}</h3>
                 <p style="margin: 0 0 8px;"><strong>{{ __('dashboard.route_title') }}:</strong> {{ $tripDetail['title'] }}</p>
                 <p style="margin: 0 0 8px;"><strong>{{ __('dashboard.table_col_student') }}:</strong> {{ $tripDetail['students_number'] }}</p>
-                <p style="margin: 0 0 8px;"><strong>{{ __('dashboard.distance_km') }}:</strong> {{ $tripDetail['distance_in_km'] }}</p>
+                <p style="margin: 0 0 8px;"><strong>{{ __('dashboard.distance_km') }}:</strong> {{ $tripDetail['distance_km'] ?? '—' }}</p>
                 <p style="margin: 0 0 8px;"><strong>{{ __('dashboard.trip_start_time') }}:</strong> {{ $tripDetail['estimated_start_time'] }}</p>
                 <p style="margin: 0 0 8px;"><strong>{{ __('dashboard.location') }}:</strong> {{ $tripDetail['location'] }}</p>
                 <p style="margin: 0;"><strong>{{ __('dashboard.trip_detail_date_label') }}:</strong> <span class="mono">{{ $tripDetail['date_label'] }}</span></p>
@@ -81,7 +81,7 @@
         </section>
 
         <p style="margin-top: 16px;">
-            @if(auth()->user()?->is_admin)
+            @if(auth()->user()?->canMutateSchoolRoster())
                 <a href="{{ route('dashboard.trips.edit', $trip) }}" class="btn-primary" style="width:auto;padding:10px 14px;text-decoration:none;">{{ __('dashboard.edit') }}</a>
             @endif
             <a href="{{ route('dashboard.trips.index') }}" class="link" style="margin-inline-start:12px;">{{ __('dashboard.cancel') }}</a>

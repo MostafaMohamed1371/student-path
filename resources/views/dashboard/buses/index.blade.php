@@ -5,7 +5,7 @@
 @section('content')
     @php($title = __('dashboard.menu_bus'))
     @component('dashboard.partials.shell', ['title' => $title])
-        @if(auth()->user()?->is_admin)
+        @if(auth()->user()?->canMutateSchoolRoster())
         <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
             <a href="{{ route('dashboard.buses.create') }}" class="btn-primary" style="width:auto;padding:10px 14px;text-decoration:none;">{{ __('dashboard.add_bus') }}</a>
         </div>
@@ -22,7 +22,7 @@
                         <th>{{ __('dashboard.driver') }}</th>
                         <th>{{ __('dashboard.school') }}</th>
                         <th>{{ __('dashboard.bus_city') }}</th>
-                        @if(auth()->user()?->is_admin)
+                        @if(auth()->user()?->canMutateSchoolRoster())
                             <th>{{ __('dashboard.actions') }}</th>
                         @endif
                     </tr>
@@ -36,7 +36,7 @@
                             <td>{{ $bus->driver ? $bus->driver->first_name.' '.$bus->driver->last_name : '—' }}</td>
                             <td>{{ $bus->driver?->school?->name_en ?: '—' }}</td>
                             <td>{{ $bus->city }}</td>
-                            @if(auth()->user()?->is_admin)
+                            @if(auth()->user()?->canMutateSchoolRoster())
                             <td style="display:flex;gap:8px;">
                                 <a href="{{ route('dashboard.buses.edit', $bus) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.edit') }}</a>
                                 <form method="post" action="{{ route('dashboard.buses.destroy', $bus) }}" onsubmit="return confirm('{{ __('dashboard.confirm_delete') }}')">
@@ -49,7 +49,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="{{ auth()->user()?->is_admin ? 7 : 6 }}">{{ __('dashboard.no_buses') }}</td>
+                            <td colspan="{{ auth()->user()?->canMutateSchoolRoster() ? 7 : 6 }}">{{ __('dashboard.no_buses') }}</td>
                         </tr>
                     @endforelse
                     </tbody>

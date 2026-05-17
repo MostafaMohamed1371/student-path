@@ -5,7 +5,7 @@
 @section('content')
     @php($title = __('dashboard.menu_students'))
     @component('dashboard.partials.shell', ['title' => $title])
-        @if(auth()->user()?->is_admin)
+        @if(auth()->user()?->canMutateSchoolRoster())
         <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
             <a href="{{ route('dashboard.students.create') }}" class="btn-primary" style="width:auto;padding:10px 14px;text-decoration:none;">{{ __('dashboard.add_student') }}</a>
         </div>
@@ -24,7 +24,7 @@
                         <th>{{ __('dashboard.guardian_name') }}</th>
                         <th>{{ __('dashboard.phone') }}</th>
                         <th>{{ __('dashboard.status') }}</th>
-                        @if(auth()->user()?->is_admin)
+                        @if(auth()->user()?->canMutateSchoolRoster())
                             <th>{{ __('dashboard.actions') }}</th>
                         @endif
                     </tr>
@@ -44,7 +44,7 @@
                                     {{ $student->status === 'active' ? __('dashboard.active') : __('dashboard.inactive') }}
                                 </span>
                             </td>
-                            @if(auth()->user()?->is_admin)
+                            @if(auth()->user()?->canMutateSchoolRoster())
                             <td style="display:flex;gap:8px;">
                                 <a href="{{ route('dashboard.students.edit', $student) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.edit') }}</a>
                                 <form method="post" action="{{ route('dashboard.students.destroy', $student) }}" onsubmit="return confirm('{{ __('dashboard.confirm_delete') }}')">
@@ -57,7 +57,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="{{ auth()->user()?->is_admin ? 9 : 8 }}">{{ __('dashboard.no_students') }}</td>
+                            <td colspan="{{ auth()->user()?->canMutateSchoolRoster() ? 9 : 8 }}">{{ __('dashboard.no_students') }}</td>
                         </tr>
                     @endforelse
                     </tbody>

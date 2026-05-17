@@ -41,21 +41,18 @@
                     </select>
                 </label>
 
-                <label><span>{{ __('dashboard.bus_number') }}</span><input name="bus_number" value="{{ old('bus_number') }}" required></label>
+                <label><span>{{ __('dashboard.bus_number') }}</span><input id="trip_form_bus_number" name="bus_number" value="{{ old('bus_number') }}" required></label>
                 <label><span>{{ __('dashboard.route_title') }}</span><input name="route_title" value="{{ old('route_title') }}"></label>
                 <label><span>{{ __('dashboard.location') }}</span><input name="location" value="{{ old('location') }}"></label>
-                <label><span>{{ __('dashboard.students_count') }}</span><input type="number" min="0" name="students_count" value="{{ old('students_count', 0) }}" required></label>
+                <label><span>{{ __('dashboard.students_count') }}</span><input id="trip_form_students_count" type="number" min="0" name="students_count" value="{{ old('students_count', 0) }}" required></label>
                 <label><span>{{ __('dashboard.distance_km') }}</span><input type="number" step="0.01" min="0" name="distance_km" value="{{ old('distance_km', 0) }}" required></label>
                 <label><span>{{ __('dashboard.trip_start_time') }}</span><input type="datetime-local" name="start_time" value="{{ old('start_time') }}" required></label>
                 <label><span>{{ __('dashboard.trip_end_time') }}</span><input type="datetime-local" name="end_time" value="{{ old('end_time') }}"></label>
                 <label>
                     <span>{{ __('dashboard.trip_status') }}</span>
                     <select name="status" required>
-                        <option value="ACTIVE" @selected(old('status', 'ACTIVE')==='ACTIVE')>ACTIVE</option>
-                        <option value="PRESENT" @selected(old('status')==='PRESENT')>PRESENT</option>
-                        <option value="ABSENT" @selected(old('status')==='ABSENT')>ABSENT</option>
-                        <option value="CANCELLED" @selected(old('status')==='CANCELLED')>CANCELLED</option>
-                        <option value="COMPLETED" @selected(old('status')==='COMPLETED')>COMPLETED</option>
+                        <option value="ACTIVE" @selected(old('status', 'ACTIVE') === 'ACTIVE')>ACTIVE</option>
+                        <option value="PRESENT" @selected(old('status') === 'PRESENT')>PRESENT</option>
                     </select>
                 </label>
 

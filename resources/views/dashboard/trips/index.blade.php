@@ -5,7 +5,7 @@
 @section('content')
     @php($title = __('dashboard.menu_trips'))
     @component('dashboard.partials.shell', ['title' => $title])
-        @if(auth()->user()?->is_admin)
+        @if(auth()->user()?->canMutateSchoolRoster())
         <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
             <a href="{{ route('dashboard.trips.create') }}" class="btn-primary" style="width:auto;padding:10px 14px;text-decoration:none;">{{ __('dashboard.add_trip') }}</a>
         </div>
@@ -36,7 +36,7 @@
                             <td>{{ $trip->status }}</td>
                             <td style="display:flex;gap:8px;flex-wrap:wrap;">
                                 <a href="{{ route('dashboard.trips.show', $trip) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.action_view') }}</a>
-                                @if(auth()->user()?->is_admin)
+                                @if(auth()->user()?->canMutateSchoolRoster())
                                     <a href="{{ route('dashboard.trips.edit', $trip) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.edit') }}</a>
                                     <form method="post" action="{{ route('dashboard.trips.destroy', $trip) }}" onsubmit="return confirm('{{ __('dashboard.confirm_delete') }}')" style="display:inline;">
                                         @csrf

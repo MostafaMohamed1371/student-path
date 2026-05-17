@@ -5,7 +5,7 @@
 @section('content')
     @php($title = __('dashboard.menu_drivers'))
     @component('dashboard.partials.shell', ['title' => $title])
-        @if(auth()->user()?->is_admin)
+        @if(auth()->user()?->canMutateSchoolRoster())
         <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
             <a href="{{ route('dashboard.drivers.create') }}" class="btn-primary" style="width:auto;padding:10px 14px;text-decoration:none;">{{ __('dashboard.add_driver') }}</a>
         </div>
@@ -25,7 +25,7 @@
                         <th>{{ __('dashboard.monthly_subscription_price') }}</th>
                         <th>{{ __('dashboard.shift_period') }}</th>
                         <th>{{ __('dashboard.status') }}</th>
-                        @if(auth()->user()?->is_admin)
+                        @if(auth()->user()?->canMutateSchoolRoster())
                             <th>{{ __('dashboard.actions') }}</th>
                         @endif
                     </tr>
@@ -54,7 +54,7 @@
                                     {{ $driver->status === 'active' ? __('dashboard.active') : __('dashboard.inactive') }}
                                 </span>
                             </td>
-                            @if(auth()->user()?->is_admin)
+                            @if(auth()->user()?->canMutateSchoolRoster())
                             <td style="display:flex;gap:8px;">
                                 <a href="{{ route('dashboard.drivers.edit', $driver) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.edit') }}</a>
                                 <form method="post" action="{{ route('dashboard.drivers.destroy', $driver) }}" onsubmit="return confirm('{{ __('dashboard.confirm_delete') }}')">
@@ -67,7 +67,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="{{ auth()->user()?->is_admin ? 10 : 9 }}">{{ __('dashboard.no_drivers') }}</td>
+                            <td colspan="{{ auth()->user()?->canMutateSchoolRoster() ? 10 : 9 }}">{{ __('dashboard.no_drivers') }}</td>
                         </tr>
                     @endforelse
                     </tbody>

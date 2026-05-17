@@ -9,12 +9,16 @@
     const tripTypeSelect = document.getElementById('trip_form_trip_type');
     const driverSelect = document.getElementById('trip_form_driver_id');
     const studentsSelect = document.getElementById('trip_form_student_ids');
+    const busNumberInput = document.getElementById('trip_form_bus_number');
+    const studentsCountInput = document.getElementById('trip_form_students_count');
     if (!url || !schoolSelect || !tripTypeSelect || !driverSelect || !studentsSelect) {
         return;
     }
 
     const placeholderSchool = @json($tripFormPlaceholderSchool);
     const placeholderShift = @json($tripFormPlaceholderShift);
+
+    let driversCache = [];
 
     function selectedStudentIds() {
         return Array.from(studentsSelect.selectedOptions).map(function (o) { return parseInt(o.value, 10); }).filter(function (n) { return !isNaN(n); });
@@ -54,28 +58,57 @@
         });
     }
 
+    function applyDriverBusFields() {
+        const driverId = String(driverSelect.value || '');
+        if (!driverId) {
+            if (busNumberInput) {
+                busNumberInput.value = '';
+            }
+            if (studentsCountInput) {
+                studentsCountInput.value = '0';
+            }
+            return;
+        }
+
+        const row = driversCache.find(function (d) { return String(d.id) === driverId; });
+        if (!row) {
+            return;
+        }
+
+        if (busNumberInput && row.bus_number != null && row.bus_number !== '') {
+            busNumberInput.value = row.bus_number;
+        }
+        if (studentsCountInput && row.students_count != null) {
+            studentsCountInput.value = String(row.students_count);
+        }
+    }
+
     async function refreshTripFormOptions() {
         const schoolId = schoolSelect.value;
         const tripType = tripTypeSelect.value;
         const includeIds = selectedStudentIds();
 
         if (!schoolId) {
+            driversCache = [];
             setSelectOptions(driverSelect, [], '—', false);
             studentsSelect.innerHTML = '';
             const hint = document.createElement('option');
             hint.disabled = true;
             hint.textContent = placeholderSchool;
             studentsSelect.appendChild(hint);
+            applyDriverBusFields();
             return;
         }
 
         if (!tripType) {
+            driversCache = [];
             setSelectOptions(driverSelect, [], '—', true);
             studentsSelect.innerHTML = '';
             const hint = document.createElement('option');
             hint.disabled = true;
             hint.textContent = placeholderShift;
             studentsSelect.appendChild(hint);
+            applyDriverBusFields();
             return;
         }
 
@@ -90,8 +123,10 @@
                 return;
             }
             const data = await res.json();
-            setSelectOptions(driverSelect, data.drivers || [], '—', true);
+            driversCache = data.drivers || [];
+            setSelectOptions(driverSelect, driversCache, '—', true);
             setMultiSelectOptions(studentsSelect, data.students || [], includeIds);
+            applyDriverBusFields();
         } catch (e) {
             console.error(e);
         }
@@ -102,6 +137,7 @@
         refreshTripFormOptions();
     });
     tripTypeSelect.addEventListener('change', refreshTripFormOptions);
+    driverSelect.addEventListener('change', applyDriverBusFields);
     refreshTripFormOptions();
 })();
 </script>

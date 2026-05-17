@@ -123,4 +123,10 @@ class User extends Authenticatable
 
         return null;
     }
+
+    /** Global admin or school staff ({@see $school_id}) who may manage roster data in the dashboard. */
+    public function canMutateSchoolRoster(): bool
+    {
+        return (bool) $this->is_admin || $this->school_id !== null;
+    }
 }
