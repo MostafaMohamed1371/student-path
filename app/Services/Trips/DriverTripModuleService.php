@@ -339,6 +339,23 @@ final class DriverTripModuleService
             return ['success' => false, 'message' => 'forbidden', 'http_status' => 403];
         }
 
+        if ((int) ($trip->driver_id ?? 0) <= 0) {
+            return [
+                'success' => false,
+                'message' => __('dashboard.trip_no_driver_assigned'),
+                'http_status' => 422,
+            ];
+        }
+
+        $this->ensurePivotRows($trip);
+        if (! $trip->tripHistoryStudents()->exists()) {
+            return [
+                'success' => false,
+                'message' => __('dashboard.trip_cannot_start_without_students'),
+                'http_status' => 422,
+            ];
+        }
+
         $st = strtoupper((string) ($trip->status ?? ''));
         if ($st === 'CANCELLED') {
             return ['success' => false, 'message' => 'Cannot start a cancelled trip.', 'http_status' => 422];

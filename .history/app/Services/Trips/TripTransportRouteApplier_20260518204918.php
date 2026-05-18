@@ -133,31 +133,6 @@ final class TripTransportRouteApplier
     }
 
     /**
-     * When the trip form sends no students, copy roster from the driver's transport route.
-     *
-     * @param  list<int|string>  $submittedStudentIds
-     * @return list<int>
-     */
-    public function resolveStudentIdsForTrip(array $tripAttributes, array $submittedStudentIds): array
-    {
-        $unique = array_values(array_unique(array_map(
-            static fn ($v): int => (int) $v,
-            $submittedStudentIds,
-        )));
-
-        if ($unique !== []) {
-            return $unique;
-        }
-
-        $route = $this->findRouteForTrip($tripAttributes);
-        if ($route === null) {
-            return [];
-        }
-
-        return $this->studentIdsOnRoute($route);
-    }
-
-    /**
      * @return list<int>
      */
     public function studentIdsOnRoute(TransportRoute $route): array

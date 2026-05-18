@@ -110,11 +110,12 @@ class DashboardTripController extends Controller
 
         $validated = $this->tripTransportRouteApplier->applyRouteToTripAttributes($validated);
         $studentIds = $this->tripTransportRouteApplier->resolveStudentIdsForTrip($validated, $studentIds);
-        $this->assertTripHasDriverAndStudents($validated, $studentIds);
 
         $trip = TripHistory::query()->create($validated);
 
-        $this->syncTripStudentsForSchool($trip, $studentIds, (int) $trip->school_id);
+        if ($studentIds !== []) {
+            $this->syncTripStudentsForSchool($trip, $studentIds, (int) $trip->school_id);
+        }
 
         return redirect()->route('dashboard.trips.index')
             ->with('success', __('dashboard.trip_created'));
@@ -248,13 +249,9 @@ class DashboardTripController extends Controller
             ? 'ACTIVE,PRESENT'
             : 'PRESENT,ABSENT,CANCELLED,ACTIVE,COMPLETED';
 
-        $driverIdRules = $forCreate && ! $partial
-            ? [$required, 'integer', 'exists:drivers,id']
-            : ['nullable', 'integer', 'exists:drivers,id'];
-
         return [
             'school_id' => [$required, 'integer', 'exists:schools,id'],
-            'driver_id' => $driverIdRules,
+            'driver_id' => ['nullable', 'integer', 'exists:drivers,id'],
             'trip_type' => ['nullable', 'string', 'max:32'],
             'bus_number' => [$required, 'string', 'max:64'],
             'route_title' => ['nullable', 'string', 'max:255'],
@@ -350,26 +347,6 @@ class DashboardTripController extends Controller
             'students_count' => count($preview),
             'students_preview' => $preview,
         ]);
-    }
-
-    /**
-     * @param  array<string, mixed>  $validated
-     * @param  list<int>  $studentIds
-     */
-    private function assertTripHasDriverAndStudents(array $validated, array $studentIds): void
-    {
-        $driverId = (int) ($validated['driver_id'] ?? 0);
-        if ($driverId <= 0) {
-            throw ValidationException::withMessages([
-                'driver_id' => [__('dashboard.trip_driver_required')],
-            ]);
-        }
-
-        if ($studentIds === []) {
-            throw ValidationException::withMessages([
-                'student_ids' => [__('dashboard.trip_students_required_for_driver')],
-            ]);
-        }
     }
 
     private function tripHistoryVisible(TripHistory $trip): bool
