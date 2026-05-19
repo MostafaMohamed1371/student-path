@@ -596,7 +596,7 @@ class WebDashboardReportsTest extends TestCase
             'status' => 'active',
         ]);
 
-        foreach (range(1, 12) as $i) {
+        foreach (range(1, 26) as $i) {
             TripRequest::query()->create([
                 'user_id' => $parent->id,
                 'student_id' => $student->id,
@@ -610,16 +610,16 @@ class WebDashboardReportsTest extends TestCase
         $admin = User::factory()->create(['is_admin' => true]);
         $this->actingAs($admin);
 
-        $this->get(route('dashboard.trip_requests.index', ['per_page' => 10]))
+        $this->get(route('dashboard.trip_requests.index'))
             ->assertOk()
             ->assertSee('dash-pagination', false)
             ->assertSee(__('dashboard.pagination_next'), false)
-            ->assertSee('REQ-PAGE-12', false)
+            ->assertSee('REQ-PAGE-26', false)
             ->assertDontSee('REQ-PAGE-01', false);
 
-        $this->get(route('dashboard.trip_requests.index', ['per_page' => 10, 'page' => 2]))
+        $this->get(route('dashboard.trip_requests.index', ['page' => 2]))
             ->assertOk()
             ->assertSee('REQ-PAGE-01', false)
-            ->assertDontSee('REQ-PAGE-12', false);
+            ->assertDontSee('REQ-PAGE-26', false);
     }
 }

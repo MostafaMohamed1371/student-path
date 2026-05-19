@@ -16,17 +16,14 @@ use App\Services\Trips\DriverShiftResolver;
 use App\Support\ParentContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class DashboardTripRequestController extends Controller
 {
     use ConstrainsDashboardUserScope;
 
-    public function index(Request $request): View
+    public function index(): View
     {
-        $perPage = min(100, max(5, (int) $request->query('per_page', 25)));
-
         $query = TripRequest::query()
             ->with(['user', 'student', 'driver', 'tripHistory'])
             ->latest('trip_requests.id');
@@ -42,7 +39,7 @@ class DashboardTripRequestController extends Controller
             }
         }
 
-        $tripRequests = $query->paginate($perPage);
+        $tripRequests = $query->paginate(25);
 
         return view('dashboard.trip-requests.index', compact('tripRequests'));
     }

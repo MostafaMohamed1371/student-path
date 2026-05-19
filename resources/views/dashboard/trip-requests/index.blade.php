@@ -8,20 +8,6 @@
     @component('dashboard.partials.shell', ['title' => $title])
         <p style="color: var(--text-muted); margin: 0 0 20px;">{{ __('dashboard.trip_requests_page_intro') }}</p>
 
-        <section class="card" style="margin-bottom:16px;">
-            <form method="get" action="{{ route('dashboard.trip_requests.index') }}" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
-                <label>
-                    <span class="field-label">{{ __('dashboard.pagination_per_page') }}</span>
-                    <select class="input" name="per_page" style="min-width:100px;">
-                        @foreach([10, 25, 50, 100] as $size)
-                            <option value="{{ $size }}" @selected($tripRequests->perPage() === $size)>{{ $size }}</option>
-                        @endforeach
-                    </select>
-                </label>
-                <button type="submit" class="btn-primary" style="width:auto;padding:10px 16px;">{{ __('dashboard.filter') }}</button>
-            </form>
-        </section>
-
         <section class="card">
             <div style="overflow:auto;">
                 <table class="table">
