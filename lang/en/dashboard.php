@@ -369,7 +369,9 @@ return [
     'stats_absences' => 'Absences',
     'stats_support_complaints' => 'Support complaints',
 
-    'trip_requests_page_intro' => 'Trip requests submitted by parents via the API (scoped by student school). Open a row to approve or reject while status is pending.',
+    'trip_requests_page_intro' => 'Parent trip requests from the mobile app (trip_requests table). Admins see all schools; school staff see only their school. Open a row to approve or reject while status is pending.',
+    'trip_requests_filter_all_schools' => 'All schools',
+    'trip_requests_filter_all_drivers' => 'All drivers',
     'trip_request_show_intro' => 'Parent-submitted trip request. Use the actions below while status is pending.',
     'trip_request_cancelled_at' => 'Cancelled at',
     'trip_request_staff_decision' => 'School response',

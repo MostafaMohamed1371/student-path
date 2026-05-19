@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\ConstrainsDashboardUserScope;
+use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
+use App\Http\Controllers\Web\Concerns\ScopesDashboardTripRequests;
+use App\Models\School;
 use App\Http\Requests\Web\UpdateDashboardTripRequestRequest;
 use App\Http\Requests\Web\UpdateDashboardTripRequestStatusRequest;
 use App\Models\Driver;
@@ -16,38 +19,64 @@ use App\Services\Trips\DriverShiftResolver;
 use App\Support\ParentContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class DashboardTripRequestController extends Controller
 {
     use ConstrainsDashboardUserScope;
+    use ManagesDashboardScoping;
+    use ScopesDashboardTripRequests;
 
-    public function index(): View
+    public function index(Request $request): View
     {
-        $query = TripRequest::query()
-            ->with(['user.guardian', 'student.guardian', 'student.school', 'driver', 'tripHistory'])
-            ->latest('trip_requests.id');
+        $isDriverUser = $this->currentDriver() instanceof Driver;
+        $filterSchoolId = 0;
+        $filterDriverId = (int) $request->query('driver_id', 0);
 
-        if ($this->currentDriver() instanceof Driver) {
-            $query->where('driver_id', $this->currentDriver()?->id);
-        } elseif (! auth()->user()?->is_admin) {
-            $sid = auth()->user()?->scopingSchoolId();
-            if ($sid === null) {
-                $query->whereRaw('0 = 1');
-            } else {
-                $query->whereHas('student', fn (Builder $q) => $q->where('school_id', $sid));
+        if (! $isDriverUser && (bool) auth()->user()?->is_admin) {
+            $filterSchoolId = (int) $request->query('school_id', 0);
+            if ($filterSchoolId > 0) {
+                abort_unless(School::query()->whereKey($filterSchoolId)->exists(), 404);
             }
+        } elseif (! $isDriverUser) {
+            $filterSchoolId = (int) (auth()->user()?->scopingSchoolId() ?? 0);
         }
 
-        $tripRequests = $query->paginate(25);
+        if ($filterDriverId > 0 && ! $this->driverIdAllowedForTripRequestFilter($filterDriverId, $filterSchoolId)) {
+            $filterDriverId = 0;
+        }
 
-        return view('dashboard.trip-requests.index', compact('tripRequests'));
+        $query = $this->tripRequestListQuery()->latest('trip_requests.id');
+        $this->applyTripRequestDashboardScope(
+            $query,
+            $filterSchoolId > 0 ? $filterSchoolId : null,
+            $filterDriverId > 0 ? $filterDriverId : null,
+        );
+
+        $tripRequests = $query->paginate(25)->withQueryString();
+
+        $schools = $isDriverUser ? collect() : $this->schoolsForRosterForm();
+        $drivers = $isDriverUser
+            ? collect()
+            : $this->driversForTripRequestFilter($filterSchoolId > 0 ? $filterSchoolId : null);
+
+        return view('dashboard.trip-requests.index', [
+            'tripRequests' => $tripRequests,
+            'schools' => $schools,
+            'drivers' => $drivers,
+            'filterSchoolId' => $filterSchoolId,
+            'filterDriverId' => $filterDriverId,
+            'showSchoolFilter' => ! $isDriverUser && (bool) auth()->user()?->is_admin,
+            'showDriverFilter' => ! $isDriverUser,
+            'showSchoolColumn' => (bool) auth()->user()?->is_admin,
+        ]);
     }
 
     public function show(TripRequest $trip_request): View
     {
+        $trip_request->loadMissing(['user.guardian', 'student', 'student.guardian', 'student.school', 'driver', 'tripHistory']);
         abort_unless($this->tripRequestVisible($trip_request), 404);
-        $trip_request->load(['user.guardian', 'student.guardian', 'student.school', 'driver', 'tripHistory']);
 
         return view('dashboard.trip-requests.show', ['tripRequest' => $trip_request]);
     }
@@ -173,8 +202,25 @@ class DashboardTripRequestController extends Controller
             return false;
         }
 
-        return $tripRequest->student !== null
-            && (int) $tripRequest->student->school_id === (int) $sid;
+        if ($tripRequest->student !== null && (int) $tripRequest->student->school_id === (int) $sid) {
+            return true;
+        }
+
+        if ($tripRequest->driver !== null && (int) $tripRequest->driver->school_id === (int) $sid) {
+            return true;
+        }
+
+        if ($tripRequest->user !== null) {
+            if ((int) ($tripRequest->user->school_id ?? 0) === (int) $sid) {
+                return true;
+            }
+            $tripRequest->user->loadMissing('guardian');
+            if ($tripRequest->user->guardian !== null && (int) $tripRequest->user->guardian->school_id === (int) $sid) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function studentsInScope(): Builder
@@ -253,7 +299,36 @@ class DashboardTripRequestController extends Controller
         return $query->value('id');
     }
 
-    private function currentDriver(): ?Driver
+    /** @return \Illuminate\Support\Collection<int, Driver> */
+    private function driversForTripRequestFilter(?int $schoolId): \Illuminate\Support\Collection
+    {
+        $query = Driver::query()
+            ->orderBy('first_name')
+            ->orderBy('last_name');
+
+        if ($schoolId !== null && $schoolId > 0) {
+            $query->where('school_id', $schoolId);
+        } elseif (! (bool) auth()->user()?->is_admin) {
+            $this->constrainToScopingSchool($query);
+        }
+
+        return $query->get();
+    }
+
+    private function driverIdAllowedForTripRequestFilter(int $driverId, int $filterSchoolId): bool
+    {
+        $query = Driver::query()->whereKey($driverId);
+
+        if ($filterSchoolId > 0) {
+            $query->where('school_id', $filterSchoolId);
+        } elseif (! (bool) auth()->user()?->is_admin) {
+            $this->constrainToScopingSchool($query);
+        }
+
+        return $query->exists();
+    }
+
+    protected function currentDriver(): ?Driver
     {
         $authId = auth()->id();
         if (! is_int($authId)) {

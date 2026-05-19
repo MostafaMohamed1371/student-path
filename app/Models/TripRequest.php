@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\ParentContext;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -48,6 +49,19 @@ class TripRequest extends Model
     public function tripHistory(): BelongsTo
     {
         return $this->belongsTo(TripHistory::class, 'trip_history_id');
+    }
+
+    /**
+     * @param  Builder<TripRequest>  $query
+     */
+    public function scopeForDashboardSchool(Builder $query, int $schoolId): void
+    {
+        $query->where(function (Builder $q) use ($schoolId): void {
+            $q->whereHas('student', fn (Builder $s) => $s->where('school_id', $schoolId))
+                ->orWhereHas('driver', fn (Builder $d) => $d->where('school_id', $schoolId))
+                ->orWhereHas('user', fn (Builder $u) => $u->where('school_id', $schoolId))
+                ->orWhereHas('user.guardian', fn (Builder $g) => $g->where('school_id', $schoolId));
+        });
     }
 
     /** Parent/guardian name for dashboard and reports (not the assigned driver). */

@@ -609,6 +609,83 @@ class WebDashboardReportsTest extends TestCase
             ->assertSee('TRP-'.$trip->id, false);
     }
 
+    public function test_admin_sees_all_trip_requests_and_school_staff_sees_only_their_school(): void
+    {
+        $schoolA = School::query()->create([
+            'name_ar' => 'A',
+            'name_en' => 'School Scope A',
+            'province' => 'P',
+            'district' => '1',
+            'address' => 'A',
+            'status' => 'active',
+        ]);
+        $schoolB = School::query()->create([
+            'name_ar' => 'B',
+            'name_en' => 'School Scope B',
+            'province' => 'P',
+            'district' => '2',
+            'address' => 'B',
+            'status' => 'active',
+        ]);
+
+        $parentA = User::factory()->create(['school_id' => $schoolA->id]);
+        $parentB = User::factory()->create(['school_id' => $schoolB->id]);
+
+        $studentA = Student::query()->create([
+            'school_id' => $schoolA->id,
+            'full_name' => 'Student Scope A',
+            'gender' => 'male',
+            'grade' => '1',
+            'student_phone' => '7400000301',
+            'guardian_name' => 'G',
+            'guardian_primary_phone' => '7300000301',
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'status' => 'active',
+        ]);
+        $studentB = Student::query()->create([
+            'school_id' => $schoolB->id,
+            'full_name' => 'Student Scope B',
+            'gender' => 'male',
+            'grade' => '1',
+            'student_phone' => '7400000302',
+            'guardian_name' => 'G',
+            'guardian_primary_phone' => '7300000302',
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'status' => 'active',
+        ]);
+
+        TripRequest::query()->create([
+            'user_id' => $parentA->id,
+            'student_id' => $studentA->id,
+            'status' => 'pending',
+            'notes' => 'REQ-SCOPE-A',
+        ]);
+        TripRequest::query()->create([
+            'user_id' => $parentB->id,
+            'student_id' => $studentB->id,
+            'status' => 'pending',
+            'notes' => 'REQ-SCOPE-B',
+        ]);
+
+        $admin = User::factory()->create(['is_admin' => true]);
+        $this->actingAs($admin)
+            ->get(route('dashboard.trip_requests.index'))
+            ->assertOk()
+            ->assertSee('REQ-SCOPE-A', false)
+            ->assertSee('REQ-SCOPE-B', false);
+
+        $staffA = User::factory()->create(['is_admin' => false, 'school_id' => $schoolA->id]);
+        $this->actingAs($staffA)
+            ->get(route('dashboard.trip_requests.index'))
+            ->assertOk()
+            ->assertSee('REQ-SCOPE-A', false)
+            ->assertDontSee('REQ-SCOPE-B', false);
+    }
+
     public function test_trip_requests_index_supports_pagination(): void
     {
         $school = School::query()->create([

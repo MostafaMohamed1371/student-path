@@ -82,7 +82,7 @@ class DashboardHomeController extends Controller
 
         $tripRequestsCount = TripRequest::query()
             ->when($schoolId === null, fn (Builder $q) => $q->whereRaw('0 = 1'))
-            ->when($schoolId !== null, fn (Builder $q) => $q->whereHas('student', fn (Builder $s) => $s->where('school_id', $schoolId)))
+            ->when($schoolId !== null, fn (Builder $q) => $q->forDashboardSchool((int) $schoolId))
             ->count();
 
         $absencesCount = Absence::query()

@@ -577,6 +577,80 @@ class ApiV1ParentEndpointsTest extends TestCase
         $this->assertSame('cancelled', $req->fresh()->status);
     }
 
+    public function test_trip_request_store_does_not_create_duplicate_pending_for_same_student(): void
+    {
+        $school = $this->makeSchool('Dedup School');
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'G Dedup',
+            'phone' => '7300000290',
+            'status' => 'active',
+        ]);
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'S Dedup',
+            'gender' => 'male',
+            'grade' => '1',
+            'student_phone' => '7400000290',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'status' => 'active',
+        ]);
+        $user = User::factory()->create(['guardian_id' => $guardian->id, 'school_id' => $school->id]);
+        Sanctum::actingAs($user);
+
+        $driver = Driver::query()->create([
+            'user_id' => User::factory()->create()->id,
+            'school_id' => $school->id,
+            'first_name' => 'Dedup',
+            'father_name' => 'Driver',
+            'grandfather_name' => 'D',
+            'last_name' => 'One',
+            'age' => 30,
+            'id_card_number' => 'IDC-DD',
+            'license_number' => 'LIC-DD',
+            'primary_phone' => '7770000290',
+            'emergency_phone' => '7770001290',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+
+        $payload = [
+            'student_id' => $student->id,
+            'driver_id' => $driver->id,
+            'notes' => 'Book once',
+        ];
+
+        $first = $this->postJson('/api/trip-requests', $payload)
+            ->assertStatus(201)
+            ->assertJsonPath('message', 'Trip request created');
+
+        $firstId = (int) $first->json('data.id');
+
+        $second = $this->postJson('/api/trip-requests', $payload)
+            ->assertStatus(200)
+            ->assertJsonPath('message', 'Trip request already pending');
+
+        $this->assertSame($firstId, (int) $second->json('data.id'));
+        $this->assertSame(
+            1,
+            TripRequest::query()
+                ->where('user_id', $user->id)
+                ->where('student_id', $student->id)
+                ->where('status', 'pending')
+                ->count(),
+        );
+
+        $this->postJson('/api/trip-requests/'.$firstId.'/cancel')->assertOk();
+
+        $third = $this->postJson('/api/trip-requests', $payload)->assertStatus(201);
+        $this->assertNotSame($firstId, (int) $third->json('data.id'));
+    }
+
     public function test_trip_request_cancel_returns_422_when_not_pending(): void
     {
         $school = $this->makeSchool('Cancel Guard School');

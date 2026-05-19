@@ -369,7 +369,9 @@ return [
     'stats_absences' => 'الغيابات',
     'stats_support_complaints' => 'شكاوى الدعم',
 
-    'trip_requests_page_intro' => 'طلبات الرحلات من أولياء الأمور عبر الواجهة (حسب مدرسة الطالب). افتح الطلب للموافقة أو الرفض أثناء حالة الانتظار.',
+    'trip_requests_page_intro' => 'طلبات الرحلات من تطبيق ولي الأمر (جدول trip_requests). المشرف يرى كل المدارس؛ موظف المدرسة يرى مدرسته فقط. افتح الطلب للموافقة أو الرفض أثناء حالة الانتظار.',
+    'trip_requests_filter_all_schools' => 'كل المدارس',
+    'trip_requests_filter_all_drivers' => 'كل السائقين',
     'trip_request_show_intro' => 'طلب رحلة من ولي الأمر. استخدم الأزرار أدناه عندما تكون الحالة قيد الانتظار.',
     'trip_request_cancelled_at' => 'أُلغي في',
     'trip_request_staff_decision' => 'قرار المدرسة',

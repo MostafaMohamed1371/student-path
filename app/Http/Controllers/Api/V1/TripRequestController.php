@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\TransportLines\TransportDriverCardBuilder;
 use App\Services\Trips\TripRequestAcceptanceService;
 use App\Services\Trips\DriverShiftResolver;
+use App\Services\Trips\TripRequestCreator;
 use App\Services\Trips\TripRequestOrderSnapshot;
 use App\Support\ParentContext;
 use Illuminate\Http\JsonResponse;
@@ -26,6 +27,7 @@ class TripRequestController extends Controller
     public function __construct(
         private readonly TransportDriverCardBuilder $transportDriverCardBuilder,
         private readonly TripRequestAcceptanceService $tripRequestAcceptanceService,
+        private readonly TripRequestCreator $tripRequestCreator,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -154,23 +156,25 @@ class TripRequestController extends Controller
             'subscribe_price' => isset($validated['subscribe_price']) ? (float) $validated['subscribe_price'] : null,
         ]);
 
-        $row = TripRequest::query()->create([
-            'user_id' => $request->user()->id,
-            'student_id' => $validated['student_id'],
-            'driver_id' => $driverId,
-            'trip_history_id' => $validated['trip_history_id'] ?? null,
-            'status' => 'pending',
-            'notes' => $validated['notes'] ?? null,
-            ...$snapshot,
-        ]);
+        [$row, $created] = $this->tripRequestCreator->createOrReturnExistingPending(
+            $request->user(),
+            $student,
+            $driverId !== null ? (int) $driverId : null,
+            [
+                'trip_history_id' => $validated['trip_history_id'] ?? null,
+                'status' => 'pending',
+                'notes' => $validated['notes'] ?? null,
+                ...$snapshot,
+            ],
+        );
 
         $loaded = $row->fresh()->load(['student.school', 'driver.user', 'driver.bus', 'tripHistory']);
         [$queryLat, $queryLng] = $this->queryCoordinates($request, $validated);
 
         return $this->parentSuccess(
             $this->tripRequestPayload($loaded, $request, $queryLat, $queryLng),
-            'Trip request created',
-            201,
+            $created ? 'Trip request created' : 'Trip request already pending',
+            $created ? 201 : 200,
         );
     }
 
