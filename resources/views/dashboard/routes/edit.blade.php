@@ -21,6 +21,14 @@
                     <a href="{{ route('dashboard.routes.index', ['school_id' => $route->school_id, 'trip_type' => $route->trip_type]) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.cancel') }}</a>
                 </div>
             </form>
+
+            @if(auth()->user()?->canMutateSchoolRoster())
+                <form method="post" action="{{ route('dashboard.routes.destroy', $route) }}" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--card-border);" onsubmit="return confirm(@json(__('dashboard.confirm_delete')))">
+                    @csrf
+                    @method('delete')
+                    <button type="submit" class="btn-muted" style="color:var(--danger-text);border-color:var(--danger-border);">{{ __('dashboard.delete') }}</button>
+                </form>
+            @endif
         </section>
     @endcomponent
 

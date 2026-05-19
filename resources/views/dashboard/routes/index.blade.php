@@ -80,6 +80,11 @@
                                 <td style="white-space:nowrap;">
                                     @if(auth()->user()?->canMutateSchoolRoster())
                                         <a href="{{ route('dashboard.routes.edit', $route) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.edit') }}</a>
+                                        <form method="post" action="{{ route('dashboard.routes.destroy', $route) }}" style="display:inline;margin-inline-start:6px;" onsubmit="return confirm(@json(__('dashboard.confirm_delete')))">
+                                            @csrf
+                                            @method('delete')
+                                            <button type="submit" class="btn-muted">{{ __('dashboard.delete') }}</button>
+                                        </form>
                                     @endif
                                 </td>
                             </tr>

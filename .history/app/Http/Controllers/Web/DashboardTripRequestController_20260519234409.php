@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\ConstrainsDashboardUserScope;
+use App\Http\Requests\Web\StoreDashboardTripRequestRequest;
 use App\Http\Requests\Web\UpdateDashboardTripRequestRequest;
 use App\Http\Requests\Web\UpdateDashboardTripRequestStatusRequest;
 use App\Models\Driver;
@@ -13,6 +14,7 @@ use App\Models\TripRequest;
 use App\Models\User;
 use App\Services\Trips\TripRequestAcceptanceService;
 use App\Services\Trips\DriverShiftResolver;
+use App\Services\Trips\TripRequestOrderSnapshot;
 use App\Support\ParentContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -45,6 +47,62 @@ class DashboardTripRequestController extends Controller
         $tripRequests = $query->paginate($perPage);
 
         return view('dashboard.trip-requests.index', compact('tripRequests'));
+    }
+
+    public function create(): View
+    {
+        abort_if($this->currentDriver() instanceof Driver, 403);
+
+        $users = $this->usersInScope()->get();
+        $students = $this->studentsInScope()->get();
+        $trips = $this->tripHistoriesInScope()->get();
+
+        return view('dashboard.trip-requests.create', compact('users', 'students', 'trips'));
+    }
+
+    public function store(StoreDashboardTripRequestRequest $request): RedirectResponse
+    {
+        abort_if($this->currentDriver() instanceof Driver, 403);
+
+        $validated = $request->validated();
+        $user = User::query()->findOrFail((int) $validated['user_id']);
+        abort_unless($this->userIdVisibleInDashboardScope((int) $user->id), 403);
+
+        $student = $this->studentsInScope()->whereKey((int) $validated['student_id'])->firstOrFail();
+        abort_unless(ParentContext::ownsStudent($user, $student->id), 403);
+
+        $tripHistoryId = $validated['trip_history_id'] ?? null;
+        if ($tripHistoryId !== null) {
+            $trip = TripHistory::query()->findOrFail((int) $tripHistoryId);
+            $this->assertTripInScope($trip);
+            $schoolIds = ParentContext::studentsFor($user)->pluck('school_id')->unique()->filter();
+            if ($schoolIds->isNotEmpty() && ! $schoolIds->contains($trip->school_id)) {
+                return redirect()->back()->withInput()->with('error', __('dashboard.trip_request_trip_out_of_scope'));
+            }
+        }
+
+        $targetShift = null;
+        if ($tripHistoryId !== null) {
+            $tripForShift = TripHistory::query()->find((int) $tripHistoryId);
+            $targetShift = app(DriverShiftResolver::class)->fromTripType($tripForShift?->trip_type);
+        }
+
+        $driverId = $this->assignSchoolDriverId((int) $student->school_id, $targetShift);
+        $assignedDriver = Driver::query()->find($driverId);
+        $snapshot = TripRequestOrderSnapshot::build($student, $assignedDriver, []);
+
+        TripRequest::query()->create([
+            'user_id' => $user->id,
+            'student_id' => $student->id,
+            'driver_id' => $driverId,
+            'trip_history_id' => $tripHistoryId,
+            'status' => 'pending',
+            'notes' => $validated['notes'] ?? null,
+            ...$snapshot,
+        ]);
+
+        return redirect()->route('dashboard.trip_requests.index')
+            ->with('success', __('dashboard.trip_request_created'));
     }
 
     public function show(TripRequest $trip_request): View
@@ -178,6 +236,16 @@ class DashboardTripRequestController extends Controller
 
         return $tripRequest->student !== null
             && (int) $tripRequest->student->school_id === (int) $sid;
+    }
+
+    private function usersInScope(): Builder
+    {
+        $q = User::query()->orderBy('name');
+        if (! auth()->user()?->is_admin) {
+            $q->tap(fn (Builder $b) => $this->constrainUsersToDashboardScope($b));
+        }
+
+        return $q;
     }
 
     private function studentsInScope(): Builder

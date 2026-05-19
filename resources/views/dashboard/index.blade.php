@@ -158,7 +158,6 @@
             </div>
             <p style="margin: 14px 0 6px; color: var(--text-muted); font-size: 0.9rem;">{{ __('dashboard.overview_quick_add') }}</p>
             <div style="display: flex; flex-wrap: wrap; gap: 10px;">
-                <a href="{{ route('dashboard.trip_requests.create') }}" class="btn-muted" style="width: auto; padding: 8px 12px; text-decoration: none;">{{ __('dashboard.add_trip_request') }}</a>
                 <a href="{{ route('dashboard.absences.create') }}" class="btn-muted" style="width: auto; padding: 8px 12px; text-decoration: none;">{{ __('dashboard.add_absence') }}</a>
                 <a href="{{ route('dashboard.support_complaints.create') }}" class="btn-muted" style="width: auto; padding: 8px 12px; text-decoration: none;">{{ __('dashboard.add_support_complaint') }}</a>
             </div>

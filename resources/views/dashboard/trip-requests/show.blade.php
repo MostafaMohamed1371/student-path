@@ -4,7 +4,7 @@
 
 @section('content')
     @php($title = __('dashboard.menu_trip_requests').' #'.$tripRequest->id)
-    @php($isDriverUser = auth()->user()?->driver !== null)
+    @php($canManageTripRequests = auth()->user()?->canMutateSchoolRoster() ?? false)
     @component('dashboard.partials.shell', ['title' => $title])
         @php($u = $tripRequest->user)
         @php($s = $tripRequest->student)
@@ -38,18 +38,16 @@
             <p style="margin: 0; white-space: pre-wrap;">{{ $tripRequest->notes ?: '—' }}</p>
         </section>
 
-        <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
-            @if(! $isDriverUser)
+        @if($canManageTripRequests && $tripRequest->status === 'pending')
+            <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
                 <a href="{{ route('dashboard.trip_requests.edit', $tripRequest) }}" class="btn-primary" style="width:auto;padding:10px 14px;text-decoration:none;">{{ __('dashboard.edit') }}</a>
-            @endif
-            @if(! $isDriverUser && $tripRequest->status === 'pending')
-                <form method="post" action="{{ route('dashboard.trip_requests.destroy', $tripRequest) }}" onsubmit="return confirm('{{ __('dashboard.confirm_delete') }}')" style="display:inline;">
+                <form method="post" action="{{ route('dashboard.trip_requests.destroy', $tripRequest) }}" onsubmit="return confirm(@json(__('dashboard.confirm_delete')))" style="display:inline;margin:0;">
                     @csrf
-                    @method('DELETE')
+                    @method('delete')
                     <button type="submit" class="btn-muted">{{ __('dashboard.delete') }}</button>
                 </form>
-            @endif
-        </div>
+            </div>
+        @endif
 
         @if($tripRequest->status === 'pending')
             <section class="card">

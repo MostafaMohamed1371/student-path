@@ -34,6 +34,7 @@ class WebDashboardReportsTest extends TestCase
         $this->get(route('dashboard.absences.index'))->assertRedirect(route('login'));
         $this->get(route('dashboard.support_complaints.index'))->assertRedirect(route('login'));
         $this->get(route('dashboard.trip_requests.show', 1))->assertRedirect(route('login'));
+        $this->get(route('dashboard.trip_requests.create'))->assertRedirect(route('login'));
         $this->get(route('dashboard.absences.create'))->assertRedirect(route('login'));
         $this->get(route('dashboard.support_complaints.create'))->assertRedirect(route('login'));
     }
@@ -621,5 +622,150 @@ class WebDashboardReportsTest extends TestCase
             ->assertOk()
             ->assertSee('REQ-PAGE-01', false)
             ->assertDontSee('REQ-PAGE-12', false);
+    }
+
+    public function test_trip_requests_index_filters_by_school_and_driver(): void
+    {
+        $schoolA = School::query()->create([
+            'name_ar' => 'A',
+            'name_en' => 'School Filter A',
+            'province' => 'P',
+            'district' => '1',
+            'address' => 'A',
+            'status' => 'active',
+        ]);
+        $schoolB = School::query()->create([
+            'name_ar' => 'B',
+            'name_en' => 'School Filter B',
+            'province' => 'P',
+            'district' => '2',
+            'address' => 'B',
+            'status' => 'active',
+        ]);
+
+        $parentA = User::factory()->create(['school_id' => $schoolA->id]);
+        $parentB = User::factory()->create(['school_id' => $schoolB->id]);
+
+        $studentA = Student::query()->create([
+            'school_id' => $schoolA->id,
+            'full_name' => 'Student A',
+            'gender' => 'male',
+            'grade' => '1',
+            'student_phone' => '7400000201',
+            'guardian_name' => 'G',
+            'guardian_primary_phone' => '7300000201',
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'status' => 'active',
+        ]);
+        $studentB = Student::query()->create([
+            'school_id' => $schoolB->id,
+            'full_name' => 'Student B',
+            'gender' => 'male',
+            'grade' => '1',
+            'student_phone' => '7400000202',
+            'guardian_name' => 'G',
+            'guardian_primary_phone' => '7300000202',
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'status' => 'active',
+        ]);
+
+        $driverA1 = Driver::query()->create([
+            'user_id' => User::factory()->create()->id,
+            'school_id' => $schoolA->id,
+            'first_name' => 'Alpha',
+            'father_name' => 'One',
+            'grandfather_name' => 'D',
+            'last_name' => 'Driver',
+            'age' => 30,
+            'id_card_number' => 'IDC-FA1',
+            'license_number' => 'LIC-FA1',
+            'primary_phone' => '7770000201',
+            'emergency_phone' => '7770001201',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+        $driverA2 = Driver::query()->create([
+            'user_id' => User::factory()->create()->id,
+            'school_id' => $schoolA->id,
+            'first_name' => 'Beta',
+            'father_name' => 'Two',
+            'grandfather_name' => 'D',
+            'last_name' => 'Driver',
+            'age' => 31,
+            'id_card_number' => 'IDC-FA2',
+            'license_number' => 'LIC-FA2',
+            'primary_phone' => '7770000202',
+            'emergency_phone' => '7770001202',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+        $driverB = Driver::query()->create([
+            'user_id' => User::factory()->create()->id,
+            'school_id' => $schoolB->id,
+            'first_name' => 'Gamma',
+            'father_name' => 'Three',
+            'grandfather_name' => 'D',
+            'last_name' => 'Driver',
+            'age' => 32,
+            'id_card_number' => 'IDC-FB1',
+            'license_number' => 'LIC-FB1',
+            'primary_phone' => '7770000203',
+            'emergency_phone' => '7770001203',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+
+        TripRequest::query()->create([
+            'user_id' => $parentA->id,
+            'student_id' => $studentA->id,
+            'driver_id' => $driverA1->id,
+            'status' => 'pending',
+            'notes' => 'REQ-SCHOOL-A-DRIVER-1',
+        ]);
+        TripRequest::query()->create([
+            'user_id' => $parentA->id,
+            'student_id' => $studentA->id,
+            'driver_id' => $driverA2->id,
+            'status' => 'pending',
+            'notes' => 'REQ-SCHOOL-A-DRIVER-2',
+        ]);
+        TripRequest::query()->create([
+            'user_id' => $parentB->id,
+            'student_id' => $studentB->id,
+            'driver_id' => $driverB->id,
+            'status' => 'pending',
+            'notes' => 'REQ-SCHOOL-B-DRIVER',
+        ]);
+
+        $admin = User::factory()->create(['is_admin' => true]);
+        $this->actingAs($admin);
+
+        $this->get(route('dashboard.trip_requests.index', ['school_id' => $schoolA->id]))
+            ->assertOk()
+            ->assertSee('REQ-SCHOOL-A-DRIVER-1', false)
+            ->assertSee('REQ-SCHOOL-A-DRIVER-2', false)
+            ->assertDontSee('REQ-SCHOOL-B-DRIVER', false);
+
+        $this->get(route('dashboard.trip_requests.index', [
+            'school_id' => $schoolA->id,
+            'driver_id' => $driverA1->id,
+        ]))
+            ->assertOk()
+            ->assertSee('REQ-SCHOOL-A-DRIVER-1', false)
+            ->assertDontSee('REQ-SCHOOL-A-DRIVER-2', false)
+            ->assertDontSee('REQ-SCHOOL-B-DRIVER', false);
+
+        $staff = User::factory()->create(['is_admin' => false, 'school_id' => $schoolA->id]);
+        $this->actingAs($staff);
+
+        $this->get(route('dashboard.trip_requests.index', ['driver_id' => $driverA2->id]))
+            ->assertOk()
+            ->assertSee('REQ-SCHOOL-A-DRIVER-2', false)
+            ->assertDontSee('REQ-SCHOOL-A-DRIVER-1', false)
+            ->assertDontSee('REQ-SCHOOL-B-DRIVER', false);
     }
 }

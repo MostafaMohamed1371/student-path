@@ -8,8 +8,45 @@
     @component('dashboard.partials.shell', ['title' => $title])
         <p style="color: var(--text-muted); margin: 0 0 20px;">{{ __('dashboard.trip_requests_page_intro') }}</p>
 
+        @if($canManageTripRequests)
+            <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
+                <a href="{{ route('dashboard.trip_requests.create') }}" class="btn-primary" style="width:auto;padding:10px 14px;text-decoration:none;">{{ __('dashboard.add_trip_request') }}</a>
+            </div>
+        @endif
+
         <section class="card" style="margin-bottom:16px;">
             <form method="get" action="{{ route('dashboard.trip_requests.index') }}" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
+                @if($showSchoolFilter)
+                    <label>
+                        <span class="field-label">{{ __('dashboard.school') }}</span>
+                        <select class="input" name="school_id" style="min-width:200px;">
+                            <option value="0" @selected($filterSchoolId === 0)>{{ __('dashboard.trip_requests_filter_all_schools') }}</option>
+                            @foreach($schools as $school)
+                                <option value="{{ $school->id }}" @selected($filterSchoolId === (int) $school->id)>{{ $school->name_en }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                @elseif($showDriverFilter && $schools->isNotEmpty())
+                    <input type="hidden" name="school_id" value="{{ $filterSchoolId }}">
+                    <label>
+                        <span class="field-label">{{ __('dashboard.school') }}</span>
+                        <select class="input" disabled style="min-width:200px;">
+                            <option>{{ $schools->first()->name_en }}</option>
+                        </select>
+                    </label>
+                @endif
+                @if($showDriverFilter)
+                    <label>
+                        <span class="field-label">{{ __('dashboard.driver') }}</span>
+                        <select class="input" name="driver_id" style="min-width:200px;">
+                            <option value="0" @selected($filterDriverId === 0)>{{ __('dashboard.trip_requests_filter_all_drivers') }}</option>
+                            @foreach($drivers as $driver)
+                                @php($driverName = trim(($driver->first_name ?? '').' '.($driver->last_name ?? '')) ?: '#'.$driver->id)
+                                <option value="{{ $driver->id }}" @selected($filterDriverId === (int) $driver->id)>{{ $driverName }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                @endif
                 <label>
                     <span class="field-label">{{ __('dashboard.pagination_per_page') }}</span>
                     <select class="input" name="per_page" style="min-width:100px;">

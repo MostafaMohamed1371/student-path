@@ -34,6 +34,7 @@ class WebDashboardReportsTest extends TestCase
         $this->get(route('dashboard.absences.index'))->assertRedirect(route('login'));
         $this->get(route('dashboard.support_complaints.index'))->assertRedirect(route('login'));
         $this->get(route('dashboard.trip_requests.show', 1))->assertRedirect(route('login'));
+        $this->get(route('dashboard.trip_requests.create'))->assertRedirect(route('login'));
         $this->get(route('dashboard.absences.create'))->assertRedirect(route('login'));
         $this->get(route('dashboard.support_complaints.create'))->assertRedirect(route('login'));
     }

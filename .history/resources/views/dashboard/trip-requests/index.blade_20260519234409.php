@@ -8,6 +8,12 @@
     @component('dashboard.partials.shell', ['title' => $title])
         <p style="color: var(--text-muted); margin: 0 0 20px;">{{ __('dashboard.trip_requests_page_intro') }}</p>
 
+        @if($canManageTripRequests)
+            <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
+                <a href="{{ route('dashboard.trip_requests.create') }}" class="btn-primary" style="width:auto;padding:10px 14px;text-decoration:none;">{{ __('dashboard.add_trip_request') }}</a>
+            </div>
+        @endif
+
         <section class="card" style="margin-bottom:16px;">
             <form method="get" action="{{ route('dashboard.trip_requests.index') }}" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
                 <label>
