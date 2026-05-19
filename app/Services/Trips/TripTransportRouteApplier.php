@@ -178,7 +178,11 @@ final class TripTransportRouteApplier
      *     transport_route_id: int|null,
      *     route_student_ids: list<int>,
      *     start_address: string|null,
-     *     end_address: string|null
+     *     end_address: string|null,
+     *     route_start_latitude: float|null,
+     *     route_start_longitude: float|null,
+     *     school_latitude: float|null,
+     *     school_longitude: float|null
      * }|null
      */
     public function driverRouteFormPayload(?TransportRoute $route): ?array
@@ -202,6 +206,10 @@ final class TripTransportRouteApplier
             'end_address' => $school && trim((string) ($school->address ?? '')) !== ''
                 ? trim((string) $school->address)
                 : null,
+            'route_start_latitude' => $route->start_latitude !== null ? (float) $route->start_latitude : null,
+            'route_start_longitude' => $route->start_longitude !== null ? (float) $route->start_longitude : null,
+            'school_latitude' => $school?->latitude !== null ? (float) $school->latitude : null,
+            'school_longitude' => $school?->longitude !== null ? (float) $school->longitude : null,
         ];
     }
 

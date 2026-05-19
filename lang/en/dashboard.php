@@ -215,6 +215,7 @@ return [
     'guardian_deleted' => 'Guardian deleted successfully.',
     'trip_route_from_driver_route' => 'Route path (start → school) and distance were filled from this driver’s transport route. Students on that route are pre-selected.',
     'trip_no_route_for_driver' => 'No transport route exists for this driver and trip type. Create a route under Routes first.',
+    'trip_distance_needs_school_coords' => 'Distance needs school latitude/longitude (edit the school).',
     'trip_route_path' => 'Route path (start → school)',
     'trip_route_path_placeholder' => 'Select a driver with a transport route',
     'trip_location_start_to_end' => 'Start: :start → School: :end',

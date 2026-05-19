@@ -31,7 +31,7 @@
 
                 <label>
                     <span>{{ __('dashboard.trip_field_driver') }}</span>
-                    <select id="trip_form_driver_id" name="driver_id">
+                    <select id="trip_form_driver_id" name="driver_id" required>
                         <option value="">—</option>
                         @foreach(($drivers ?? []) as $d)
                             <option value="{{ $d->id }}" @selected((string) old('driver_id') === (string) $d->id)>

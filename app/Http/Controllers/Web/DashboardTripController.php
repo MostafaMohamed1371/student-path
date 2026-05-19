@@ -716,7 +716,11 @@ class DashboardTripController extends Controller
      *     transport_route_id: int|null,
      *     route_student_ids: list<int>,
      *     start_address: string|null,
-     *     end_address: string|null
+     *     end_address: string|null,
+     *     route_start_latitude: float|null,
+     *     route_start_longitude: float|null,
+     *     school_latitude: float|null,
+     *     school_longitude: float|null
      * }
      */
     private function driverOptionRow(Driver $driver, ?\App\Models\TransportRoute $transportRoute = null): array
@@ -742,6 +746,10 @@ class DashboardTripController extends Controller
             'route_student_ids' => $routePayload['route_student_ids'] ?? [],
             'start_address' => $routePayload['start_address'] ?? null,
             'end_address' => $routePayload['end_address'] ?? null,
+            'route_start_latitude' => $routePayload['route_start_latitude'] ?? null,
+            'route_start_longitude' => $routePayload['route_start_longitude'] ?? null,
+            'school_latitude' => $routePayload['school_latitude'] ?? null,
+            'school_longitude' => $routePayload['school_longitude'] ?? null,
         ];
     }
 }

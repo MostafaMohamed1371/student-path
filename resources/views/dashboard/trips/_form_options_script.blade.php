@@ -26,9 +26,49 @@
     const placeholderShift = @json($tripFormPlaceholderShift);
     const routeFromDriverHint = @json(__('dashboard.trip_route_from_driver_route'));
     const noRouteForDriverHint = @json(__('dashboard.trip_no_route_for_driver'));
+    const distanceNeedsSchoolCoordsHint = @json(__('dashboard.trip_distance_needs_school_coords'));
     const studentsRouteFilterHint = @json(__('dashboard.trip_students_route_filter_help'));
 
     let driversCache = [];
+
+    function haversineKm(lat1, lon1, lat2, lon2) {
+        const earthKm = 6371.0;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+            + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180)
+            * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
+        return Math.round(earthKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 100) / 100;
+    }
+
+    function resolveRoutePath(row) {
+        if (row.location != null && String(row.location).trim() !== '') {
+            return String(row.location);
+        }
+        const start = row.start_address != null ? String(row.start_address).trim() : '';
+        const end = row.end_address != null ? String(row.end_address).trim() : '';
+        if (start !== '' && end !== '') {
+            return start + ' → ' + end;
+        }
+
+        return start !== '' ? start : end;
+    }
+
+    function resolveDistanceKm(row) {
+        if (row.distance_km != null && !isNaN(parseFloat(row.distance_km))) {
+            return Number(parseFloat(row.distance_km).toFixed(2));
+        }
+        const slat = row.route_start_latitude;
+        const slng = row.route_start_longitude;
+        const elat = row.school_latitude;
+        const elng = row.school_longitude;
+        if (slat == null || slng == null || elat == null || elng == null) {
+            return null;
+        }
+
+        return haversineKm(parseFloat(slat), parseFloat(slng), parseFloat(elat), parseFloat(elng));
+    }
 
     function selectedStudentIds() {
         if (!studentsSelect) {
@@ -118,18 +158,19 @@
             if (routeTitleInput) {
                 routeTitleInput.value = row.route_title != null ? String(row.route_title) : '';
             }
+            const routePath = resolveRoutePath(row);
             if (locationInput) {
-                locationInput.value = row.location != null ? String(row.location) : '';
+                locationInput.value = routePath;
             }
-            if (distanceKmInput && row.distance_km != null && !isNaN(parseFloat(row.distance_km))) {
-                distanceKmInput.value = String(Number(parseFloat(row.distance_km).toFixed(2)));
+            const distanceKm = resolveDistanceKm(row);
+            if (distanceKmInput) {
+                distanceKmInput.value = distanceKm != null ? String(distanceKm) : '0';
             }
             if (routeHint) {
                 routeHint.style.display = 'block';
-                var distText = (row.distance_km != null && !isNaN(parseFloat(row.distance_km)))
-                    ? ' (' + Number(parseFloat(row.distance_km).toFixed(2)) + ' km)'
-                    : '';
-                routeHint.textContent = routeFromDriverHint + distText;
+                var distText = distanceKm != null ? ' (' + distanceKm + ' km)' : '';
+                var extraHint = distanceKm == null && routePath !== '' ? ' ' + distanceNeedsSchoolCoordsHint : '';
+                routeHint.textContent = routeFromDriverHint + distText + extraHint;
             }
 
             var routeStudentCount = Array.isArray(row.route_student_ids) ? row.route_student_ids.length : 0;
@@ -246,7 +287,14 @@
         driverSelect.value = '';
         refreshTripFormOptions();
     });
-    driverSelect.addEventListener('change', applyDriverBusFields);
+    driverSelect.addEventListener('change', async function () {
+        const driverId = String(driverSelect.value || '');
+        if (driverId && !driversCache.some(function (d) { return String(d.id) === driverId; })) {
+            await refreshTripFormOptions();
+            return;
+        }
+        applyDriverBusFields();
+    });
 
     refreshTripFormOptions();
 })();
