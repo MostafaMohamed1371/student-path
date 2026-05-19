@@ -90,6 +90,7 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/dashboard/trips/assign-students', [DashboardTripController::class, 'assignStudentsStore'])->name('dashboard.trips.assign_students.store');
     Route::get('/dashboard/trips/create', [DashboardTripController::class, 'create'])->name('dashboard.trips.create');
     Route::get('/dashboard/trips/form-options', [DashboardTripController::class, 'formOptions'])->name('dashboard.trips.form_options');
+    Route::get('/dashboard/trips/driver-auto-fill', [DashboardTripController::class, 'driverAutoFill'])->name('dashboard.trips.driver_auto_fill');
     Route::post('/dashboard/trips', [DashboardTripController::class, 'store'])->name('dashboard.trips.store');
     Route::get('/dashboard/trips/{trip}', [DashboardTripController::class, 'show'])->name('dashboard.trips.show');
     Route::get('/dashboard/trips/{trip}/edit', [DashboardTripController::class, 'edit'])->name('dashboard.trips.edit');

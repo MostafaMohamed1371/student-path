@@ -79,6 +79,7 @@ class DashboardTripController extends Controller
             'drivers' => $drivers,
             'tripTypes' => $tripTypes,
             'formOptionsUrl' => route('dashboard.trips.form_options'),
+            'driverAutoFillUrl' => route('dashboard.trips.driver_auto_fill'),
             'exceptTripId' => null,
         ]);
     }
@@ -126,6 +127,7 @@ class DashboardTripController extends Controller
             'drivers' => $drivers,
             'tripTypes' => $tripTypes,
             'formOptionsUrl' => route('dashboard.trips.form_options'),
+            'driverAutoFillUrl' => route('dashboard.trips.driver_auto_fill'),
             'exceptTripId' => (int) $trip->id,
         ]);
     }
@@ -339,6 +341,50 @@ class DashboardTripController extends Controller
             'corridor_max_km' => $activeRoute !== null
                 ? round((float) config('routes.corridor_max_meters', 3000) / 1000, 1)
                 : null,
+        ]);
+    }
+
+    public function driverAutoFill(Request $request): JsonResponse
+    {
+        $this->abortUnlessCanMutateSchoolRoster();
+
+        $validated = $request->validate([
+            'school_id' => ['required', 'integer', 'exists:schools,id'],
+            'trip_type' => ['required', 'string', 'max:32'],
+            'driver_id' => ['required', 'integer', 'exists:drivers,id'],
+        ]);
+
+        $schoolId = (int) $validated['school_id'];
+        $driverId = (int) $validated['driver_id'];
+        $tripType = trim($validated['trip_type']);
+
+        $this->abortUnlessCanMutateSchoolRosterForSchool($schoolId);
+        $this->assertDriverBelongsToSchool($driverId, $schoolId);
+
+        $driver = Driver::query()->with('bus')->findOrFail($driverId);
+        $route = $this->tripTransportRouteApplier->findRouteForTrip([
+            'school_id' => $schoolId,
+            'driver_id' => $driverId,
+            'trip_type' => $tripType,
+        ]);
+
+        $payload = $this->driverOptionRow($driver, $route);
+
+        return response()->json([
+            'ok' => true,
+            'has_route' => $route !== null,
+            'bus_number' => $payload['bus_number'],
+            'route_title' => $payload['route_title'],
+            'location' => $payload['location'],
+            'distance_km' => $payload['distance_km'],
+            'students_count' => $payload['students_count'],
+            'start_address' => $payload['start_address'],
+            'end_address' => $payload['end_address'],
+            'route_start_latitude' => $payload['route_start_latitude'],
+            'route_start_longitude' => $payload['route_start_longitude'],
+            'school_latitude' => $payload['school_latitude'],
+            'school_longitude' => $payload['school_longitude'],
+            'transport_route_id' => $payload['transport_route_id'],
         ]);
     }
 

@@ -247,6 +247,97 @@ class DashboardTripFormOptionsTest extends TestCase
             ->assertJsonCount(3, 'drivers.0.route_student_ids');
     }
 
+    public function test_driver_auto_fill_returns_route_path_and_distance(): void
+    {
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'School',
+            'province' => 'P',
+            'district' => 'D',
+            'address' => 'School Campus',
+            'latitude' => 33.31,
+            'longitude' => 44.36,
+            'status' => 'active',
+        ]);
+
+        $driverUser = User::factory()->create();
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'Ali',
+            'father_name' => 'H',
+            'grandfather_name' => 'H',
+            'last_name' => 'Driver',
+            'age' => 35,
+            'id_card_number' => 'IDC-AF',
+            'license_number' => 'LIC-AF',
+            'primary_phone' => '7770000800',
+            'emergency_phone' => '7770000801',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+            'shift_period' => 'MORNING',
+        ]);
+
+        Bus::query()->create([
+            'user_id' => $driverUser->id,
+            'driver_id' => $driver->id,
+            'name' => 'Bus',
+            'type' => 'Coaster',
+            'city' => 'Baghdad',
+            'number' => 'BUS-AF-1',
+            'color' => 'white',
+            'capacity' => 20,
+            'fuel_type' => 'diesel',
+            'status' => 'active',
+        ]);
+
+        TransportRoute::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'name' => 'Morning Line',
+            'trip_type' => TripType::MORNING_PICKUP->value,
+            'shift_period' => 'MORNING',
+            'start_address' => 'Depot',
+            'start_latitude' => 33.311,
+            'start_longitude' => 44.361,
+            'status' => 'active',
+        ]);
+
+        $admin = User::factory()->create(['is_admin' => true]);
+        $this->actingAs($admin);
+
+        $this->getJson(route('dashboard.trips.driver_auto_fill', [
+            'school_id' => $school->id,
+            'trip_type' => TripType::MORNING_PICKUP->value,
+            'driver_id' => $driver->id,
+        ]))
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('has_route', true)
+            ->assertJsonPath('bus_number', 'BUS-AF-1')
+            ->assertJsonPath('route_title', 'Morning Line — Depot')
+            ->assertJsonPath('start_address', 'Depot')
+            ->assertJsonPath('end_address', 'School Campus');
+
+        $distanceKm = $this->getJson(route('dashboard.trips.driver_auto_fill', [
+            'school_id' => $school->id,
+            'trip_type' => TripType::MORNING_PICKUP->value,
+            'driver_id' => $driver->id,
+        ]))->json('distance_km');
+
+        $this->assertIsNumeric($distanceKm);
+        $this->assertGreaterThan(0, (float) $distanceKm);
+
+        $location = $this->getJson(route('dashboard.trips.driver_auto_fill', [
+            'school_id' => $school->id,
+            'trip_type' => TripType::MORNING_PICKUP->value,
+            'driver_id' => $driver->id,
+        ]))->json('location');
+
+        $this->assertIsString($location);
+        $this->assertStringContainsString('Depot', $location);
+    }
+
     public function test_form_options_hides_students_on_other_active_trips(): void
     {
         $school = School::query()->create([

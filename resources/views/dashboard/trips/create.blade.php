@@ -76,6 +76,7 @@
     @endcomponent
     @include('dashboard.trips._form_options_script', [
         'formOptionsUrl' => $formOptionsUrl ?? '',
+        'driverAutoFillUrl' => $driverAutoFillUrl ?? '',
         'exceptTripId' => $exceptTripId ?? null,
     ])
 @endsection
