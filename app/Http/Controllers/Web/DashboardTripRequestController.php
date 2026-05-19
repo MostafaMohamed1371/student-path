@@ -30,7 +30,7 @@ class DashboardTripRequestController extends Controller
 
     public function index(Request $request): View
     {
-        $isDriverUser = $this->currentDriver() instanceof Driver;
+        $isDriverUser = ! (bool) auth()->user()?->is_admin && $this->currentDriver() instanceof Driver;
         $filterSchoolId = 0;
         $filterDriverId = (int) $request->query('driver_id', 0);
 

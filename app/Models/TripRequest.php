@@ -56,11 +56,17 @@ class TripRequest extends Model
      */
     public function scopeForDashboardSchool(Builder $query, int $schoolId): void
     {
-        $query->where(function (Builder $q) use ($schoolId): void {
+        $driverIds = Driver::query()->where('school_id', $schoolId)->pluck('id');
+
+        $query->where(function (Builder $q) use ($schoolId, $driverIds): void {
             $q->whereHas('student', fn (Builder $s) => $s->where('school_id', $schoolId))
                 ->orWhereHas('driver', fn (Builder $d) => $d->where('school_id', $schoolId))
                 ->orWhereHas('user', fn (Builder $u) => $u->where('school_id', $schoolId))
                 ->orWhereHas('user.guardian', fn (Builder $g) => $g->where('school_id', $schoolId));
+
+            if ($driverIds->isNotEmpty()) {
+                $q->orWhereIn('driver_id', $driverIds);
+            }
         });
     }
 

@@ -609,6 +609,77 @@ class WebDashboardReportsTest extends TestCase
             ->assertSee('TRP-'.$trip->id, false);
     }
 
+    public function test_admin_linked_to_driver_still_sees_all_trip_requests(): void
+    {
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'School Admin Driver',
+            'province' => 'P',
+            'district' => '1',
+            'address' => 'A',
+            'status' => 'active',
+        ]);
+        $adminUser = User::factory()->create(['is_admin' => true]);
+        $otherDriver = Driver::query()->create([
+            'user_id' => User::factory()->create()->id,
+            'school_id' => $school->id,
+            'first_name' => 'Assigned',
+            'father_name' => 'Driver',
+            'grandfather_name' => 'X',
+            'last_name' => 'One',
+            'age' => 30,
+            'id_card_number' => 'IDC-AD1',
+            'license_number' => 'LIC-AD1',
+            'primary_phone' => '7770000401',
+            'emergency_phone' => '7770001401',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+        Driver::query()->create([
+            'user_id' => $adminUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'Admin',
+            'father_name' => 'Also',
+            'grandfather_name' => 'Driver',
+            'last_name' => 'Row',
+            'age' => 40,
+            'id_card_number' => 'IDC-AD2',
+            'license_number' => 'LIC-AD2',
+            'primary_phone' => '7770000402',
+            'emergency_phone' => '7770001402',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+
+        $parent = User::factory()->create(['school_id' => $school->id]);
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'Student Admin Driver',
+            'gender' => 'male',
+            'grade' => '1',
+            'student_phone' => '7400000401',
+            'guardian_name' => 'G',
+            'guardian_primary_phone' => '7300000401',
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'status' => 'active',
+        ]);
+
+        TripRequest::query()->create([
+            'user_id' => $parent->id,
+            'student_id' => $student->id,
+            'driver_id' => $otherDriver->id,
+            'status' => 'pending',
+            'notes' => 'REQ-ADMIN-DRIVER-SCOPE',
+        ]);
+
+        $this->actingAs($adminUser)
+            ->get(route('dashboard.trip_requests.index'))
+            ->assertOk()
+            ->assertSee('REQ-ADMIN-DRIVER-SCOPE', false);
+    }
+
     public function test_admin_sees_all_trip_requests_and_school_staff_sees_only_their_school(): void
     {
         $schoolA = School::query()->create([

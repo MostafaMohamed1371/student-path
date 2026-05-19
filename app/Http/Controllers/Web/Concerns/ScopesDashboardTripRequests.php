@@ -21,13 +21,6 @@ trait ScopesDashboardTripRequests
      */
     protected function applyTripRequestDashboardScope(Builder $query, ?int $filterSchoolId = null, ?int $filterDriverId = null): void
     {
-        $driver = $this->currentDriver();
-        if ($driver instanceof Driver) {
-            $query->where('driver_id', $driver->id);
-
-            return;
-        }
-
         $auth = auth()->user();
         if (! $auth) {
             $query->whereRaw('0 = 1');
@@ -35,10 +28,13 @@ trait ScopesDashboardTripRequests
             return;
         }
 
+        // Admins always see the full trip_requests list (optional school/driver filters only).
         if ($auth->is_admin) {
             if ($filterSchoolId !== null && $filterSchoolId > 0) {
                 $this->constrainTripRequestsToSchool($query, $filterSchoolId);
             }
+        } elseif (($driver = $this->currentDriver()) instanceof Driver) {
+            $query->where('driver_id', $driver->id);
         } else {
             $sid = $auth->scopingSchoolId();
             if ($sid === null) {
