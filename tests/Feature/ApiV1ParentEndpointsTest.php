@@ -559,10 +559,19 @@ class ApiV1ParentEndpointsTest extends TestCase
         $this->assertIsNumeric($dKm);
         $this->assertGreaterThan(0, (float) $dKm);
 
-        $this->getJson('/api/trip-requests')->assertOk()->assertJsonPath('data.pagination.total', 1);
-
         $req = TripRequest::query()->firstOrFail();
-        $this->getJson('/api/trip-requests/'.$req->id)->assertOk()->assertJsonPath('data.id', $req->id);
+        $this->getJson('/api/trip-requests/'.$req->id)
+            ->assertOk()
+            ->assertJsonPath('data.id', $req->id)
+            ->assertJsonPath('data.driverCard.driverId', (string) $driver->id)
+            ->assertJsonPath('data.tripPreview.pickupLabel', 'Unknown pickup')
+            ->assertJsonPath('data.tripPreview.destinationLabel', 'Req School');
+
+        $this->getJson('/api/trip-requests')
+            ->assertOk()
+            ->assertJsonPath('data.pagination.total', 1)
+            ->assertJsonPath('data.items.0.driverCard.driverId', (string) $driver->id)
+            ->assertJsonPath('data.items.0.tripPreview.destinationLabel', 'Req School');
 
         $this->postJson('/api/trip-requests/'.$req->id.'/cancel')->assertOk();
         $this->assertSame('cancelled', $req->fresh()->status);
