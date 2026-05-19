@@ -180,6 +180,8 @@ final class DriverTripModuleService
         $dayStart = $onDay->copy()->timezone($tz)->startOfDay();
         $dayEnd = $onDay->copy()->timezone($tz)->endOfDay();
 
+        $now = now();
+
         $trips = TripHistory::query()
             ->where('driver_id', $driver->id)
             ->whereBetween('start_time', [$dayStart, $dayEnd])
@@ -187,7 +189,11 @@ final class DriverTripModuleService
             ->orderBy('id')
             ->get();
 
-        $now = now();
+        foreach ($trips as $trip) {
+            $this->syncTripStatus($trip, $now);
+        }
+
+        $trips->each->refresh();
 
         return $trips->map(function (TripHistory $trip) use ($now, $tz): array {
             $start = $trip->start_time instanceof Carbon
@@ -272,8 +278,8 @@ final class DriverTripModuleService
             ? $trip->start_time->copy()
             : Carbon::parse((string) $trip->start_time);
 
-        $early = (int) config('trips.driver_start_early_minutes', 15);
-        $late = (int) config('trips.driver_start_late_minutes', 30);
+        $early = (int) config('trips.driver_start_early_minutes', 10);
+        $late = (int) config('trips.driver_start_late_minutes', 10);
 
         $windowStart = $start->copy()->subMinutes($early);
         $latestStart = $start->copy()->addMinutes($late);
@@ -295,6 +301,78 @@ final class DriverTripModuleService
         [$windowStart, $windowEnd] = $this->driverTripStartWindow($trip);
 
         return $now->gte($windowStart) && $now->lte($windowEnd);
+    }
+
+    /**
+     * Apply time-based trip lifecycle: missed start window → CANCELLED; past scheduled end while started → COMPLETED.
+     */
+    public function syncTripStatus(TripHistory $trip, ?Carbon $now = null): bool
+    {
+        $now ??= now();
+        $status = strtoupper((string) ($trip->status ?? ''));
+        if (in_array($status, ['CANCELLED', 'COMPLETED'], true)) {
+            return false;
+        }
+
+        if ($trip->driver_started_at !== null) {
+            $end = $this->tripScheduledEndAt($trip);
+            if ($end !== null && $now->gt($end)) {
+                $updates = ['status' => 'COMPLETED'];
+                if ($trip->end_time === null) {
+                    $updates['end_time'] = $end;
+                }
+
+                $trip->forceFill($updates)->save();
+
+                return true;
+            }
+
+            if ($status !== 'ACTIVE') {
+                $trip->forceFill(['status' => 'ACTIVE'])->save();
+
+                return true;
+            }
+
+            return false;
+        }
+
+        [, $windowEnd] = $this->driverTripStartWindow($trip);
+        if ($now->gt($windowEnd)) {
+            $trip->forceFill(['status' => 'CANCELLED'])->save();
+
+            return true;
+        }
+
+        if ($status !== 'PRESENT') {
+            $trip->forceFill(['status' => 'PRESENT'])->save();
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Sync all trips that may have crossed a start or end boundary.
+     */
+    public function syncDueTripStatuses(?Carbon $now = null): int
+    {
+        $now ??= now();
+        $updated = 0;
+
+        TripHistory::query()
+            ->whereNotIn('status', ['CANCELLED', 'COMPLETED'])
+            ->where('start_time', '<=', $now->copy()->addDay())
+            ->orderBy('id')
+            ->chunkById(100, function ($trips) use ($now, &$updated): void {
+                foreach ($trips as $trip) {
+                    if ($this->syncTripStatus($trip, $now)) {
+                        $updated++;
+                    }
+                }
+            });
+
+        return $updated;
     }
 
     public function otherStartedTripForDriver(Driver $driver, ?int $exceptTripId = null): ?TripHistory
@@ -335,6 +413,9 @@ final class DriverTripModuleService
             return ['success' => false, 'message' => 'Trip not found.', 'http_status' => 404];
         }
 
+        $this->syncTripStatus($trip);
+        $trip->refresh();
+
         if ((int) ($trip->driver_id ?? 0) !== (int) $driver->id) {
             return ['success' => false, 'message' => 'forbidden', 'http_status' => 403];
         }
@@ -347,6 +428,14 @@ final class DriverTripModuleService
             ];
         }
 
+        $st = strtoupper((string) ($trip->status ?? ''));
+        if ($st === 'CANCELLED') {
+            return ['success' => false, 'message' => 'Cannot start a cancelled trip.', 'http_status' => 422];
+        }
+        if ($st === 'COMPLETED') {
+            return ['success' => false, 'message' => 'Trip is already completed.', 'http_status' => 422];
+        }
+
         $this->ensurePivotRows($trip);
         if (! $trip->tripHistoryStudents()->exists()) {
             return [
@@ -354,14 +443,6 @@ final class DriverTripModuleService
                 'message' => __('dashboard.trip_cannot_start_without_students'),
                 'http_status' => 422,
             ];
-        }
-
-        $st = strtoupper((string) ($trip->status ?? ''));
-        if ($st === 'CANCELLED') {
-            return ['success' => false, 'message' => 'Cannot start a cancelled trip.', 'http_status' => 422];
-        }
-        if ($st === 'COMPLETED') {
-            return ['success' => false, 'message' => 'Trip is already completed.', 'http_status' => 422];
         }
 
         if ($trip->driver_started_at !== null) {
@@ -1078,26 +1159,32 @@ final class DriverTripModuleService
             return ScheduledTripCardStatus::COMPLETED;
         }
 
-        $end = $trip->end_time
-            ? ($trip->end_time instanceof Carbon
-                ? $trip->end_time->copy()
-                : Carbon::parse((string) $trip->end_time))
-            : null;
-
-        if ($end !== null && $end->lt($now)) {
-            return ScheduledTripCardStatus::COMPLETED;
-        }
-
         if ($trip->driver_started_at !== null) {
+            $end = $this->tripScheduledEndAt($trip);
+            if ($end !== null && $end->lt($now)) {
+                return ScheduledTripCardStatus::COMPLETED;
+            }
+
             return ScheduledTripCardStatus::ONGOING;
         }
 
         [, $windowEnd] = $this->driverTripStartWindow($trip);
         if ($now->gt($windowEnd)) {
-            return ScheduledTripCardStatus::COMPLETED;
+            return ScheduledTripCardStatus::CANCELLED;
         }
 
         return ScheduledTripCardStatus::UPCOMING;
+    }
+
+    private function tripScheduledEndAt(TripHistory $trip): ?Carbon
+    {
+        if ($trip->end_time === null) {
+            return null;
+        }
+
+        return $trip->end_time instanceof Carbon
+            ? $trip->end_time->copy()
+            : Carbon::parse((string) $trip->end_time);
     }
 
     private function scheduledTripTypeValue(TripHistory $trip): ?string

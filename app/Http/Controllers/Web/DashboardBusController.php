@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Bus;
 use App\Models\Driver;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -31,23 +32,57 @@ class DashboardBusController extends Controller
     public function create(): View|RedirectResponse
     {
         $this->abortUnlessCanMutateSchoolRoster();
-        $drivers = $this->driversForBusForm();
-        if ($drivers->isEmpty()) {
-            return redirect()->route('dashboard.drivers.create')
-                ->with('error', __('dashboard.create_driver_first'));
+        $schools = $this->schoolsForRosterForm();
+        if ($schools->isEmpty()) {
+            return redirect()->route('dashboard.schools.index')
+                ->with('error', __('dashboard.no_schools'));
         }
 
-        return view('dashboard.buses.create', compact('drivers'));
+        $schoolId = (int) old('school_id', $schools->first()?->id ?? 0);
+
+        return view('dashboard.buses.create', [
+            'schools' => $schools,
+            'drivers' => $this->driversForBusForm($schoolId > 0 ? $schoolId : null),
+            'formOptionsUrl' => route('dashboard.buses.form_options'),
+        ]);
     }
 
     public function edit(Bus $bus): View
     {
         abort_unless($this->busVisible($bus), 404);
         $this->abortUnlessCanMutateSchoolRoster();
+        $bus->loadMissing('driver');
+
+        $schools = $this->schoolsForRosterForm();
+        $schoolId = (int) old('school_id', $bus->driver?->school_id ?? $schools->first()?->id ?? 0);
 
         return view('dashboard.buses.edit', [
             'bus' => $bus,
-            'drivers' => $this->driversForBusForm(),
+            'schools' => $schools,
+            'drivers' => $this->driversForBusForm($schoolId > 0 ? $schoolId : null, $bus->id),
+            'formOptionsUrl' => route('dashboard.buses.form_options'),
+        ]);
+    }
+
+    public function formOptions(Request $request): JsonResponse
+    {
+        $this->abortUnlessCanMutateSchoolRoster();
+
+        $validated = $request->validate([
+            'school_id' => ['required', 'integer', 'exists:schools,id'],
+            'except_bus_id' => ['nullable', 'integer', 'exists:buses,id'],
+        ]);
+
+        $schoolId = (int) $validated['school_id'];
+        $this->abortUnlessCanMutateSchoolRosterForSchool($schoolId);
+
+        $exceptBusId = isset($validated['except_bus_id']) ? (int) $validated['except_bus_id'] : null;
+
+        return response()->json([
+            'drivers' => $this->driversForBusForm($schoolId, $exceptBusId)
+                ->map(fn (Driver $driver): array => $this->driverOptionRow($driver))
+                ->values()
+                ->all(),
         ]);
     }
 
@@ -184,18 +219,52 @@ class DashboardBusController extends Controller
     }
 
     /**
+     * Drivers eligible for a new bus at the given school (no bus yet, or current bus on edit).
+     *
      * @return Collection<int, Driver>
      */
-    private function driversForBusForm(): Collection
+    private function driversForBusForm(?int $schoolId, ?int $exceptBusId = null): Collection
     {
+        if ($schoolId === null || $schoolId <= 0) {
+            return collect();
+        }
+
+        $exceptDriverId = null;
+        if ($exceptBusId !== null && $exceptBusId > 0) {
+            $exceptDriverId = Bus::query()->whereKey($exceptBusId)->value('driver_id');
+            $exceptDriverId = $exceptDriverId !== null ? (int) $exceptDriverId : null;
+        }
+
         $query = Driver::query()
             ->with('school')
+            ->where('school_id', $schoolId)
             ->whereNotNull('user_id')
+            ->where(function ($q) use ($exceptDriverId): void {
+                $q->whereDoesntHave('bus');
+                if ($exceptDriverId !== null) {
+                    $q->orWhereKey($exceptDriverId);
+                }
+            })
             ->orderBy('first_name')
             ->orderBy('last_name');
 
-        $this->constrainToScopingSchool($query);
-
         return $query->get();
+    }
+
+    /**
+     * @return array{id: int, label: string}
+     */
+    private function driverOptionRow(Driver $driver): array
+    {
+        $name = trim(
+            ($driver->first_name ?? '').' '
+            .($driver->father_name ?? '').' '
+            .($driver->last_name ?? '')
+        );
+
+        return [
+            'id' => (int) $driver->id,
+            'label' => $name !== '' ? $name : '#'.(int) $driver->id,
+        ];
     }
 }

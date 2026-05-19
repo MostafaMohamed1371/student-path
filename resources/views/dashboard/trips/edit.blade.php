@@ -55,21 +55,22 @@
                 </label>
                 <label><span>{{ __('dashboard.trip_start_time') }}</span><input type="datetime-local" name="start_time" value="{{ old('start_time', optional($trip->start_time)->format('Y-m-d\TH:i')) }}" required></label>
                 <label><span>{{ __('dashboard.trip_end_time') }}</span><input type="datetime-local" name="end_time" value="{{ old('end_time', optional($trip->end_time)->format('Y-m-d\TH:i')) }}"></label>
+                @php
+                    $tripStatus = strtoupper((string) old('status', $trip->status ?? ''));
+                    $selectableStatus = in_array($tripStatus, ['ACTIVE', 'PRESENT'], true) ? $tripStatus : 'PRESENT';
+                @endphp
                 <label>
                     <span>{{ __('dashboard.trip_status') }}</span>
                     <select name="status" required>
-                        <option value="ACTIVE" @selected(old('status', $trip->status)==='ACTIVE')>ACTIVE</option>
-                        <option value="PRESENT" @selected(old('status', $trip->status)==='PRESENT')>PRESENT</option>
-                        <option value="ABSENT" @selected(old('status', $trip->status)==='ABSENT')>ABSENT</option>
-                        <option value="CANCELLED" @selected(old('status', $trip->status)==='CANCELLED')>CANCELLED</option>
-                        <option value="COMPLETED" @selected(old('status', $trip->status)==='COMPLETED')>COMPLETED</option>
+                        <option value="PRESENT" @selected($selectableStatus === 'PRESENT')>PRESENT</option>
+                        <option value="ACTIVE" @selected($selectableStatus === 'ACTIVE')>ACTIVE</option>
                     </select>
                 </label>
 
-                @include('dashboard.trips._student_select', [
-                    'students' => $students,
-                    'selectedStudentIds' => $selectedStudentIds ?? [],
-                ])
+                <p class="help" style="grid-column:1 / -1;margin:0;">
+                    {{ __('dashboard.trip_edit_students_on_assign_page') }}
+                    <a href="{{ route('dashboard.trips.assign_students', ['school_id' => $trip->school_id, 'trip_id' => $trip->id]) }}">{{ __('dashboard.menu_assign_trip_students') }}</a>
+                </p>
 
                 <label style="grid-column:1 / -1;"><span>{{ __('dashboard.notes') }}</span><textarea name="note" rows="3">{{ old('note', $trip->note) }}</textarea></label>
 

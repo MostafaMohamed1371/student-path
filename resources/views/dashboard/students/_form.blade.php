@@ -57,7 +57,7 @@
                 @endforeach
             </select>
         @else
-            @php($fixedSchoolId = (string) old('school_id', $student->school_id ?? auth()->user()?->school_id))
+            @php($fixedSchoolId = (string) old('school_id', $student->school_id ?? auth()->user()?->scopingSchoolId()))
             @php($fixedSchool = ($schools ?? collect())->firstWhere('id', (int) $fixedSchoolId))
             <input type="hidden" id="student_form_school_id_hidden" name="school_id" value="{{ $fixedSchoolId }}">
             <input class="input" value="{{ $fixedSchool?->name_en ?: '—' }}" disabled />

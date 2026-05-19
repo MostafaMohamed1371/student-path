@@ -6,7 +6,8 @@
     @php($title = __('dashboard.menu_trips'))
     @component('dashboard.partials.shell', ['title' => $title])
         @if(auth()->user()?->canMutateSchoolRoster())
-        <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
+        <div style="display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+            <a href="{{ route('dashboard.trips.assign_students') }}" class="btn-muted" style="padding:10px 14px;text-decoration:none;">{{ __('dashboard.menu_assign_trip_students') }}</a>
             <a href="{{ route('dashboard.trips.create') }}" class="btn-primary" style="width:auto;padding:10px 14px;text-decoration:none;">{{ __('dashboard.add_trip') }}</a>
         </div>
         @endif

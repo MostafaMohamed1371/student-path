@@ -1362,9 +1362,9 @@ class ApiV1ParentEndpointsTest extends TestCase
         Sanctum::actingAs($driverUser);
         $this->getJson('/api/orders')
             ->assertOk()
-            ->assertJsonPath('meta.pending_count', 1)
-            ->assertJsonPath('meta.total_seats', 20)
-            ->assertJsonPath('pagination.total', 1);
+            ->assertJsonPath('data.pending_count', 1)
+            ->assertJsonPath('data.total_seats', 20)
+            ->assertJsonCount(1, 'data.orders');
 
         $this->putJson('/api/orders/'.$tripRequest->id, ['status' => 'accepted', 'order_id' => (string) $tripRequest->id])
             ->assertOk()

@@ -28,11 +28,24 @@ return [
     | Driver trip start window (minutes)
     |--------------------------------------------------------------------------
     |
-    | POST /api/trips/{id}/start is allowed only when now() is between
+    | Trip start_time / end_time come from the dashboard create-trip form.
+    | POST /api/trips/{id}/start is allowed when now() is between
     | start_time - early and min(end_time, start_time + late).
     |
     */
-    'driver_start_early_minutes' => (int) env('TRIP_DRIVER_START_EARLY_MINUTES', 15),
-    'driver_start_late_minutes' => (int) env('TRIP_DRIVER_START_LATE_MINUTES', 30),
+    'driver_start_early_minutes' => (int) env('TRIP_DRIVER_START_EARLY_MINUTES', 10),
+    'driver_start_late_minutes' => (int) env('TRIP_DRIVER_START_LATE_MINUTES', 10),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Automatic trip status sync
+    |--------------------------------------------------------------------------
+    |
+    | trips:sync-statuses runs every minute (see routes/console.php).
+    | - Never started after start window → status CANCELLED
+    | - Started and past scheduled end_time → status COMPLETED
+    | - Driver POST /api/trips/{id}/start sets ACTIVE when the trip begins
+    |
+    */
 
 ];

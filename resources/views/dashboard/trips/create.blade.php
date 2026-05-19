@@ -58,15 +58,12 @@
                 <label>
                     <span>{{ __('dashboard.trip_status') }}</span>
                     <select name="status" required>
-                        <option value="ACTIVE" @selected(old('status', 'ACTIVE') === 'ACTIVE')>ACTIVE</option>
-                        <option value="PRESENT" @selected(old('status') === 'PRESENT')>PRESENT</option>
+                        <option value="PRESENT" @selected(old('status', 'PRESENT') === 'PRESENT')>PRESENT</option>
+                        <option value="ACTIVE" @selected(old('status') === 'ACTIVE')>ACTIVE</option>
                     </select>
                 </label>
 
-                @include('dashboard.trips._student_select', [
-                    'students' => $students,
-                    'selectedStudentIds' => $selectedStudentIds ?? [],
-                ])
+                <p class="help" style="grid-column:1 / -1;margin:0;">{{ __('dashboard.trip_create_students_later_help') }}</p>
 
                 <label style="grid-column:1 / -1;"><span>{{ __('dashboard.notes') }}</span><textarea name="note" rows="3">{{ old('note') }}</textarea></label>
 

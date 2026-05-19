@@ -46,6 +46,7 @@ Route::middleware('auth')->group(function (): void {
 
     Route::get('/dashboard/buses', [DashboardBusController::class, 'index'])->name('dashboard.buses.index');
     Route::get('/dashboard/buses/create', [DashboardBusController::class, 'create'])->name('dashboard.buses.create');
+    Route::get('/dashboard/buses/form-options', [DashboardBusController::class, 'formOptions'])->name('dashboard.buses.form_options');
     Route::post('/dashboard/buses', [DashboardBusController::class, 'store'])->name('dashboard.buses.store');
     Route::get('/dashboard/buses/{bus}/edit', [DashboardBusController::class, 'edit'])->name('dashboard.buses.edit');
     Route::put('/dashboard/buses/{bus}', [DashboardBusController::class, 'update'])->name('dashboard.buses.update');
@@ -84,6 +85,9 @@ Route::middleware('auth')->group(function (): void {
     Route::delete('/dashboard/guardians/{guardian}', [DashboardGuardianController::class, 'destroy'])->name('dashboard.guardians.destroy');
 
     Route::get('/dashboard/trips', [DashboardTripController::class, 'index'])->name('dashboard.trips.index');
+    Route::get('/dashboard/trips/assign-students', [DashboardTripController::class, 'assignStudents'])->name('dashboard.trips.assign_students');
+    Route::get('/dashboard/trips/assign-students/form-options', [DashboardTripController::class, 'assignStudentsFormOptions'])->name('dashboard.trips.assign_students.form_options');
+    Route::post('/dashboard/trips/assign-students', [DashboardTripController::class, 'assignStudentsStore'])->name('dashboard.trips.assign_students.store');
     Route::get('/dashboard/trips/create', [DashboardTripController::class, 'create'])->name('dashboard.trips.create');
     Route::get('/dashboard/trips/form-options', [DashboardTripController::class, 'formOptions'])->name('dashboard.trips.form_options');
     Route::post('/dashboard/trips', [DashboardTripController::class, 'store'])->name('dashboard.trips.store');

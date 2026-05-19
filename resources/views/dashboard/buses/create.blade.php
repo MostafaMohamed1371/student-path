@@ -10,8 +10,10 @@
         <section class="card">
             <form method="post" action="{{ route('dashboard.buses.store') }}">
                 @csrf
-                @include('dashboard.buses._form')
+                @include('dashboard.buses._form', ['schools' => $schools])
             </form>
         </section>
     @endcomponent
+
+    @include('dashboard.buses._form_options_script', ['formOptionsUrl' => $formOptionsUrl])
 @endsection

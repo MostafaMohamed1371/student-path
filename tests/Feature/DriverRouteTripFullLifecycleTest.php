@@ -129,6 +129,12 @@ class DriverRouteTripFullLifecycleTest extends TestCase
         $trip = TripHistory::query()->where('driver_id', $driver->id)->first();
         $this->assertNotNull($trip);
         $this->assertSame((int) $driver->id, (int) $trip->driver_id);
+
+        $this->post(route('dashboard.trips.assign_students.store'), [
+            'trip_id' => $trip->id,
+            'student_ids' => [$student->id],
+        ])->assertRedirect();
+
         $this->assertDatabaseHas('trip_history_students', [
             'trip_history_id' => $trip->id,
             'student_id' => $student->id,
@@ -303,7 +309,7 @@ class DriverRouteTripFullLifecycleTest extends TestCase
             'distance_km' => 1,
             'start_time' => now()->format('Y-m-d\TH:i'),
             'status' => 'ACTIVE',
-        ])->assertSessionHasErrors('student_ids');
+        ])->assertRedirect();
 
         $this->post(route('dashboard.trips.store'), [
             'school_id' => $school->id,

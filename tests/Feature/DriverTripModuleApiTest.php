@@ -783,14 +783,38 @@ class DriverTripModuleApiTest extends TestCase
         $this->postJson('/api/trips/TRP-'.$tripB->id.'/start')->assertOk();
     }
 
-    public function test_driver_cannot_start_trip_outside_window(): void
+    public function test_driver_cannot_start_trip_outside_ten_minute_window(): void
     {
+        config(['trips.driver_start_early_minutes' => 10, 'trips.driver_start_late_minutes' => 10]);
+
         $school = School::query()->create([
             'name_ar' => 'S',
             'name_en' => 'S',
             'province' => 'P',
             'district' => 'D',
             'address' => 'A',
+            'status' => 'active',
+        ]);
+
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'G',
+            'phone' => '7300000888',
+            'status' => 'active',
+        ]);
+
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'S',
+            'gender' => 'male',
+            'grade' => '1',
+            'student_phone' => '7400000888',
+            'guardian_name' => 'G',
+            'guardian_primary_phone' => '7300000888',
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
             'status' => 'active',
         ]);
 
@@ -817,12 +841,18 @@ class DriverTripModuleApiTest extends TestCase
             'bus_number' => 'B',
             'route_title' => 'Future',
             'location' => 'L',
-            'students_count' => 0,
+            'students_count' => 1,
             'distance_km' => 0,
             'start_time' => now()->addHours(2),
             'end_time' => null,
             'status' => 'ACTIVE',
-            'students_preview' => [],
+        ]);
+
+        TripHistoryStudent::query()->create([
+            'trip_history_id' => $trip->id,
+            'student_id' => $student->id,
+            'sort_order' => 0,
+            'status' => 'IDLE',
         ]);
 
         Sanctum::actingAs($driverUser);
@@ -830,10 +860,88 @@ class DriverTripModuleApiTest extends TestCase
         $this->postJson('/api/trips/TRP-'.$trip->id.'/start')
             ->assertStatus(422)
             ->assertJsonPath('msg', 'Trip is not available to start yet.');
+    }
 
-        $this->getJson('/api/trips/current-trip')
+    public function test_driver_can_start_trip_within_ten_minute_window_of_form_start_time(): void
+    {
+        config(['trips.driver_start_early_minutes' => 10, 'trips.driver_start_late_minutes' => 10]);
+
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'S',
+            'province' => 'P',
+            'district' => 'D',
+            'address' => 'A',
+            'status' => 'active',
+        ]);
+
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'G',
+            'phone' => '7300000999',
+            'status' => 'active',
+        ]);
+
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'S',
+            'gender' => 'male',
+            'grade' => '1',
+            'student_phone' => '7400000999',
+            'guardian_name' => 'G',
+            'guardian_primary_phone' => '7300000999',
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'status' => 'active',
+        ]);
+
+        $driverUser = User::factory()->create(['phone' => '9647909000999']);
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'W',
+            'father_name' => 'W',
+            'grandfather_name' => 'W',
+            'last_name' => 'T',
+            'age' => 30,
+            'id_card_number' => 'IDC-WIN2',
+            'license_number' => 'LIC-WIN2',
+            'primary_phone' => '7770000999',
+            'emergency_phone' => '7770001999',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+
+        $formStart = now();
+        $formEnd = $formStart->copy()->addHour();
+
+        $trip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'bus_number' => 'B',
+            'route_title' => 'Morning',
+            'location' => 'L',
+            'students_count' => 1,
+            'distance_km' => 1,
+            'start_time' => $formStart,
+            'end_time' => $formEnd,
+            'status' => 'ACTIVE',
+        ]);
+
+        TripHistoryStudent::query()->create([
+            'trip_history_id' => $trip->id,
+            'student_id' => $student->id,
+            'sort_order' => 0,
+            'status' => 'IDLE',
+        ]);
+
+        Sanctum::actingAs($driverUser);
+
+        $this->postJson('/api/trips/TRP-'.$trip->id.'/start')
             ->assertOk()
-            ->assertJsonPath('data', null);
+            ->assertJsonPath('success', true);
     }
 
     public function test_current_trip_requires_explicit_start(): void
@@ -1110,6 +1218,30 @@ class DriverTripModuleApiTest extends TestCase
             'status' => 'active',
         ]);
 
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'G',
+            'phone' => '7300000995',
+            'status' => 'active',
+        ]);
+
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'Scheduled Student',
+            'gender' => 'male',
+            'grade' => 'G1',
+            'student_phone' => '7400000995',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'father',
+            'district_area' => 'Area',
+            'nearest_landmark' => 'LM',
+            'latitude' => 33.31,
+            'longitude' => 44.36,
+            'status' => 'active',
+        ]);
+
         $today = now()->startOfDay()->addHours(10);
 
         $tMorningOut = TripHistory::query()->create([
@@ -1119,12 +1251,19 @@ class DriverTripModuleApiTest extends TestCase
             'bus_number' => 'B-1',
             'route_title' => null,
             'location' => 'L',
-            'students_count' => 0,
+            'students_count' => 1,
             'distance_km' => 0,
             'start_time' => $today->copy()->setTime(7, 0, 0),
             'end_time' => null,
             'status' => 'ACTIVE',
-            'students_preview' => [],
+            'students_preview' => [['id' => (string) $student->id, 'name' => $student->full_name]],
+        ]);
+
+        TripHistoryStudent::query()->create([
+            'trip_history_id' => $tMorningOut->id,
+            'student_id' => $student->id,
+            'sort_order' => 0,
+            'status' => 'IDLE',
         ]);
 
         $tMorningRet = TripHistory::query()->create([
@@ -1142,7 +1281,7 @@ class DriverTripModuleApiTest extends TestCase
             'students_preview' => [],
         ]);
 
-        $this->travelTo($today->copy()->setTime(7, 10, 0));
+        $this->travelTo($today->copy()->setTime(7, 5, 0));
 
         Sanctum::actingAs($driverUser);
 
@@ -1679,9 +1818,9 @@ class DriverTripModuleApiTest extends TestCase
         // Driver can see pending order.
         $this->getJson('/api/orders')
             ->assertOk()
-            ->assertJsonPath('pagination.total', 1)
-            ->assertJsonPath('data.0.id', $requestRow->id)
-            ->assertJsonPath('data.0.status', 'pending');
+            ->assertJsonCount(1, 'data.orders')
+            ->assertJsonPath('data.orders.0.id', $requestRow->id)
+            ->assertJsonPath('data.orders.0.status', 'pending');
 
         // Driver accepts request -> trip is scheduled/created as ACTIVE.
         $this->putJson('/api/orders/'.$requestRow->id, [

@@ -53,7 +53,7 @@ final class TripRequestAcceptanceService
             'students_count' => 1,
             'distance_km' => 0,
             'start_time' => now(),
-            'status' => 'ACTIVE',
+            'status' => 'PRESENT',
             'note' => $tripRequest->notes,
             'students_preview' => [[
                 'id' => (string) $student->id,

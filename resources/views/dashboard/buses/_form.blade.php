@@ -2,14 +2,36 @@
     <div class="alert" style="margin-top: 0; margin-bottom: 16px;">{{ $errors->first() }}</div>
 @endif
 
+@php
+    $selectedSchoolId = (int) old('school_id', $bus?->driver?->school_id ?? auth()->user()?->scopingSchoolId() ?? ($schools ?? collect())->first()?->id ?? 0);
+@endphp
+
 <div class="form-grid">
+    <div>
+        <label class="field-label" for="bus_form_school_id">{{ __('dashboard.school') }}</label>
+        @if(auth()->user()?->is_admin)
+            <select class="input" id="bus_form_school_id" name="school_id" required>
+                <option value="">{{ __('dashboard.select_school') }}</option>
+                @foreach(($schools ?? collect()) as $school)
+                    <option value="{{ $school->id }}" @selected($selectedSchoolId === (int) $school->id)>
+                        {{ $school->name_en }}
+                    </option>
+                @endforeach
+            </select>
+        @else
+            @php($fixedSchool = ($schools ?? collect())->firstWhere('id', $selectedSchoolId))
+            <input type="hidden" id="bus_form_school_id" name="school_id" value="{{ $selectedSchoolId }}">
+            <input class="input" value="{{ $fixedSchool?->name_en ?: '—' }}" disabled>
+        @endif
+    </div>
+
     <div>
         <label class="field-label" for="driver_id">{{ __('dashboard.driver') }}</label>
         <select class="input" id="driver_id" name="driver_id" required>
-            <option value="">{{ __('dashboard.select_driver') }}</option>
+            <option value="">{{ __('dashboard.bus_select_driver_after_school') }}</option>
             @foreach(($drivers ?? collect()) as $driver)
                 <option value="{{ $driver->id }}" @selected((string) old('driver_id', $bus?->driver_id ?? '') === (string) $driver->id)>
-                    {{ $driver->first_name }} {{ $driver->father_name }} {{ $driver->last_name }} @if($driver->school) ({{ $driver->school->name_en }}) @endif
+                    {{ $driver->first_name }} {{ $driver->father_name }} {{ $driver->last_name }}
                 </option>
             @endforeach
         </select>

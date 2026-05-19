@@ -25,8 +25,6 @@ class OrderController extends Controller
     {
         $request->validate([
             'status' => ['nullable', 'string', 'in:pending,accepted,rejected,cancelled'],
-            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
-            'page' => ['nullable', 'integer', 'min:1'],
         ]);
 
         $driver = $this->currentDriver($request);
@@ -47,23 +45,19 @@ class OrderController extends Controller
             $query->where('status', (string) $request->query('status'));
         }
 
-        $paginator = $query->paginate(min(100, max(1, (int) $request->query('per_page', 20))));
+        $orders = $query
+            ->get()
+            ->map(fn (TripRequest $tr): array => $this->orderCard($tr))
+            ->values()
+            ->all();
 
-        $items = collect($paginator->items())->map(fn (TripRequest $tr): array => $this->orderCard($tr))->values()->all();
-
-        $merge = [];
         if ($driver instanceof Driver) {
-            $merge['meta'] = $this->driverOrdersMeta($driver);
+            $data = array_merge($this->driverOrdersMeta($driver), ['orders' => $orders]);
+        } else {
+            $data = $orders;
         }
 
-        $merge['pagination'] = [
-            'current_page' => $paginator->currentPage(),
-            'per_page' => $paginator->perPage(),
-            'total' => $paginator->total(),
-            'last_page' => $paginator->lastPage(),
-        ];
-
-        return $this->parentSuccess($items, 'Retrieve Orders Successfully', 200, $merge);
+        return $this->parentSuccess($data, 'Retrieve Orders Successfully');
     }
 
     /**
