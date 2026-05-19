@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\ParentContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -47,5 +48,78 @@ class TripRequest extends Model
     public function tripHistory(): BelongsTo
     {
         return $this->belongsTo(TripHistory::class, 'trip_history_id');
+    }
+
+    /** Parent/guardian name for dashboard and reports (not the assigned driver). */
+    public function parentDisplayName(): string
+    {
+        $this->loadMissing(['user.guardian', 'student.guardian']);
+
+        $candidates = [
+            $this->user?->guardian?->full_name,
+            $this->user?->name,
+            $this->student?->guardian?->full_name,
+            $this->student?->guardian_name,
+        ];
+
+        if ($this->user instanceof User) {
+            $resolvedGuardian = ParentContext::guardian($this->user);
+            if ($resolvedGuardian !== null) {
+                $candidates[] = $resolvedGuardian->full_name;
+            }
+        }
+
+        foreach ($candidates as $name) {
+            if (is_string($name) && trim($name) !== '') {
+                return trim($name);
+            }
+        }
+
+        return '—';
+    }
+
+    public function parentDisplayPhone(): string
+    {
+        $this->loadMissing(['user.guardian', 'student.guardian']);
+
+        $candidates = [
+            $this->user?->phone,
+            $this->user?->guardian?->phone,
+            $this->student?->guardian?->phone,
+            $this->student?->guardian_primary_phone,
+        ];
+
+        if ($this->user instanceof User) {
+            $resolvedGuardian = ParentContext::guardian($this->user);
+            if ($resolvedGuardian !== null) {
+                $candidates[] = $resolvedGuardian->phone;
+            }
+        }
+
+        foreach ($candidates as $phone) {
+            if (is_string($phone) && trim($phone) !== '') {
+                return trim($phone);
+            }
+        }
+
+        return '—';
+    }
+
+    public function driverDisplayName(): string
+    {
+        if (! $this->driver instanceof Driver) {
+            return '—';
+        }
+
+        $parts = array_filter([
+            $this->driver->first_name,
+            $this->driver->father_name,
+            $this->driver->grandfather_name,
+            $this->driver->last_name,
+        ], fn (?string $part): bool => is_string($part) && trim($part) !== '');
+
+        $fromDriver = trim(implode(' ', $parts));
+
+        return $fromDriver !== '' ? $fromDriver : '—';
     }
 }

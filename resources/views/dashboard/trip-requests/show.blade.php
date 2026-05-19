@@ -6,9 +6,7 @@
     @php($title = __('dashboard.menu_trip_requests').' #'.$tripRequest->id)
     @php($canManageTripRequests = auth()->user()?->canMutateSchoolRoster() ?? false)
     @component('dashboard.partials.shell', ['title' => $title])
-        @php($u = $tripRequest->user)
         @php($s = $tripRequest->student)
-        @php($d = $tripRequest->driver)
         @php($t = $tripRequest->tripHistory)
 
         <p style="color: var(--text-muted); margin: 0 0 20px;">{{ __('dashboard.trip_request_show_intro') }}</p>
@@ -22,10 +20,10 @@
                 <hr style="margin: 12px 0; border: 0; border-top: 1px solid #e2e8f0;">
             @endif
             <p style="margin: 0 0 8px;"><strong>{{ __('dashboard.table_col_status') }}:</strong> {{ $tripRequest->status }}</p>
-            <p style="margin: 0 0 8px;"><strong>{{ __('dashboard.table_col_user') }}:</strong> {{ $u?->name ?? '—' }}</p>
-            <p style="margin: 0 0 8px;"><strong>{{ __('dashboard.table_col_phone') }}:</strong> <span class="mono">{{ $u?->phone ?? '—' }}</span></p>
+            <p style="margin: 0 0 8px;"><strong>{{ __('dashboard.table_col_parent') }}:</strong> {{ $tripRequest->parentDisplayName() }}</p>
+            <p style="margin: 0 0 8px;"><strong>{{ __('dashboard.table_col_phone') }}:</strong> <span class="mono">{{ $tripRequest->parentDisplayPhone() }}</span></p>
             <p style="margin: 0 0 8px;"><strong>{{ __('dashboard.table_col_student') }}:</strong> {{ $s?->full_name ?? '—' }}</p>
-            <p style="margin: 0 0 8px;"><strong>{{ __('dashboard.driver') }}:</strong> {{ trim(($d?->first_name ?? '').' '.($d?->last_name ?? '')) ?: '—' }}</p>
+            <p style="margin: 0 0 8px;"><strong>{{ __('dashboard.driver') }}:</strong> {{ $tripRequest->driverDisplayName() }}</p>
             <p style="margin: 0 0 8px;"><strong>{{ __('dashboard.table_col_trip') }}:</strong> {{ $tripRequest->trip_history_id ?? '—' }} @if($t) ({{ $t->bus_number ?? '' }}) @endif</p>
             <p style="margin: 0 0 8px;"><strong>{{ __('dashboard.table_col_created') }}:</strong> {{ $tripRequest->created_at?->toDateTimeString() ?? '—' }}</p>
             @if($tripRequest->cancelled_at)

@@ -14,7 +14,7 @@
                     @csrf
                     @method('PUT')
 
-                    <p style="margin:0 0 12px;color:var(--text-muted);">{{ __('dashboard.trip_request_field_user') }}: <strong>{{ $trip_request->user?->name }}</strong> ({{ $trip_request->user?->phone }})</p>
+                    <p style="margin:0 0 12px;color:var(--text-muted);">{{ __('dashboard.table_col_parent') }}: <strong>{{ $trip_request->parentDisplayName() }}</strong> (<span class="mono">{{ $trip_request->parentDisplayPhone() }}</span>)</p>
 
                     <label class="field-label">{{ __('dashboard.table_col_student') }}</label>
                     <select name="student_id" class="field-like" style="width:100%;max-width:420px;margin-bottom:12px;" required>

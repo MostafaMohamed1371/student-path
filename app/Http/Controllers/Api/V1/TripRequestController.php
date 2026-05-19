@@ -94,7 +94,8 @@ class TripRequestController extends Controller
             }
         }
 
-        $student = Student::query()->findOrFail((int) $validated['student_id']);
+        $student = Student::query()->with('guardian')->findOrFail((int) $validated['student_id']);
+        ParentContext::ensureUserLinkedToStudent($request->user(), $student);
         $targetShift = app(DriverShiftResolver::class)->fromPresentType($validated['present_type'] ?? null);
         if ($targetShift === null && ! empty($validated['trip_history_id'])) {
             $selectedTrip = TripHistory::query()->find((int) $validated['trip_history_id']);
@@ -328,6 +329,9 @@ class TripRequestController extends Controller
             ];
 
         return array_merge($tripRequest->toArray(), [
+            'parentName' => $tripRequest->parentDisplayName(),
+            'parentPhone' => $tripRequest->parentDisplayPhone(),
+            'driverName' => $tripRequest->driver ? $tripRequest->driverDisplayName() : null,
             'driverCard' => $driverCard,
             'tripPreview' => $tripPreview,
         ]);

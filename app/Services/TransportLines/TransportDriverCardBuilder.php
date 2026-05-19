@@ -320,20 +320,21 @@ final class TransportDriverCardBuilder
 
     public function driverDisplayName(Driver $driver): string
     {
-        $driver->loadMissing('user');
-        $fromUser = trim((string) ($driver->user?->name ?? ''));
-        if ($fromUser !== '') {
-            return $fromUser;
-        }
-
         $parts = array_filter([
             $driver->first_name,
             $driver->father_name,
             $driver->grandfather_name,
             $driver->last_name,
-        ], fn (?string $p): bool => is_string($p) && $p !== '');
+        ], fn (?string $p): bool => is_string($p) && trim($p) !== '');
 
-        return implode(' ', $parts);
+        $fromDriver = trim(implode(' ', $parts));
+        if ($fromDriver !== '') {
+            return $fromDriver;
+        }
+
+        $driver->loadMissing('user');
+
+        return trim((string) ($driver->user?->name ?? ''));
     }
 
     public function normalizePublicAssetUrl(?string $path): ?string

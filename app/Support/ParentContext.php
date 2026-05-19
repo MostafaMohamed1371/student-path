@@ -102,4 +102,29 @@ final class ParentContext
     {
         return in_array($studentId, self::studentIdsFor($user), true);
     }
+
+    /** Link parent user to the student's guardian and name when missing (e.g. after OTP login). */
+    public static function ensureUserLinkedToStudent(User $user, Student $student): void
+    {
+        $student->loadMissing('guardian');
+        $guardian = $student->guardian;
+        if (! $guardian instanceof Guardian) {
+            return;
+        }
+
+        $updates = [];
+        if (! $user->guardian_id) {
+            $updates['guardian_id'] = $guardian->id;
+        }
+        if ((! is_string($user->name) || trim($user->name) === '') && trim((string) $guardian->full_name) !== '') {
+            $updates['name'] = trim($guardian->full_name);
+        }
+        if ($user->school_id === null && $guardian->school_id) {
+            $updates['school_id'] = $guardian->school_id;
+        }
+
+        if ($updates !== []) {
+            $user->forceFill($updates)->save();
+        }
+    }
 }

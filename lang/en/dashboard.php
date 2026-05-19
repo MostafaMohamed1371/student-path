@@ -48,6 +48,7 @@ return [
     'delay_reason_type' => 'Reason type',
     'delay_duration_minutes' => 'Delay (minutes)',
     'table_col_user' => 'User',
+    'table_col_parent' => 'Parent',
     'table_col_phone' => 'Phone',
     'table_col_type' => 'Type',
     'table_col_amount' => 'Amount',

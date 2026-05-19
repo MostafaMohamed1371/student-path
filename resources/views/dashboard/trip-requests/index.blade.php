@@ -14,7 +14,7 @@
                     <thead>
                     <tr>
                         <th>ID</th>
-                        <th>{{ __('dashboard.table_col_user') }}</th>
+                        <th>{{ __('dashboard.table_col_parent') }}</th>
                         <th>{{ __('dashboard.table_col_phone') }}</th>
                         <th>{{ __('dashboard.table_col_student') }}</th>
                         <th>{{ __('dashboard.driver') }}</th>
@@ -27,15 +27,13 @@
                     </thead>
                     <tbody>
                     @forelse ($tripRequests as $r)
-                        @php($u = $r->user)
                         @php($s = $r->student)
-                        @php($d = $r->driver)
                         <tr>
                             <td>{{ $r->id }}</td>
-                            <td>{{ $u?->name ?? '—' }}</td>
-                            <td class="mono">{{ $u?->phone ?? '—' }}</td>
+                            <td>{{ $r->parentDisplayName() }}</td>
+                            <td class="mono">{{ $r->parentDisplayPhone() }}</td>
                             <td>{{ $s?->full_name ?? '—' }}</td>
-                            <td>{{ trim(($d?->first_name ?? '').' '.($d?->last_name ?? '')) ?: '—' }}</td>
+                            <td>{{ $r->driverDisplayName() }}</td>
                             <td>{{ $r->status }}</td>
                             <td>{{ $r->trip_history_id ?? '—' }}</td>
                             <td style="max-width: 200px;">{{ \Illuminate\Support\Str::limit($r->notes ?? '', 80) }}</td>

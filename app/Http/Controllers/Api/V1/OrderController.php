@@ -29,7 +29,7 @@ class OrderController extends Controller
 
         $driver = $this->currentDriver($request);
         $query = TripRequest::query()
-            ->with(['student.school', 'driver.bus'])
+            ->with(['user.guardian', 'student.guardian', 'student.school', 'driver.bus'])
             ->latest('trip_requests.id');
 
         if ($driver instanceof Driver) {
@@ -124,6 +124,9 @@ class OrderController extends Controller
         return [
             'id' => (int) $tr->id,
             'status' => $tr->status,
+            'parentName' => $tr->parentDisplayName(),
+            'parentPhone' => $tr->parentDisplayPhone(),
+            'driverName' => $tr->driver ? $tr->driverDisplayName() : null,
             'student' => [
                 'id' => $student ? (string) $student->id : '',
                 'name' => $student?->full_name ?? '',

@@ -25,7 +25,7 @@ class DashboardTripRequestController extends Controller
     public function index(): View
     {
         $query = TripRequest::query()
-            ->with(['user', 'student', 'driver', 'tripHistory'])
+            ->with(['user.guardian', 'student.guardian', 'student.school', 'driver', 'tripHistory'])
             ->latest('trip_requests.id');
 
         if ($this->currentDriver() instanceof Driver) {
@@ -47,7 +47,7 @@ class DashboardTripRequestController extends Controller
     public function show(TripRequest $trip_request): View
     {
         abort_unless($this->tripRequestVisible($trip_request), 404);
-        $trip_request->load(['user', 'student', 'driver', 'tripHistory']);
+        $trip_request->load(['user.guardian', 'student.guardian', 'student.school', 'driver', 'tripHistory']);
 
         return view('dashboard.trip-requests.show', ['tripRequest' => $trip_request]);
     }
@@ -56,7 +56,7 @@ class DashboardTripRequestController extends Controller
     {
         abort_if($this->currentDriver() instanceof Driver, 403);
         abort_unless($this->tripRequestVisible($trip_request), 404);
-        $trip_request->load(['user', 'student', 'driver', 'tripHistory']);
+        $trip_request->load(['user.guardian', 'student.guardian', 'student.school', 'driver', 'tripHistory']);
         $students = $this->studentsForUser($trip_request->user)->get();
         $trips = $this->tripHistoriesInScope()->get();
 

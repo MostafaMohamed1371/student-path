@@ -411,6 +411,74 @@ class WebDashboardReportsTest extends TestCase
         $this->assertSame('rejected', $visibleReq->fresh()->status);
     }
 
+    public function test_dashboard_trip_request_shows_parent_guardian_name_not_stale_user_name(): void
+    {
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'School Parent Name',
+            'province' => 'P',
+            'district' => '1',
+            'address' => 'A',
+            'status' => 'active',
+        ]);
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'Fatima Hassan Karim',
+            'phone' => '7300000299',
+            'status' => 'active',
+        ]);
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'Child Parent Name',
+            'gender' => 'female',
+            'grade' => '1',
+            'student_phone' => '7400000299',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'mother',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'status' => 'active',
+        ]);
+        $parent = User::factory()->create([
+            'guardian_id' => $guardian->id,
+            'school_id' => $school->id,
+            'name' => 'Ahmed Ali Samy',
+            'phone' => '9647300000299',
+        ]);
+        $driver = Driver::query()->create([
+            'user_id' => User::factory()->create()->id,
+            'school_id' => $school->id,
+            'first_name' => 'Driver',
+            'father_name' => 'Test',
+            'grandfather_name' => 'X',
+            'last_name' => 'One',
+            'age' => 30,
+            'id_card_number' => 'IDC-DPN',
+            'license_number' => 'LIC-DPN',
+            'primary_phone' => '7770000299',
+            'emergency_phone' => '7770001299',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+
+        TripRequest::query()->create([
+            'user_id' => $parent->id,
+            'student_id' => $student->id,
+            'driver_id' => $driver->id,
+            'status' => 'pending',
+            'notes' => 'Parent name display test',
+        ]);
+
+        $admin = User::factory()->create(['is_admin' => true]);
+        $this->actingAs($admin)
+            ->get(route('dashboard.trip_requests.index'))
+            ->assertOk()
+            ->assertSee('Fatima Hassan Karim', false)
+            ->assertDontSee('Ahmed Ali Samy', false);
+    }
+
     public function test_parent_api_trip_request_appears_on_dashboard_trip_requests_list(): void
     {
         $school = School::query()->create([

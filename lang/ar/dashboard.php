@@ -48,6 +48,7 @@ return [
     'delay_reason_type' => 'سبب التأخير',
     'delay_duration_minutes' => 'مدة التأخير (دقيقة)',
     'table_col_user' => 'المستخدم',
+    'table_col_parent' => 'ولي الأمر',
     'table_col_phone' => 'الهاتف',
     'table_col_type' => 'النوع',
     'table_col_amount' => 'المبلغ',
