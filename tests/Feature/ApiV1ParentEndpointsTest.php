@@ -1064,6 +1064,7 @@ class ApiV1ParentEndpointsTest extends TestCase
             'district_area' => 'D',
             'nearest_landmark' => 'L',
             'status' => 'active',
+            'shift_period' => 'MORNING',
         ]);
         $student->update(['latitude' => 33.325, 'longitude' => 44.376]);
 
@@ -1092,7 +1093,20 @@ class ApiV1ParentEndpointsTest extends TestCase
             'emergency_phone' => '7770999902',
             'residential_address' => 'Addr',
             'status' => 'active',
+            'shift_period' => 'MORNING',
             'monthly_subscription_price' => 65000,
+        ]);
+
+        \App\Models\TransportRoute::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'name' => 'Route 15 - Northern Complex',
+            'trip_type' => \App\Enums\TripType::MORNING_PICKUP->value,
+            'shift_period' => 'MORNING',
+            'start_address' => 'Northern depot',
+            'start_latitude' => 33.324,
+            'start_longitude' => 44.375,
+            'status' => 'active',
         ]);
 
         $inactiveDriverUser = User::factory()->create(['phone' => '9647909000997']);
@@ -1159,7 +1173,7 @@ class ApiV1ParentEndpointsTest extends TestCase
             ->assertJsonPath('data.drivers.0.schoolId', (string) $school->id)
             ->assertJsonPath('data.drivers.0.driverId', (string) $driver->id)
             ->assertJsonPath('data.drivers.0.driverName', 'Captain Test Driver')
-            ->assertJsonPath('data.drivers.0.routeDescription', 'Route 15 - Northern Complex')
+            ->assertJsonPath('data.drivers.0.routeDescription', 'Route 15 - Northern Complex — Northern depot')
             ->assertJsonPath('data.drivers.0.ratingAvg', 4.8)
             ->assertJsonPath('data.drivers.0.ratingCount', 140)
             ->assertJsonPath('data.drivers.0.vehicleType', 'Bus (Toyota)')
@@ -1240,6 +1254,7 @@ class ApiV1ParentEndpointsTest extends TestCase
             'status' => 'active',
             'latitude' => 33.32,
             'longitude' => 44.37,
+            'shift_period' => 'MORNING',
         ]);
         $parent = User::factory()->create(['guardian_id' => $guardian->id, 'school_id' => $school->id]);
 
@@ -1258,6 +1273,7 @@ class ApiV1ParentEndpointsTest extends TestCase
             'emergency_phone' => '7771001001',
             'residential_address' => 'Addr',
             'status' => 'active',
+            'shift_period' => 'MORNING',
             'monthly_subscription_price' => 70000,
         ]);
 
@@ -1276,8 +1292,23 @@ class ApiV1ParentEndpointsTest extends TestCase
             'emergency_phone' => '7771001002',
             'residential_address' => 'Addr',
             'status' => 'active',
+            'shift_period' => 'MORNING',
             'monthly_subscription_price' => 50000,
         ]);
+
+        foreach ([$driverA, $driverB] as $routeDriver) {
+            \App\Models\TransportRoute::query()->create([
+                'school_id' => $school->id,
+                'driver_id' => $routeDriver->id,
+                'name' => 'Search route '.$routeDriver->id,
+                'trip_type' => \App\Enums\TripType::MORNING_PICKUP->value,
+                'shift_period' => 'MORNING',
+                'start_address' => 'Depot',
+                'start_latitude' => 33.321,
+                'start_longitude' => 44.369,
+                'status' => 'active',
+            ]);
+        }
 
         Sanctum::actingAs($parent);
 
@@ -1490,6 +1521,7 @@ class ApiV1ParentEndpointsTest extends TestCase
             'district_area' => 'D',
             'nearest_landmark' => 'L',
             'status' => 'active',
+            'shift_period' => 'MORNING',
         ]);
         $student->update(['latitude' => 33.325, 'longitude' => 44.376]);
 
@@ -1510,7 +1542,20 @@ class ApiV1ParentEndpointsTest extends TestCase
             'residential_address' => 'Addr',
             'route_description' => 'Morning — Sector 9 stop',
             'status' => 'active',
+            'shift_period' => 'MORNING',
             'monthly_subscription_price' => 50000,
+        ]);
+
+        \App\Models\TransportRoute::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'name' => 'Morning — Sector 9 stop',
+            'trip_type' => \App\Enums\TripType::MORNING_PICKUP->value,
+            'shift_period' => 'MORNING',
+            'start_address' => 'Sector 9 stop',
+            'start_latitude' => 33.324,
+            'start_longitude' => 44.375,
+            'status' => 'active',
         ]);
 
         $busUser = User::factory()->create(['phone' => '9647909000290']);
@@ -1528,14 +1573,14 @@ class ApiV1ParentEndpointsTest extends TestCase
         ]);
 
         Sanctum::actingAs($parent);
-        $this->getJson('/api/transport-lines/drivers?school_id='.$school->id)
+        $this->getJson('/api/transport-lines/drivers?school_id='.$school->id.'&student_id='.$student->id)
             ->assertOk()
-            ->assertJsonPath('data.drivers.0.routeDescription', 'Morning — Sector 9 stop');
+            ->assertJsonPath('data.drivers.0.routeDescription', 'Morning — Sector 9 stop — Sector 9 stop');
 
         $driver->update(['route_description' => null]);
-        $this->getJson('/api/transport-lines/drivers?school_id='.$school->id)
+        $this->getJson('/api/transport-lines/drivers?school_id='.$school->id.'&student_id='.$student->id)
             ->assertOk()
-            ->assertJsonPath('data.drivers.0.routeDescription', 'Bus Label Fallback');
+            ->assertJsonPath('data.drivers.0.routeDescription', 'Morning — Sector 9 stop — Sector 9 stop');
     }
 
     public function test_v1_transport_lines_drivers_matches_student_to_transport_route_corridor(): void
@@ -1561,8 +1606,8 @@ class ApiV1ParentEndpointsTest extends TestCase
             'relationship' => 'father',
             'district_area' => 'D',
             'nearest_landmark' => 'L',
-            'latitude' => 33.3106,
-            'longitude' => 44.3606,
+            'latitude' => 33.29,
+            'longitude' => 44.10,
             'status' => 'active',
             'shift_period' => 'MORNING',
         ]);
@@ -1636,30 +1681,39 @@ class ApiV1ParentEndpointsTest extends TestCase
             'trip_type' => \App\Enums\TripType::MORNING_PICKUP->value,
             'shift_period' => 'MORNING',
             'start_address' => 'Depot A',
-            'start_latitude' => 33.311,
-            'start_longitude' => 44.361,
+            'start_latitude' => 33.291,
+            'start_longitude' => 44.105,
+            'status' => 'active',
+        ]);
+        \App\Models\TransportRoute::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $otherDriver->id,
+            'name' => 'Morning Route B',
+            'trip_type' => \App\Enums\TripType::MORNING_PICKUP->value,
+            'shift_period' => 'MORNING',
+            'start_address' => 'Far depot',
+            'start_latitude' => 33.0,
+            'start_longitude' => 44.0,
             'status' => 'active',
         ]);
         Sanctum::actingAs($parent);
 
-        $list = $this->getJson('/api/transport-lines/drivers?student_id='.$student->id)
+        $this->getJson('/api/transport-lines/drivers?student_id='.$student->id)
             ->assertOk()
-            ->json('data.drivers');
-
-        $matchingCard = collect($list)->firstWhere('driverId', (string) $matchingDriver->id);
-        $otherCard = collect($list)->firstWhere('driverId', (string) $otherDriver->id);
-        $this->assertNotNull($matchingCard);
-        $this->assertTrue($matchingCard['matchesStudentRoute'] ?? false);
-        $this->assertSame('MORNING_PICKUP', $matchingCard['route']['tripType'] ?? null);
-        $this->assertSame('Depot A', $matchingCard['route']['startAddress'] ?? null);
-        $this->assertNotNull($otherCard);
-        $this->assertNull($otherCard['route'] ?? null);
-        $this->assertNull($otherCard['matchesStudentRoute'] ?? null);
+            ->assertJsonCount(1, 'data.drivers')
+            ->assertJsonPath('data.drivers.0.driverId', (string) $matchingDriver->id)
+            ->assertJsonPath('data.drivers.0.matchesStudentRoute', true)
+            ->assertJsonPath('data.drivers.0.route.tripType', 'MORNING_PICKUP')
+            ->assertJsonPath('data.drivers.0.route.startAddress', 'Depot A');
 
         $this->getJson('/api/transport-lines/drivers?student_id='.$student->id.'&trip_type=MORNING_PICKUP&matches_route_only=1')
             ->assertOk()
             ->assertJsonCount(1, 'data.drivers')
             ->assertJsonPath('data.drivers.0.driverId', (string) $matchingDriver->id);
+
+        $this->getJson('/api/transport-lines/drivers?student_id='.$student->id.'&matches_route_only=0')
+            ->assertOk()
+            ->assertJsonCount(2, 'data.drivers');
     }
 
     private function makeSchool(string $nameEn): School

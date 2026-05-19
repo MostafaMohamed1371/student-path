@@ -83,6 +83,26 @@ final class RouteAssignmentPlanner
         return $this->corridorMatchForStudent($student, $endpoints) !== null;
     }
 
+    public function pointMatchesRouteCorridor(float $latitude, float $longitude, TransportRoute $route): bool
+    {
+        $route->loadMissing('school');
+        $endpoints = $this->routeCorridorEndpoints($route);
+        if ($endpoints === null) {
+            return false;
+        }
+
+        $corridor = RouteCorridor::pointToSegment(
+            $latitude,
+            $longitude,
+            $endpoints['start_lat'],
+            $endpoints['start_lng'],
+            $endpoints['end_lat'],
+            $endpoints['end_lng'],
+        );
+
+        return $corridor['distance_meters'] <= $endpoints['max_meters'];
+    }
+
     public function studentAssignedToRoute(Student $student, TransportRoute $route): bool
     {
         return TransportRouteStudent::query()

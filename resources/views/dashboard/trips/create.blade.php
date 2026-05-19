@@ -21,7 +21,7 @@
 
                 <label>
                     <span>{{ __('dashboard.trip_field_type') }}</span>
-                    <select id="trip_form_trip_type" name="trip_type">
+                    <select id="trip_form_trip_type" name="trip_type" required>
                         <option value="">—</option>
                         @foreach(($tripTypes ?? []) as $tt)
                             <option value="{{ $tt }}" @selected(old('trip_type') === $tt)>{{ $tt }}</option>

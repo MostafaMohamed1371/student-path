@@ -11,9 +11,12 @@ use App\Models\Guardian;
 use App\Models\School;
 use App\Models\Student;
 use App\Models\TransportRoute;
+use App\Models\User;
 use App\Services\Routes\RouteAssignmentPlanner;
 use App\Services\TransportLines\TransportDriverCardBuilder;
+use App\Services\Trips\DriverShiftResolver;
 use App\Support\ParentContext;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -25,6 +28,7 @@ class TransportLinesDriverController extends Controller
     public function __construct(
         private readonly TransportDriverCardBuilder $cardBuilder,
         private readonly RouteAssignmentPlanner $routeAssignmentPlanner,
+        private readonly DriverShiftResolver $driverShiftResolver,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -72,6 +76,14 @@ class TransportLinesDriverController extends Controller
 
         $schools = School::query()->whereIn('id', $schoolIds)->get()->keyBy('id');
 
+        $tripType = trim((string) $request->query('trip_type', ''));
+        if ($tripType !== '' && ! in_array($tripType, array_map(static fn (TripType $t): string => $t->value, TripType::cases()), true)) {
+            return $this->parentError('Invalid trip_type.', null, 422);
+        }
+
+        $isParent = ! $this->isApiAdmin($request->user());
+        $filterStudent = $student ?? $this->resolveSingleOwnedStudentForParent($request->user());
+
         $driversQuery = Driver::query()
             ->whereIn('school_id', $schoolIds)
             ->where('status', 'active')
@@ -80,27 +92,52 @@ class TransportLinesDriverController extends Controller
             ->orderBy('id');
 
         if ($request->filled('shift_period')) {
-            $driversQuery->where('shift_period', (string) $request->query('shift_period'));
+            $driversQuery->where(function (Builder $q) use ($request): void {
+                $shift = (string) $request->query('shift_period');
+                $q->where('shift_period', $shift)
+                    ->orWhere('shift_period', 'BOTH')
+                    ->orWhereNull('shift_period');
+            });
+        } elseif ($isParent && $filterStudent !== null) {
+            $this->applyDriverShiftFilterForStudent($driversQuery, $filterStudent);
         }
 
-        $tripType = trim((string) $request->query('trip_type', ''));
-        if ($tripType !== '' && ! in_array($tripType, array_map(static fn (TripType $t): string => $t->value, TripType::cases()), true)) {
-            return $this->parentError('Invalid trip_type.', null, 422);
-        }
+        $requireTransportRoute = $request->boolean('has_transport_route')
+            || $tripType !== ''
+            || $isParent;
 
-        if ($request->boolean('has_transport_route') || $tripType !== '') {
-            $driversQuery->whereHas('transportRoutes', function ($q) use ($tripType): void {
+        if ($requireTransportRoute) {
+            $driversQuery->whereHas('transportRoutes', function ($q) use ($tripType, $filterStudent): void {
                 $q->where('status', 'active')
                     ->whereNotNull('start_latitude')
                     ->whereNotNull('start_longitude');
                 if ($tripType !== '') {
                     $q->where('trip_type', $tripType);
+
+                    return;
+                }
+                if ($filterStudent !== null) {
+                    $shiftTripTypes = $this->tripTypesForStudentShift($filterStudent);
+                    if ($shiftTripTypes !== []) {
+                        $q->whereIn('trip_type', $shiftTripTypes);
+                    }
                 }
             });
         }
 
-        if ($student !== null && $request->boolean('matches_route_only')) {
-            $matchingDriverIds = $this->matchingDriverIdsForStudent($student, $schoolIds, $tripType !== '' ? $tripType : null);
+        $applyRouteCorridorFilter = $filterStudent !== null
+            && (
+                ($isParent && ! $request->has('matches_route_only'))
+                || $request->boolean('matches_route_only')
+            );
+
+        if ($applyRouteCorridorFilter) {
+            $matchingDriverIds = $this->matchingDriverIdsForStudent(
+                $filterStudent,
+                $schoolIds,
+                $tripType !== '' ? $tripType : null,
+                $request->user(),
+            );
             if ($matchingDriverIds === []) {
                 $driversQuery->whereRaw('1 = 0');
             } else {
@@ -159,9 +196,11 @@ class TransportLinesDriverController extends Controller
             $schoolIds,
         );
 
-        $cards = $drivers->map(function (Driver $driver) use ($reservedByDriver, $routeBySchoolAndBus, $transportRoutesByDriver, $schools, $request, $student, $studentsBySchoolForDistance, $queryLat, $queryLng): array {
+        $studentForCards = $student ?? $filterStudent;
+
+        $cards = $drivers->map(function (Driver $driver) use ($reservedByDriver, $routeBySchoolAndBus, $transportRoutesByDriver, $schools, $request, $studentForCards, $studentsBySchoolForDistance, $queryLat, $queryLng): array {
             $school = $schools->get($driver->school_id);
-            $studentForDistance = $student ?? ($studentsBySchoolForDistance[(int) $driver->school_id] ?? null);
+            $studentForDistance = $studentForCards ?? ($studentsBySchoolForDistance[(int) $driver->school_id] ?? null);
             $distanceKm = $this->cardBuilder->resolveDistanceKmToSchool(
                 $queryLat,
                 $queryLng,
@@ -182,7 +221,7 @@ class TransportLinesDriverController extends Controller
             );
         })->values()->all();
 
-        if ($student !== null) {
+        if ($studentForCards !== null) {
             $cards = $this->sortDriverCardsByRouteMatch($cards);
         }
 
@@ -271,12 +310,78 @@ class TransportLinesDriverController extends Controller
         ]);
     }
 
+    private function resolveSingleOwnedStudentForParent(User $user): ?Student
+    {
+        $owned = ParentContext::studentsFor($user);
+
+        return $owned->count() === 1 ? $owned->first() : null;
+    }
+
+    /**
+     * @param  Builder<Driver>  $query
+     */
+    private function applyDriverShiftFilterForStudent(Builder $query, Student $student): void
+    {
+        $studentShift = strtoupper(trim((string) ($student->shift_period ?? '')));
+        if ($studentShift === '') {
+            return;
+        }
+
+        $query->where(function (Builder $q) use ($studentShift): void {
+            $q->whereNull('shift_period')
+                ->orWhere('shift_period', 'BOTH')
+                ->orWhere('shift_period', $studentShift);
+        });
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tripTypesForStudentShift(Student $student): array
+    {
+        $shift = strtoupper(trim((string) ($student->shift_period ?? '')));
+
+        return match ($shift) {
+            DriverShiftResolver::MORNING => [
+                TripType::MORNING_PICKUP->value,
+                TripType::MORNING_RETURN->value,
+            ],
+            DriverShiftResolver::EVENING => [
+                TripType::EVENING_PICKUP->value,
+                TripType::EVENING_RETURN->value,
+            ],
+            default => [],
+        };
+    }
+
+    private function pickupMatchesRouteCorridor(Student $student, TransportRoute $route, User $user): bool
+    {
+        if ($this->routeAssignmentPlanner->studentMatchesRouteCorridor($student, $route)) {
+            return true;
+        }
+
+        $parentLatLng = $this->cardBuilder->resolveViewerLatLng(null, null, $user);
+        if ($parentLatLng === null) {
+            return false;
+        }
+
+        return $this->routeAssignmentPlanner->pointMatchesRouteCorridor(
+            $parentLatLng[0],
+            $parentLatLng[1],
+            $route,
+        );
+    }
+
     /**
      * @param  list<int>  $schoolIds
      * @return list<int>
      */
-    private function matchingDriverIdsForStudent(Student $student, array $schoolIds, ?string $tripType): array
-    {
+    private function matchingDriverIdsForStudent(
+        Student $student,
+        array $schoolIds,
+        ?string $tripType,
+        User $user,
+    ): array {
         $query = TransportRoute::query()
             ->with('school')
             ->whereIn('school_id', $schoolIds)
@@ -287,10 +392,15 @@ class TransportLinesDriverController extends Controller
 
         if ($tripType !== null && $tripType !== '') {
             $query->where('trip_type', $tripType);
+        } else {
+            $shiftTripTypes = $this->tripTypesForStudentShift($student);
+            if ($shiftTripTypes !== []) {
+                $query->whereIn('trip_type', $shiftTripTypes);
+            }
         }
 
         return $query->get()
-            ->filter(fn (TransportRoute $route): bool => $this->routeAssignmentPlanner->studentMatchesRouteCorridor($student, $route))
+            ->filter(fn (TransportRoute $route): bool => $this->pickupMatchesRouteCorridor($student, $route, $user))
             ->pluck('driver_id')
             ->map(fn ($id): int => (int) $id)
             ->unique()

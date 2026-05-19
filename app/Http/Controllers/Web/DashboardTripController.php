@@ -723,6 +723,8 @@ class DashboardTripController extends Controller
     {
         $bus = $driver->relationLoaded('bus') ? $driver->bus : $driver->bus()->first();
         $routePayload = $this->tripTransportRouteApplier->driverRouteFormPayload($transportRoute) ?? [];
+        $routeStudentIds = $routePayload['route_student_ids'] ?? [];
+        $routeStudentCount = is_array($routeStudentIds) ? count($routeStudentIds) : 0;
 
         return [
             'id' => (int) $driver->id,
@@ -730,7 +732,9 @@ class DashboardTripController extends Controller
             'bus_number' => $bus?->number !== null && trim((string) $bus->number) !== ''
                 ? trim((string) $bus->number)
                 : null,
-            'students_count' => $bus !== null ? max(0, (int) $bus->capacity) : 0,
+            'students_count' => $routeStudentCount > 0
+                ? $routeStudentCount
+                : ($bus !== null ? max(0, (int) $bus->capacity) : 0),
             'route_title' => $routePayload['route_title'] ?? null,
             'location' => $routePayload['location'] ?? null,
             'distance_km' => isset($routePayload['distance_km']) ? (float) $routePayload['distance_km'] : null,

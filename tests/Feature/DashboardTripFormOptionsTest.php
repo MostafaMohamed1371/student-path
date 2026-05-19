@@ -149,6 +149,102 @@ class DashboardTripFormOptionsTest extends TestCase
 
         $this->assertIsNumeric($distanceKm);
         $this->assertGreaterThan(0, (float) $distanceKm);
+
+        $location = $this->getJson(route('dashboard.trips.form_options', [
+            'school_id' => $school->id,
+            'trip_type' => TripType::MORNING_PICKUP->value,
+        ]))->json('drivers.0.location');
+
+        $this->assertIsString($location);
+        $this->assertStringContainsString('Start Point', $location);
+    }
+
+    public function test_form_options_students_count_from_route_roster(): void
+    {
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'School',
+            'province' => 'P',
+            'district' => 'D',
+            'address' => 'A',
+            'status' => 'active',
+        ]);
+
+        $driverUser = User::factory()->create();
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'Ali',
+            'father_name' => 'H',
+            'grandfather_name' => 'H',
+            'last_name' => 'Driver',
+            'age' => 35,
+            'id_card_number' => 'IDC-RC',
+            'license_number' => 'LIC-RC',
+            'primary_phone' => '7770000700',
+            'emergency_phone' => '7770000701',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+            'shift_period' => 'MORNING',
+        ]);
+
+        Bus::query()->create([
+            'user_id' => $driverUser->id,
+            'driver_id' => $driver->id,
+            'name' => 'Bus',
+            'type' => 'Coaster',
+            'city' => 'Baghdad',
+            'number' => 'BUS-CAP',
+            'color' => 'white',
+            'capacity' => 30,
+            'fuel_type' => 'diesel',
+            'status' => 'active',
+        ]);
+
+        $route = TransportRoute::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'name' => 'Line',
+            'trip_type' => TripType::MORNING_PICKUP->value,
+            'shift_period' => 'MORNING',
+            'start_address' => 'Depot',
+            'start_latitude' => 33.311,
+            'start_longitude' => 44.361,
+            'status' => 'active',
+        ]);
+
+        foreach ([1, 2, 3] as $i) {
+            $student = Student::query()->create([
+                'school_id' => $school->id,
+                'full_name' => 'Student '.$i,
+                'gender' => 'male',
+                'grade' => '1',
+                'student_phone' => '740000040'.$i,
+                'guardian_name' => 'G',
+                'guardian_primary_phone' => '730000040'.$i,
+                'relationship' => 'father',
+                'district_area' => 'D',
+                'nearest_landmark' => 'L',
+                'status' => 'active',
+                'shift_period' => 'MORNING',
+            ]);
+            \App\Models\TransportRouteStudent::query()->create([
+                'transport_route_id' => $route->id,
+                'student_id' => $student->id,
+                'sort_order' => $i - 1,
+            ]);
+        }
+
+        $admin = User::factory()->create(['is_admin' => true]);
+        $this->actingAs($admin);
+
+        $this->getJson(route('dashboard.trips.form_options', [
+            'school_id' => $school->id,
+            'trip_type' => TripType::MORNING_PICKUP->value,
+        ]))
+            ->assertOk()
+            ->assertJsonPath('drivers.0.students_count', 3)
+            ->assertJsonCount(3, 'drivers.0.route_student_ids');
     }
 
     public function test_form_options_hides_students_on_other_active_trips(): void

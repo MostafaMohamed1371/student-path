@@ -17,7 +17,8 @@
     const distanceKmInput = document.getElementById('trip_form_distance_km');
     const routeHint = document.getElementById('trip_form_route_hint');
     const studentsFilterHint = document.getElementById('trip_form_students_filter_hint');
-    if (!url || !schoolSelect || !tripTypeSelect || !driverSelect || !studentsSelect) {
+
+    if (!url || !schoolSelect || !tripTypeSelect || !driverSelect) {
         return;
     }
 
@@ -30,7 +31,13 @@
     let driversCache = [];
 
     function selectedStudentIds() {
-        return Array.from(studentsSelect.selectedOptions).map(function (o) { return parseInt(o.value, 10); }).filter(function (n) { return !isNaN(n); });
+        if (!studentsSelect) {
+            return [];
+        }
+
+        return Array.from(studentsSelect.selectedOptions)
+            .map(function (o) { return parseInt(o.value, 10); })
+            .filter(function (n) { return !isNaN(n); });
     }
 
     function setSelectOptions(select, items, placeholder, keepValue) {
@@ -67,28 +74,32 @@
         });
     }
 
+    function clearAutoFields() {
+        if (busNumberInput) {
+            busNumberInput.value = '';
+        }
+        if (studentsCountInput) {
+            studentsCountInput.value = '0';
+        }
+        if (routeTitleInput) {
+            routeTitleInput.value = '';
+        }
+        if (locationInput) {
+            locationInput.value = '';
+        }
+        if (distanceKmInput) {
+            distanceKmInput.value = '0';
+        }
+        if (routeHint) {
+            routeHint.style.display = 'none';
+            routeHint.textContent = '';
+        }
+    }
+
     function applyDriverBusFields() {
         const driverId = String(driverSelect.value || '');
         if (!driverId) {
-            if (busNumberInput) {
-                busNumberInput.value = '';
-            }
-            if (studentsCountInput) {
-                studentsCountInput.value = '0';
-            }
-            if (routeTitleInput) {
-                routeTitleInput.value = '';
-            }
-            if (locationInput) {
-                locationInput.value = '';
-            }
-            if (distanceKmInput) {
-                distanceKmInput.value = '0';
-            }
-            if (routeHint) {
-                routeHint.style.display = 'none';
-                routeHint.textContent = '';
-            }
+            clearAutoFields();
             return;
         }
 
@@ -97,19 +108,18 @@
             return;
         }
 
-        if (busNumberInput && row.bus_number != null && row.bus_number !== '') {
-            busNumberInput.value = row.bus_number;
-        }
-        if (studentsCountInput && row.students_count != null) {
-            studentsCountInput.value = String(row.students_count);
+        if (busNumberInput) {
+            busNumberInput.value = row.bus_number != null && row.bus_number !== ''
+                ? String(row.bus_number)
+                : '';
         }
 
         if (row.transport_route_id) {
-            if (routeTitleInput && row.route_title) {
-                routeTitleInput.value = row.route_title;
+            if (routeTitleInput) {
+                routeTitleInput.value = row.route_title != null ? String(row.route_title) : '';
             }
-            if (locationInput && row.location) {
-                locationInput.value = row.location;
+            if (locationInput) {
+                locationInput.value = row.location != null ? String(row.location) : '';
             }
             if (distanceKmInput && row.distance_km != null && !isNaN(parseFloat(row.distance_km))) {
                 distanceKmInput.value = String(Number(parseFloat(row.distance_km).toFixed(2)));
@@ -121,19 +131,46 @@
                     : '';
                 routeHint.textContent = routeFromDriverHint + distText;
             }
-            if (Array.isArray(row.route_student_ids) && row.route_student_ids.length > 0) {
+
+            var routeStudentCount = Array.isArray(row.route_student_ids) ? row.route_student_ids.length : 0;
+            if (studentsCountInput) {
+                studentsCountInput.value = String(routeStudentCount);
+            }
+            if (studentsSelect && routeStudentCount > 0) {
                 const routeIds = row.route_student_ids.map(String);
                 Array.from(studentsSelect.options).forEach(function (opt) {
                     opt.selected = routeIds.indexOf(opt.value) !== -1;
                 });
-                if (studentsCountInput) {
-                    studentsCountInput.value = String(routeIds.length);
-                }
             }
-        } else if (routeHint) {
-            routeHint.style.display = 'block';
-            routeHint.textContent = noRouteForDriverHint;
+        } else {
+            if (routeTitleInput) {
+                routeTitleInput.value = '';
+            }
+            if (locationInput) {
+                locationInput.value = '';
+            }
+            if (distanceKmInput) {
+                distanceKmInput.value = '0';
+            }
+            if (studentsCountInput && row.students_count != null) {
+                studentsCountInput.value = String(row.students_count);
+            }
+            if (routeHint) {
+                routeHint.style.display = 'block';
+                routeHint.textContent = noRouteForDriverHint;
+            }
         }
+    }
+
+    function setStudentsPlaceholder(message) {
+        if (!studentsSelect) {
+            return;
+        }
+        studentsSelect.innerHTML = '';
+        const hint = document.createElement('option');
+        hint.disabled = true;
+        hint.textContent = message;
+        studentsSelect.appendChild(hint);
     }
 
     async function refreshTripFormOptions() {
@@ -144,38 +181,26 @@
         if (!schoolId) {
             driversCache = [];
             setSelectOptions(driverSelect, [], '—', false);
-            studentsSelect.innerHTML = '';
-            const hint = document.createElement('option');
-            hint.disabled = true;
-            hint.textContent = placeholderSchool;
-            studentsSelect.appendChild(hint);
+            setStudentsPlaceholder(placeholderSchool);
             if (studentsFilterHint) {
                 studentsFilterHint.style.display = 'none';
             }
-            applyDriverBusFields();
+            clearAutoFields();
             return;
         }
 
         if (!tripType) {
             driversCache = [];
-            setSelectOptions(driverSelect, [], '—', true);
-            studentsSelect.innerHTML = '';
-            const hint = document.createElement('option');
-            hint.disabled = true;
-            hint.textContent = placeholderShift;
-            studentsSelect.appendChild(hint);
+            setSelectOptions(driverSelect, [], '—', false);
+            setStudentsPlaceholder(placeholderShift);
             if (studentsFilterHint) {
                 studentsFilterHint.style.display = 'none';
             }
-            applyDriverBusFields();
+            clearAutoFields();
             return;
         }
 
         const params = new URLSearchParams({ school_id: schoolId, trip_type: tripType });
-        const driverId = String(driverSelect.value || '');
-        if (driverId) {
-            params.set('driver_id', driverId);
-        }
         if (exceptTripId) {
             params.set('except_trip_id', String(exceptTripId));
         }
@@ -190,8 +215,14 @@
             }
             const data = await res.json();
             driversCache = data.drivers || [];
+            const keepDriver = String(driverSelect.value || '');
             setSelectOptions(driverSelect, driversCache, '—', true);
-            setMultiSelectOptions(studentsSelect, data.students || [], includeIds);
+            if (keepDriver && !driversCache.some(function (d) { return String(d.id) === keepDriver; })) {
+                driverSelect.value = '';
+            }
+            if (studentsSelect) {
+                setMultiSelectOptions(studentsSelect, data.students || [], includeIds);
+            }
             if (studentsFilterHint) {
                 if (data.route_filter_active && data.corridor_max_km != null) {
                     studentsFilterHint.style.display = 'block';
@@ -211,8 +242,12 @@
         driverSelect.value = '';
         refreshTripFormOptions();
     });
-    tripTypeSelect.addEventListener('change', refreshTripFormOptions);
-    driverSelect.addEventListener('change', refreshTripFormOptions);
+    tripTypeSelect.addEventListener('change', function () {
+        driverSelect.value = '';
+        refreshTripFormOptions();
+    });
+    driverSelect.addEventListener('change', applyDriverBusFields);
+
     refreshTripFormOptions();
 })();
 </script>
