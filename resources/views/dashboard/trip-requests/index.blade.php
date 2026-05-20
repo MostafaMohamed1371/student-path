@@ -8,43 +8,7 @@
     @component('dashboard.partials.shell', ['title' => $title])
         <p style="color: var(--text-muted); margin: 0 0 20px;">{{ __('dashboard.trip_requests_page_intro') }}</p>
 
-        @if($showSchoolFilter || $showDriverFilter)
-            <section class="card" style="margin-bottom:16px;">
-                <form method="get" action="{{ route('dashboard.trip_requests.index') }}" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
-                    @if($showSchoolFilter)
-                        <label>
-                            <span class="field-label">{{ __('dashboard.school') }}</span>
-                            <select class="input" name="school_id" style="min-width:200px;">
-                                <option value="0" @selected($filterSchoolId === 0)>{{ __('dashboard.trip_requests_filter_all_schools') }}</option>
-                                @foreach($schools as $school)
-                                    <option value="{{ $school->id }}" @selected($filterSchoolId === (int) $school->id)>{{ $school->name_en }}</option>
-                                @endforeach
-                            </select>
-                        </label>
-                    @elseif($schools->isNotEmpty())
-                        <label>
-                            <span class="field-label">{{ __('dashboard.school') }}</span>
-                            <select class="input" disabled style="min-width:200px;">
-                                <option>{{ $schools->first()->name_en }}</option>
-                            </select>
-                        </label>
-                    @endif
-                    @if($showDriverFilter)
-                        <label>
-                            <span class="field-label">{{ __('dashboard.driver') }}</span>
-                            <select class="input" name="driver_id" style="min-width:200px;">
-                                <option value="0" @selected($filterDriverId === 0)>{{ __('dashboard.trip_requests_filter_all_drivers') }}</option>
-                                @foreach($drivers as $driver)
-                                    @php($driverName = trim(($driver->first_name ?? '').' '.($driver->last_name ?? '')) ?: '#'.$driver->id)
-                                    <option value="{{ $driver->id }}" @selected($filterDriverId === (int) $driver->id)>{{ $driverName }}</option>
-                                @endforeach
-                            </select>
-                        </label>
-                    @endif
-                    <button type="submit" class="btn-primary" style="width:auto;padding:10px 16px;">{{ __('dashboard.filter') }}</button>
-                </form>
-            </section>
-        @endif
+        @include('dashboard.partials.school_driver_filter')
 
         <section class="card">
             <div style="overflow:auto;">
@@ -105,7 +69,9 @@
                 </table>
             </div>
 
-            {{ $tripRequests->links('dashboard.partials.pagination') }}
+            @if ($tripRequests->total() > 0)
+                <div style="margin-top:16px;">{{ $tripRequests->links() }}</div>
+            @endif
         </section>
     @endcomponent
 @endsection

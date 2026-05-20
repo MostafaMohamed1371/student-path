@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
+use App\Http\Controllers\Web\Concerns\ProvidesDashboardSchoolDriverFilters;
 use App\Http\Controllers\Controller;
 use App\Models\Bus;
 use App\Models\Driver;
@@ -17,16 +18,23 @@ use Illuminate\View\View;
 class DashboardBusController extends Controller
 {
     use ManagesDashboardScoping;
+    use ProvidesDashboardSchoolDriverFilters;
 
-    public function index(): View
+    public function index(Request $request): View
     {
-        $buses = Bus::query()
-            ->with('driver.school')
-            ->tap(fn (Builder $q) => $this->constrainBusesToScopingDriverSchool($q))
-            ->latest('id')
-            ->paginate(12);
+        $filters = $this->dashboardReportFilterContext($request);
 
-        return view('dashboard.buses.index', compact('buses'));
+        $query = Bus::query()
+            ->with('driver.school')
+            ->latest('id');
+        $this->applyDashboardReportFilters($query, $filters, 'bus_list');
+
+        $buses = $query->paginate($this->dashboardListPerPage())->withQueryString();
+
+        return view('dashboard.buses.index', array_merge($filters, [
+            'filterAction' => route('dashboard.buses.index'),
+            'buses' => $buses,
+        ]));
     }
 
     public function create(): View|RedirectResponse

@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\ConstrainsDashboardUserScope;
+use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
+use App\Http\Controllers\Web\Concerns\ProvidesDashboardSchoolDriverFilters;
 use App\Http\Requests\Web\StoreDashboardSupportComplaintRequest;
 use App\Http\Requests\Web\UpdateDashboardSupportComplaintRequest;
 use App\Models\SupportComplaint;
@@ -16,19 +18,24 @@ use Illuminate\View\View;
 class DashboardSupportComplaintController extends Controller
 {
     use ConstrainsDashboardUserScope;
+    use ManagesDashboardScoping;
+    use ProvidesDashboardSchoolDriverFilters;
 
     public function index(Request $request): View
     {
-        $perPage = min(100, max(5, (int) $request->query('per_page', 25)));
+        $filters = $this->dashboardReportFilterContext($request);
 
         $query = SupportComplaint::query()
             ->with('user')
-            ->latest('support_complaints.id')
-            ->whereHas('user', fn (Builder $q) => $this->constrainUsersToDashboardScope($q));
+            ->latest('support_complaints.id');
+        $this->applyDashboardReportFilters($query, $filters, 'user_relation');
 
-        $complaints = $query->paginate($perPage);
+        $complaints = $query->paginate($this->dashboardListPerPage())->withQueryString();
 
-        return view('dashboard.support-complaints.index', compact('complaints'));
+        return view('dashboard.support-complaints.index', array_merge($filters, [
+            'filterAction' => route('dashboard.support_complaints.index'),
+            'complaints' => $complaints,
+        ]));
     }
 
     public function create(): View

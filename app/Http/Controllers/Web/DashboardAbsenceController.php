@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
+use App\Http\Controllers\Web\Concerns\ProvidesDashboardSchoolDriverFilters;
 use App\Http\Requests\Web\StoreDashboardAbsenceRequest;
 use App\Http\Requests\Web\UpdateDashboardAbsenceRequest;
 use App\Models\Absence;
@@ -17,19 +18,27 @@ use Illuminate\View\View;
 class DashboardAbsenceController extends Controller
 {
     use ManagesDashboardScoping;
+    use ProvidesDashboardSchoolDriverFilters;
 
     public function index(Request $request): View
     {
-        $perPage = min(100, max(5, (int) $request->query('per_page', 25)));
+        $filters = $this->dashboardReportFilterContext($request, withShiftFilter: true, withStudentFilter: true);
 
         $query = Absence::query()
             ->with(['user', 'student'])
-            ->latest('absences.id')
-            ->whereHas('student', fn (Builder $q) => $this->constrainToScopingSchool($q));
+            ->latest('absences.id');
+        $this->applyDashboardReportFilters($query, $filters, 'student_relation');
+        if ((int) $filters['filterStudentId'] > 0) {
+            $this->applyDashboardReportFilters($query, $filters, 'direct_student');
+        }
+        $this->applyStudentRelationShiftFilter($query, $filters);
 
-        $absences = $query->paginate($perPage);
+        $absences = $query->paginate($this->dashboardListPerPage())->withQueryString();
 
-        return view('dashboard.absences.index', compact('absences'));
+        return view('dashboard.absences.index', array_merge($filters, [
+            'filterAction' => route('dashboard.absences.index'),
+            'absences' => $absences,
+        ]));
     }
 
     public function create(): View

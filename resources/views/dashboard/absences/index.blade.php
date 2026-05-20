@@ -7,6 +7,8 @@
     @component('dashboard.partials.shell', ['title' => $title])
         <p style="color: var(--text-muted); margin: 0 0 20px;">{{ __('dashboard.absences_page_intro') }}</p>
 
+        @include('dashboard.partials.school_driver_filter')
+
         <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
             <a href="{{ route('dashboard.absences.create') }}" class="btn-primary" style="width:auto;padding:10px 14px;text-decoration:none;">{{ __('dashboard.add_absence') }}</a>
         </div>
@@ -55,8 +57,8 @@
                     </tbody>
                 </table>
             </div>
-            @if ($absences->hasPages())
-                <div style="margin-top: 12px;">{{ $absences->withQueryString()->links() }}</div>
+            @if ($absences->total() > 0)
+                <div style="margin-top:16px;">{{ $absences->links() }}</div>
             @endif
         </section>
     @endcomponent

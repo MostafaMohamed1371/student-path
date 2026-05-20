@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
+use App\Http\Controllers\Web\Concerns\ProvidesDashboardSchoolDriverFilters;
 use App\Http\Requests\Web\StoreDashboardGuardianRequest;
 use App\Http\Requests\Web\UpdateDashboardGuardianRequest;
 use App\Models\Guardian;
@@ -11,22 +12,33 @@ use App\Models\User;
 use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class DashboardGuardianController extends Controller
 {
     use ManagesDashboardScoping;
+    use ProvidesDashboardSchoolDriverFilters;
 
-    public function index(): View
+    public function index(Request $request): View
     {
-        $guardians = Guardian::query()
+        $filters = $this->dashboardReportFilterContext($request);
+
+        $query = Guardian::query()
             ->with('school')
             ->withCount('students')
-            ->tap(fn (Builder $q) => $this->constrainToScopingSchool($q))
-            ->latest('id')
-            ->paginate(12);
+            ->latest('id');
+        $this->applyDashboardReportFilters($query, $filters, 'roster_school');
+        if ((int) $filters['filterDriverId'] > 0) {
+            $this->applyDashboardReportFilters($query, $filters, 'guardian_driver_route');
+        }
 
-        return view('dashboard.guardians.index', compact('guardians'));
+        $guardians = $query->paginate($this->dashboardListPerPage())->withQueryString();
+
+        return view('dashboard.guardians.index', array_merge($filters, [
+            'filterAction' => route('dashboard.guardians.index'),
+            'guardians' => $guardians,
+        ]));
     }
 
     public function create(): View|RedirectResponse

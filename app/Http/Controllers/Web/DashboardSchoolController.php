@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
+use App\Http\Controllers\Web\Concerns\ProvidesDashboardSchoolDriverFilters;
 use App\Http\Controllers\Controller;
 use App\Models\School;
 use App\Models\User;
@@ -15,16 +16,29 @@ use Illuminate\View\View;
 class DashboardSchoolController extends Controller
 {
     use ManagesDashboardScoping;
+    use ProvidesDashboardSchoolDriverFilters;
 
-    public function index(): View
+    public function index(Request $request): View
     {
-        $schools = School::query()
-            ->withCount(['buses'])
-            ->tap(fn (Builder $q) => $this->constrainToScopingSchoolRow($q))
-            ->latest('id')
-            ->paginate(10);
+        $filters = $this->dashboardReportFilterContext($request, withStudentFilter: true);
 
-        return view('dashboard.schools.index', compact('schools'));
+        $query = School::query()
+            ->withCount(['buses'])
+            ->latest('id');
+        $this->applyDashboardReportFilters($query, $filters, 'school_row');
+        if ((int) $filters['filterDriverId'] > 0) {
+            $this->applyDashboardReportFilters($query, $filters, 'school_driver');
+        }
+        if ((int) $filters['filterStudentId'] > 0) {
+            $this->applyDashboardReportFilters($query, $filters, 'school_student');
+        }
+
+        $schools = $query->paginate($this->dashboardListPerPage())->withQueryString();
+
+        return view('dashboard.schools.index', array_merge($filters, [
+            'filterAction' => route('dashboard.schools.index'),
+            'schools' => $schools,
+        ]));
     }
 
     public function create(): View

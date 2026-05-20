@@ -7,6 +7,8 @@
     @component('dashboard.partials.shell', ['title' => $title])
         <p style="color: var(--text-muted); margin: 0 0 20px;">{{ __('dashboard.delay_alerts_page_intro') }}</p>
 
+        @include('dashboard.partials.school_driver_filter')
+
         <section class="card">
             <div style="overflow:auto;">
                 <table class="table">
@@ -45,8 +47,8 @@
                     </tbody>
                 </table>
             </div>
-            @if ($alerts->hasPages())
-                <div style="margin-top: 12px;">{{ $alerts->withQueryString()->links() }}</div>
+            @if ($alerts->total() > 0)
+                <div style="margin-top:16px;">{{ $alerts->links() }}</div>
             @endif
         </section>
     @endcomponent

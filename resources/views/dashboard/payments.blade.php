@@ -7,6 +7,8 @@
     @component('dashboard.partials.shell', ['title' => $title])
         <p style="color: var(--text-muted); margin: 0 0 20px;">{{ __('dashboard.payments_page_intro') }}</p>
 
+        @include('dashboard.partials.school_driver_filter')
+
         <section class="card" style="margin-bottom: 24px;">
             <h3 style="margin: 0 0 12px;">{{ __('dashboard.payments_section_wallet') }}</h3>
             <div style="overflow:auto;">
@@ -56,8 +58,8 @@
                     </tbody>
                 </table>
             </div>
-            @if ($transactions->hasPages())
-                <div style="margin-top: 12px;">{{ $transactions->withQueryString()->links() }}</div>
+            @if ($transactions->total() > 0)
+                <div style="margin-top:16px;">{{ $transactions->links() }}</div>
             @endif
         </section>
 
@@ -107,8 +109,8 @@
                         </tbody>
                     </table>
                 </div>
-                @if ($qicardPayments->hasPages())
-                    <div style="margin-top: 12px;">{{ $qicardPayments->withQueryString()->links() }}</div>
+                @if ($qicardPayments->total() > 0)
+                    <div style="margin-top:16px;">{{ $qicardPayments->links() }}</div>
                 @endif
             </section>
         @endif

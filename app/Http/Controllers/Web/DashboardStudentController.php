@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
+use App\Http\Controllers\Web\Concerns\ProvidesDashboardSchoolDriverFilters;
 use App\Http\Requests\Web\StoreDashboardStudentRequest;
 use App\Http\Requests\Web\UpdateDashboardStudentRequest;
 use App\Models\Guardian;
@@ -23,16 +24,27 @@ use Illuminate\View\View;
 class DashboardStudentController extends Controller
 {
     use ManagesDashboardScoping;
+    use ProvidesDashboardSchoolDriverFilters;
 
-    public function index(): View
+    public function index(Request $request): View
     {
-        $students = Student::query()
-            ->with(['school', 'guardian'])
-            ->tap(fn (Builder $q) => $this->constrainToScopingSchool($q))
-            ->latest('id')
-            ->paginate(12);
+        $filters = $this->dashboardReportFilterContext($request, withShiftFilter: true);
 
-        return view('dashboard.students.index', compact('students'));
+        $query = Student::query()
+            ->with(['school', 'guardian'])
+            ->latest('id');
+        $this->applyDashboardReportFilters($query, $filters, 'roster_school');
+        if ((int) $filters['filterDriverId'] > 0) {
+            $this->applyDashboardReportFilters($query, $filters, 'student_driver_route');
+        }
+        $this->applyRosterShiftFilter($query, $filters);
+
+        $students = $query->paginate($this->dashboardListPerPage())->withQueryString();
+
+        return view('dashboard.students.index', array_merge($filters, [
+            'filterAction' => route('dashboard.students.index'),
+            'students' => $students,
+        ]));
     }
 
     public function create(): View|RedirectResponse

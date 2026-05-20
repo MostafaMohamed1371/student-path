@@ -64,9 +64,10 @@ class DashboardRouteTest extends TestCase
         $admin = User::factory()->create(['is_admin' => true]);
         $this->actingAs($admin);
 
-        $this->get(route('dashboard.routes.index', ['school_id' => $school->id]))
+        $this->get(route('dashboard.routes.index'))
             ->assertOk()
-            ->assertSee(__('dashboard.menu_routes'), false);
+            ->assertSee(__('dashboard.menu_routes'), false)
+            ->assertSee(__('dashboard.report_filter_all_schools'), false);
 
         Student::query()->create([
             'school_id' => $school->id,
@@ -103,6 +104,98 @@ class DashboardRouteTest extends TestCase
         ]);
 
         $this->assertSame(1, TransportRouteStudent::query()->count());
+
+        $this->get(route('dashboard.routes.index', ['school_id' => $school->id]))
+            ->assertOk()
+            ->assertSee('Start depot, Baghdad', false);
+    }
+
+    public function test_routes_index_lists_all_routes_when_filters_are_empty(): void
+    {
+        $schoolA = School::query()->create([
+            'name_ar' => 'A',
+            'name_en' => 'Route School A',
+            'province' => 'P',
+            'district' => 'D',
+            'address' => 'A',
+            'status' => 'active',
+        ]);
+        $schoolB = School::query()->create([
+            'name_ar' => 'B',
+            'name_en' => 'Route School B',
+            'province' => 'P',
+            'district' => 'D',
+            'address' => 'B',
+            'status' => 'active',
+        ]);
+
+        $driverA = Driver::query()->create([
+            'user_id' => User::factory()->create()->id,
+            'school_id' => $schoolA->id,
+            'first_name' => 'A',
+            'father_name' => 'D',
+            'grandfather_name' => 'R',
+            'last_name' => 'One',
+            'age' => 30,
+            'id_card_number' => 'IDC-RA',
+            'license_number' => 'LIC-RA',
+            'primary_phone' => '7770000401',
+            'emergency_phone' => '7770001401',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+        $driverB = Driver::query()->create([
+            'user_id' => User::factory()->create()->id,
+            'school_id' => $schoolB->id,
+            'first_name' => 'B',
+            'father_name' => 'D',
+            'grandfather_name' => 'R',
+            'last_name' => 'Two',
+            'age' => 31,
+            'id_card_number' => 'IDC-RB',
+            'license_number' => 'LIC-RB',
+            'primary_phone' => '7770000402',
+            'emergency_phone' => '7770001402',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+
+        TransportRoute::query()->create([
+            'school_id' => $schoolA->id,
+            'driver_id' => $driverA->id,
+            'name' => 'Route Morning A',
+            'shift_period' => 'MORNING',
+            'trip_type' => TripType::MORNING_PICKUP->value,
+            'start_address' => 'Start A',
+            'status' => 'active',
+        ]);
+        TransportRoute::query()->create([
+            'school_id' => $schoolB->id,
+            'driver_id' => $driverB->id,
+            'name' => 'Route Evening B',
+            'shift_period' => 'EVENING',
+            'trip_type' => TripType::EVENING_PICKUP->value,
+            'start_address' => 'Start B',
+            'status' => 'active',
+        ]);
+
+        $admin = User::factory()->create(['is_admin' => true]);
+        $this->actingAs($admin);
+
+        $this->get(route('dashboard.routes.index'))
+            ->assertOk()
+            ->assertSee('Route Morning A', false)
+            ->assertSee('Route Evening B', false);
+
+        $this->get(route('dashboard.routes.index', ['school_id' => $schoolA->id]))
+            ->assertOk()
+            ->assertSee('Route Morning A', false)
+            ->assertDontSee('Route Evening B', false);
+
+        $this->get(route('dashboard.routes.index', ['shift_period' => 'EVENING']))
+            ->assertOk()
+            ->assertSee('Route Evening B', false)
+            ->assertDontSee('Route Morning A', false);
     }
 
     public function test_form_options_returns_drivers_for_school_and_trip_type(): void

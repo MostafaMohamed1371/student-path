@@ -16,87 +16,83 @@
             <div class="alert" style="margin-bottom:16px;">{{ session('success') }}</div>
         @endif
 
-        <section class="card" style="margin-bottom:20px;">
-            <form method="get" action="{{ route('dashboard.routes.index') }}" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
-                <label>
-                    <span class="field-label">{{ __('dashboard.school') }}</span>
-                    <select class="input" name="school_id" required style="min-width:200px;">
-                        @foreach($schools as $school)
-                            <option value="{{ $school->id }}" @selected($schoolId === (int) $school->id)>{{ $school->name_en }}</option>
-                        @endforeach
-                    </select>
-                </label>
-                <label>
-                    <span class="field-label">{{ __('dashboard.trip_field_type') }}</span>
-                    <select class="input" name="trip_type" style="min-width:180px;">
-                        @foreach($tripTypes as $tt)
-                            <option value="{{ $tt }}" @selected($tripType === $tt)>{{ $tt }}</option>
-                        @endforeach
-                    </select>
-                </label>
-                <button type="submit" class="btn-primary" style="width:auto;padding:10px 16px;">{{ __('dashboard.filter') }}</button>
-            </form>
-        </section>
+        @include('dashboard.partials.school_driver_filter')
 
-        @if($schoolId > 0)
-            @php($highlightRouteId = (int) session('highlight_route_id'))
+        @php($highlightRouteId = (int) session('highlight_route_id'))
 
-            <section class="card">
-                <h2 style="margin:0 0 12px;font-size:18px;">
-                    {{ __('dashboard.route_created_list_title', ['count' => $routes->count()]) }}
-                </h2>
-                <div style="overflow:auto;">
-                    <table class="table">
-                        <thead>
-                        <tr>
-                            <th>{{ __('dashboard.route_name') }}</th>
-                            <th>{{ __('dashboard.trip_field_type') }}</th>
-                            <th>{{ __('dashboard.driver') }}</th>
-                            <th>{{ __('dashboard.bus_number') }}</th>
-                            <th>{{ __('dashboard.route_start_address') }}</th>
-                            <th>{{ __('dashboard.route_end_address') }}</th>
-                            <th>{{ __('dashboard.route_students_on_route') }}</th>
-                            <th>{{ __('dashboard.route_created_at') }}</th>
-                            <th></th>
+        <section class="card">
+            <h2 style="margin:0 0 12px;font-size:18px;">
+                {{ __('dashboard.route_created_list_title', ['count' => $routes->total()]) }}
+            </h2>
+            <div style="overflow:auto;">
+                <table class="table">
+                    <thead>
+                    <tr>
+                        <th>{{ __('dashboard.route_name') }}</th>
+                        <th>{{ __('dashboard.school') }}</th>
+                        <th>{{ __('dashboard.trip_field_type') }}</th>
+                        <th>{{ __('dashboard.shift_period') }}</th>
+                        <th>{{ __('dashboard.driver') }}</th>
+                        <th>{{ __('dashboard.bus_number') }}</th>
+                        <th>{{ __('dashboard.route_start_address') }}</th>
+                        <th>{{ __('dashboard.route_end_address') }}</th>
+                        <th>{{ __('dashboard.route_students_on_route') }}</th>
+                        <th>{{ __('dashboard.route_created_at') }}</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @forelse($routes as $route)
+                        @php($isHighlighted = $highlightRouteId > 0 && $highlightRouteId === (int) $route->id)
+                        <tr @if($isHighlighted) style="background:#ecfdf5;" @endif>
+                            <td>
+                                <strong>{{ $route->name }}</strong>
+                                @if($isHighlighted)
+                                    <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:#16a34a;color:#fff;">{{ __('dashboard.route_just_created') }}</span>
+                                @endif
+                            </td>
+                            <td>{{ $route->school?->name_en ?: '—' }}</td>
+                            <td>{{ $route->trip_type ?: '—' }}</td>
+                            <td>
+                                @if($route->shift_period === 'MORNING')
+                                    {{ __('dashboard.shift_period_morning') }}
+                                @elseif($route->shift_period === 'EVENING')
+                                    {{ __('dashboard.shift_period_evening') }}
+                                @elseif($route->shift_period === 'BOTH')
+                                    {{ __('dashboard.shift_period_both') }}
+                                @else
+                                    —
+                                @endif
+                            </td>
+                            <td>{{ trim(($route->driver?->first_name ?? '').' '.($route->driver?->last_name ?? '')) ?: '—' }}</td>
+                            <td>{{ $route->driver?->bus?->number ?? '—' }}</td>
+                            <td>{{ $route->start_address ?: '—' }}</td>
+                            <td>{{ $route->school?->address ?: '—' }}</td>
+                            <td>{{ $route->routeStudents->count() }}</td>
+                            <td class="mono">{{ $route->created_at?->format('Y-m-d H:i') ?? '—' }}</td>
+                            <td style="white-space:nowrap;">
+                                @if(auth()->user()?->canMutateSchoolRoster())
+                                    <a href="{{ route('dashboard.routes.edit', $route) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.edit') }}</a>
+                                    <form method="post" action="{{ route('dashboard.routes.destroy', $route) }}" style="display:inline;margin-inline-start:6px;" onsubmit="return confirm(@json(__('dashboard.confirm_delete')))">
+                                        @csrf
+                                        @method('delete')
+                                        <button type="submit" class="btn-muted">{{ __('dashboard.delete') }}</button>
+                                    </form>
+                                @endif
+                            </td>
                         </tr>
-                        </thead>
-                        <tbody>
-                        @forelse($routes as $route)
-                            @php($isHighlighted = $highlightRouteId > 0 && $highlightRouteId === (int) $route->id)
-                            <tr @if($isHighlighted) style="background:#ecfdf5;" @endif>
-                                <td>
-                                    <strong>{{ $route->name }}</strong>
-                                    @if($isHighlighted)
-                                        <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:#16a34a;color:#fff;">{{ __('dashboard.route_just_created') }}</span>
-                                    @endif
-                                </td>
-                                <td>{{ $route->trip_type }}</td>
-                                <td>{{ trim(($route->driver?->first_name ?? '').' '.($route->driver?->last_name ?? '')) ?: '—' }}</td>
-                                <td>{{ $route->driver?->bus?->number ?? '—' }}</td>
-                                <td>{{ $route->start_address ?: '—' }}</td>
-                                <td>{{ $route->school?->address ?: '—' }}</td>
-                                <td>{{ $route->routeStudents->count() }}</td>
-                                <td class="mono">{{ $route->created_at?->format('Y-m-d H:i') ?? '—' }}</td>
-                                <td style="white-space:nowrap;">
-                                    @if(auth()->user()?->canMutateSchoolRoster())
-                                        <a href="{{ route('dashboard.routes.edit', $route) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.edit') }}</a>
-                                        <form method="post" action="{{ route('dashboard.routes.destroy', $route) }}" style="display:inline;margin-inline-start:6px;" onsubmit="return confirm(@json(__('dashboard.confirm_delete')))">
-                                            @csrf
-                                            @method('delete')
-                                            <button type="submit" class="btn-muted">{{ __('dashboard.delete') }}</button>
-                                        </form>
-                                    @endif
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="9">{{ __('dashboard.route_created_list_empty') }}</td>
-                            </tr>
-                        @endforelse
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-        @endif
+                    @empty
+                        <tr>
+                            <td colspan="11">{{ __('dashboard.route_created_list_empty') }}</td>
+                        </tr>
+                    @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            @if($routes->total() > 0)
+                <div style="margin-top:16px;">{{ $routes->links() }}</div>
+            @endif
+        </section>
     @endcomponent
 @endsection

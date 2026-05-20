@@ -3,26 +3,54 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
+use App\Http\Controllers\Web\Concerns\ProvidesDashboardSchoolDriverFilters;
 use App\Http\Requests\Web\StoreDashboardUserRequest;
 use App\Http\Requests\Web\UpdateDashboardUserRequest;
 use App\Models\School;
 use App\Models\User;
 use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 class DashboardUserController extends Controller
 {
-    public function index(): View
+    use ManagesDashboardScoping;
+    use ProvidesDashboardSchoolDriverFilters;
+
+    public function index(Request $request): View
     {
         abort_unless($this->isAdmin(), 403);
-        $users = User::query()
-            ->with('school')
-            ->latest('id')
-            ->paginate(12);
+        $filters = $this->dashboardReportFilterContext(
+            $request,
+            withStudentFilter: true,
+            withUserRoleFilter: true,
+            withGuardianFilter: true,
+        );
 
-        return view('dashboard.users.index', compact('users'));
+        $query = User::query()
+            ->with(['school', 'driver', 'guardian'])
+            ->latest('id');
+        $this->applyDashboardReportFilters($query, $filters, 'user_school');
+        if ((int) $filters['filterDriverId'] > 0) {
+            $this->applyDashboardReportFilters($query, $filters, 'user_driver_direct');
+        }
+        if ((int) $filters['filterStudentId'] > 0) {
+            $this->applyDashboardReportFilters($query, $filters, 'user_student');
+        }
+        if ((int) $filters['filterGuardianId'] > 0) {
+            $this->applyDashboardReportFilters($query, $filters, 'user_guardian');
+        }
+        $this->applyDashboardUserRoleFilter($query, $filters);
+
+        $users = $query->paginate($this->dashboardListPerPage())->withQueryString();
+
+        return view('dashboard.users.index', array_merge($filters, [
+            'filterAction' => route('dashboard.users.index'),
+            'users' => $users,
+        ]));
     }
 
     public function create(): View

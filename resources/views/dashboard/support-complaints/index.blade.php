@@ -7,6 +7,8 @@
     @component('dashboard.partials.shell', ['title' => $title])
         <p style="color: var(--text-muted); margin: 0 0 20px;">{{ __('dashboard.support_complaints_page_intro') }}</p>
 
+        @include('dashboard.partials.school_driver_filter')
+
         <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
             <a href="{{ route('dashboard.support_complaints.create') }}" class="btn-primary" style="width:auto;padding:10px 14px;text-decoration:none;">{{ __('dashboard.add_support_complaint') }}</a>
         </div>
@@ -55,8 +57,8 @@
                     </tbody>
                 </table>
             </div>
-            @if ($complaints->hasPages())
-                <div style="margin-top: 12px;">{{ $complaints->withQueryString()->links() }}</div>
+            @if ($complaints->total() > 0)
+                <div style="margin-top:16px;">{{ $complaints->links() }}</div>
             @endif
         </section>
     @endcomponent

@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\ConstrainsDashboardUserScope;
 use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
+use App\Http\Controllers\Web\Concerns\ProvidesDashboardSchoolDriverFilters;
 use App\Http\Controllers\Web\Concerns\ScopesDashboardTripRequests;
-use App\Models\School;
 use App\Http\Requests\Web\UpdateDashboardTripRequestRequest;
 use App\Http\Requests\Web\UpdateDashboardTripRequestStatusRequest;
 use App\Models\Driver;
@@ -26,51 +26,30 @@ class DashboardTripRequestController extends Controller
 {
     use ConstrainsDashboardUserScope;
     use ManagesDashboardScoping;
+    use ProvidesDashboardSchoolDriverFilters;
     use ScopesDashboardTripRequests;
 
     public function index(Request $request): View
     {
         $isDriverUser = ! (bool) auth()->user()?->is_admin && $this->currentDriver() instanceof Driver;
-        $filterSchoolId = 0;
-        $filterDriverId = (int) $request->query('driver_id', 0);
-
-        if (! $isDriverUser && (bool) auth()->user()?->is_admin) {
-            $filterSchoolId = (int) $request->query('school_id', 0);
-            if ($filterSchoolId > 0) {
-                abort_unless(School::query()->whereKey($filterSchoolId)->exists(), 404);
-            }
-        } elseif (! $isDriverUser) {
-            $filterSchoolId = (int) (auth()->user()?->scopingSchoolId() ?? 0);
-        }
-
-        if ($filterDriverId > 0 && ! $this->driverIdAllowedForTripRequestFilter($filterDriverId, $filterSchoolId)) {
-            $filterDriverId = 0;
-        }
+        $filters = $this->dashboardReportFilterContext($request);
 
         $query = $this->tripRequestListQuery()->latest('trip_requests.id');
         $this->applyTripRequestDashboardScope(
             $query,
-            $filterSchoolId > 0 ? $filterSchoolId : null,
-            $filterDriverId > 0 ? $filterDriverId : null,
+            $filters['effectiveSchoolId'] > 0 ? $filters['effectiveSchoolId'] : null,
+            $filters['filterDriverId'] > 0 ? $filters['filterDriverId'] : null,
         );
 
-        $tripRequests = $query->paginate(25)->withQueryString();
+        $tripRequests = $query->paginate($this->dashboardListPerPage())->withQueryString();
 
-        $schools = $isDriverUser ? collect() : $this->schoolsForRosterForm();
-        $drivers = $isDriverUser
-            ? collect()
-            : $this->driversForTripRequestFilter($filterSchoolId > 0 ? $filterSchoolId : null);
-
-        return view('dashboard.trip-requests.index', [
+        return view('dashboard.trip-requests.index', array_merge($filters, [
+            'filterAction' => route('dashboard.trip_requests.index'),
             'tripRequests' => $tripRequests,
-            'schools' => $schools,
-            'drivers' => $drivers,
-            'filterSchoolId' => $filterSchoolId,
-            'filterDriverId' => $filterDriverId,
-            'showSchoolFilter' => ! $isDriverUser && (bool) auth()->user()?->is_admin,
-            'showDriverFilter' => ! $isDriverUser,
+            'showSchoolFilter' => ! $isDriverUser && $filters['showSchoolFilter'],
+            'showDriverFilter' => ! $isDriverUser && $filters['showDriverFilter'],
             'showSchoolColumn' => (bool) auth()->user()?->is_admin,
-        ]);
+        ]));
     }
 
     public function show(TripRequest $trip_request): View
@@ -297,35 +276,6 @@ class DashboardTripRequestController extends Controller
         }
 
         return $query->value('id');
-    }
-
-    /** @return \Illuminate\Support\Collection<int, Driver> */
-    private function driversForTripRequestFilter(?int $schoolId): \Illuminate\Support\Collection
-    {
-        $query = Driver::query()
-            ->orderBy('first_name')
-            ->orderBy('last_name');
-
-        if ($schoolId !== null && $schoolId > 0) {
-            $query->where('school_id', $schoolId);
-        } elseif (! (bool) auth()->user()?->is_admin) {
-            $this->constrainToScopingSchool($query);
-        }
-
-        return $query->get();
-    }
-
-    private function driverIdAllowedForTripRequestFilter(int $driverId, int $filterSchoolId): bool
-    {
-        $query = Driver::query()->whereKey($driverId);
-
-        if ($filterSchoolId > 0) {
-            $query->where('school_id', $filterSchoolId);
-        } elseif (! (bool) auth()->user()?->is_admin) {
-            $this->constrainToScopingSchool($query);
-        }
-
-        return $query->exists();
     }
 
     protected function currentDriver(): ?Driver

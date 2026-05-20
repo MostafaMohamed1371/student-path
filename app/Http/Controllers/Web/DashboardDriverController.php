@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
+use App\Http\Controllers\Web\Concerns\ProvidesDashboardSchoolDriverFilters;
 use App\Http\Requests\Web\StoreDashboardDriverRequest;
 use App\Http\Requests\Web\UpdateDashboardDriverRequest;
 use App\Models\Driver;
@@ -11,6 +12,7 @@ use App\Models\User;
 use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
@@ -19,16 +21,27 @@ use Illuminate\View\View;
 class DashboardDriverController extends Controller
 {
     use ManagesDashboardScoping;
+    use ProvidesDashboardSchoolDriverFilters;
 
-    public function index(): View
+    public function index(Request $request): View
     {
-        $drivers = Driver::query()
-            ->with(['user', 'school', 'bus'])
-            ->tap(fn (Builder $q) => $this->constrainToScopingSchool($q))
-            ->latest('id')
-            ->paginate(12);
+        $filters = $this->dashboardReportFilterContext($request, withShiftFilter: true);
 
-        return view('dashboard.drivers.index', compact('drivers'));
+        $query = Driver::query()
+            ->with(['user', 'school', 'bus'])
+            ->latest('id');
+        $this->applyDashboardReportFilters($query, $filters, 'roster_school');
+        if ((int) $filters['filterDriverId'] > 0) {
+            $this->applyDashboardReportFilters($query, $filters, 'driver_roster');
+        }
+        $this->applyRosterShiftFilter($query, $filters);
+
+        $drivers = $query->paginate($this->dashboardListPerPage())->withQueryString();
+
+        return view('dashboard.drivers.index', array_merge($filters, [
+            'filterAction' => route('dashboard.drivers.index'),
+            'drivers' => $drivers,
+        ]));
     }
 
     public function create(): View|RedirectResponse

@@ -15,6 +15,11 @@ trait ManagesDashboardScoping
 {
     use RedirectsWhenNoSchoolForStaff;
 
+    protected function dashboardListPerPage(): int
+    {
+        return 25;
+    }
+
     /**
      * @param  'school_id'|string  $column  Foreign key column on the root model (e.g. drivers.school_id).
      */

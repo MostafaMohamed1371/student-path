@@ -6,6 +6,7 @@ use App\Enums\StudentTripStopStatus;
 use App\Enums\TripType;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
+use App\Http\Controllers\Web\Concerns\ProvidesDashboardSchoolDriverFilters;
 use App\Models\Driver;
 use App\Models\School;
 use App\Models\Student;
@@ -29,6 +30,7 @@ use Illuminate\View\View;
 class DashboardTripController extends Controller
 {
     use ManagesDashboardScoping;
+    use ProvidesDashboardSchoolDriverFilters;
 
     public function __construct(
         private readonly StudentShiftFilter $studentShiftFilter,
@@ -37,15 +39,22 @@ class DashboardTripController extends Controller
         private readonly RouteAssignmentPlanner $routeAssignmentPlanner,
     ) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
-        $trips = TripHistory::query()
-            ->with(['school', 'driver'])
-            ->tap(fn (Builder $q) => $this->constrainToScopingSchool($q))
-            ->orderByDesc('start_time')
-            ->paginate(12);
+        $filters = $this->dashboardReportFilterContext($request, withShiftFilter: true);
 
-        return view('dashboard.trips.index', compact('trips'));
+        $query = TripHistory::query()
+            ->with(['school', 'driver'])
+            ->orderByDesc('start_time');
+        $this->applyDashboardReportFilters($query, $filters, 'trip_history');
+        $this->applyTripHistoryShiftFilter($query, $filters);
+
+        $trips = $query->paginate($this->dashboardListPerPage())->withQueryString();
+
+        return view('dashboard.trips.index', array_merge($filters, [
+            'filterAction' => route('dashboard.trips.index'),
+            'trips' => $trips,
+        ]));
     }
 
     public function show(TripHistory $trip, DriverTripModuleService $driverTripModule): View

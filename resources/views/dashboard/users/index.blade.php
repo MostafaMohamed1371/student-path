@@ -9,6 +9,8 @@
             <a href="{{ route('dashboard.users.create') }}" class="btn-primary" style="width:auto;padding:10px 14px;text-decoration:none;">{{ __('dashboard.add_user') }}</a>
         </div>
 
+        @include('dashboard.partials.school_driver_filter')
+
         <section class="card">
             <div style="overflow:auto;">
                 <table class="table">
@@ -80,7 +82,9 @@
                 </table>
             </div>
 
-            <div style="margin-top:16px;">{{ $users->links() }}</div>
+            @if ($users->total() > 0)
+                <div style="margin-top:16px;">{{ $users->links() }}</div>
+            @endif
         </section>
     @endcomponent
 @endsection

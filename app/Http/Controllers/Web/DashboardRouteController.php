@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web;
 use App\Enums\TripType;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
+use App\Http\Controllers\Web\Concerns\ProvidesDashboardSchoolDriverFilters;
 use App\Models\Driver;
 use App\Models\School;
 use App\Models\Student;
@@ -24,6 +25,7 @@ use Illuminate\View\View;
 class DashboardRouteController extends Controller
 {
     use ManagesDashboardScoping;
+    use ProvidesDashboardSchoolDriverFilters;
 
     public function __construct(
         private readonly RouteAssignmentPlanner $routeAssignmentPlanner,
@@ -33,42 +35,31 @@ class DashboardRouteController extends Controller
 
     public function index(Request $request): View
     {
-        $schools = $this->schoolsForRosterForm();
-        $tripTypes = collect(TripType::cases())->map(fn (TripType $t): string => $t->value)->all();
+        $filters = $this->dashboardReportFilterContext(
+            $request,
+            withShiftFilter: true,
+        );
 
-        $schoolId = (int) $request->query('school_id', auth()->user()?->scopingSchoolId() ?? 0);
-        if ($schoolId <= 0 && $schools->isNotEmpty()) {
-            $schoolId = (int) $schools->first()->id;
+        if ($filters['effectiveSchoolId'] > 0) {
+            $this->abortUnlessCanMutateSchoolRosterForSchool($filters['effectiveSchoolId']);
         }
 
-        $tripType = trim((string) $request->query('trip_type', TripType::MORNING_PICKUP->value));
-        if (! in_array($tripType, $tripTypes, true)) {
-            $tripType = TripType::MORNING_PICKUP->value;
+        $query = TransportRoute::query()
+            ->with(['driver.bus', 'school', 'routeStudents'])
+            ->where('status', 'active')
+            ->orderBy('name');
+        $this->applyDashboardReportFilters($query, $filters, 'roster_school');
+        if ((int) $filters['filterDriverId'] > 0) {
+            $this->applyDashboardReportFilters($query, $filters, 'route_driver');
         }
+        $this->applyRosterShiftFilter($query, $filters);
 
-        if ($schoolId > 0) {
-            $this->abortUnlessCanMutateSchoolRosterForSchool($schoolId);
-        }
+        $routes = $query->paginate($this->dashboardListPerPage())->withQueryString();
 
-        $routes = collect();
-
-        if ($schoolId > 0) {
-            $routes = TransportRoute::query()
-                ->with(['driver.bus', 'school', 'routeStudents'])
-                ->where('school_id', $schoolId)
-                ->where('trip_type', $tripType)
-                ->where('status', 'active')
-                ->orderBy('name')
-                ->get();
-        }
-
-        return view('dashboard.routes.index', [
-            'schools' => $schools,
-            'tripTypes' => $tripTypes,
-            'schoolId' => $schoolId,
-            'tripType' => $tripType,
+        return view('dashboard.routes.index', array_merge($filters, [
+            'filterAction' => route('dashboard.routes.index'),
             'routes' => $routes,
-        ]);
+        ]));
     }
 
     public function create(): View

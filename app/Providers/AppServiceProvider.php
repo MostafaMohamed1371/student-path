@@ -7,6 +7,7 @@ use App\Services\Sms\FakeSmsSender;
 use App\Services\Sms\StandingTechSmsSender;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
@@ -39,6 +40,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Paginator::defaultView('dashboard.partials.pagination');
+
         RateLimiter::for('otp-send', function (Request $request) {
             $perPhone = (int) config('otp.send_throttle_per_phone_per_minute', 120);
             $perIp = (int) config('otp.send_throttle_per_ip_per_minute', 300);

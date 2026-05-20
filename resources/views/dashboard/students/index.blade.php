@@ -11,6 +11,8 @@
         </div>
         @endif
 
+        @include('dashboard.partials.school_driver_filter')
+
         <section class="card">
             <div style="overflow:auto;">
                 <table class="table">
@@ -64,7 +66,9 @@
                 </table>
             </div>
 
-            <div style="margin-top:16px;">{{ $students->links() }}</div>
+            @if($students->total() > 0)
+                <div style="margin-top:16px;">{{ $students->links() }}</div>
+            @endif
         </section>
     @endcomponent
 @endsection

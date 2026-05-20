@@ -7,6 +7,8 @@
     @component('dashboard.partials.shell', ['title' => $title])
         <p style="color: var(--text-muted); margin: 0 0 20px;">{{ __('dashboard.notifications_page_intro') }}</p>
 
+        @include('dashboard.partials.school_driver_filter')
+
         <section class="card">
             <div style="overflow:auto;">
                 <table class="table">
@@ -47,8 +49,8 @@
                     </tbody>
                 </table>
             </div>
-            @if ($notifications->hasPages())
-                <div style="margin-top: 12px;">{{ $notifications->withQueryString()->links() }}</div>
+            @if ($notifications->total() > 0)
+                <div style="margin-top:16px;">{{ $notifications->links() }}</div>
             @endif
         </section>
     @endcomponent
