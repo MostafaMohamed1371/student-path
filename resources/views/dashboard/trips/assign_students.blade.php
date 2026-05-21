@@ -64,7 +64,8 @@
                 <label style="grid-column:1 / -1;">
                     <span>{{ __('dashboard.trip_assign_select_students') }}</span>
                     <p id="trip_assign_students_filter_hint" class="help" style="margin:4px 0 8px;display:none;"></p>
-                    <select class="input" id="trip_assign_student_ids" name="student_ids[]" multiple size="12" style="width:100%;max-width:640px;" required>
+                    <p style="margin:0 0 8px;font-size:12px;color:#64748b;">{{ __('dashboard.trip_assign_select_students_help') }}</p>
+                    <select class="input" id="trip_assign_student_ids" name="student_ids[]" multiple size="12" style="width:100%;max-width:640px;">
                         @foreach($students as $student)
                             <option value="{{ $student->id }}" @selected(in_array((int) $student->id, $selectedStudentIds, true))>
                                 {{ $student->full_name }} — {{ $student->grade }} (#{{ $student->id }})

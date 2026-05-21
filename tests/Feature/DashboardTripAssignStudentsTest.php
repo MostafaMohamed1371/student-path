@@ -146,5 +146,12 @@ class DashboardTripAssignStudentsTest extends TestCase
         ]);
         $this->assertSame(1, TripHistoryStudent::query()->where('trip_history_id', $trip->id)->count());
         $this->assertSame(1, $trip->fresh()->students_count);
+
+        $this->post(route('dashboard.trips.assign_students.store'), [
+            'trip_id' => $trip->id,
+        ])->assertRedirect();
+
+        $this->assertSame(0, TripHistoryStudent::query()->where('trip_history_id', $trip->id)->count());
+        $this->assertSame(0, $trip->fresh()->students_count);
     }
 }

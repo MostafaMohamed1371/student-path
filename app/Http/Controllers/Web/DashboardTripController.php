@@ -280,7 +280,7 @@ class DashboardTripController extends Controller
 
         $validated = $request->validate([
             'trip_id' => ['required', 'integer', 'exists:trip_histories,id'],
-            'student_ids' => ['required', 'array', 'min:1'],
+            'student_ids' => ['nullable', 'array'],
             'student_ids.*' => ['integer', 'exists:students,id'],
         ]);
 
@@ -294,15 +294,22 @@ class DashboardTripController extends Controller
             ]);
         }
 
-        $studentIds = array_values(array_unique(array_map(static fn ($v): int => (int) $v, $validated['student_ids'])));
+        $studentIds = array_values(array_unique(array_map(
+            static fn ($v): int => (int) $v,
+            $validated['student_ids'] ?? [],
+        )));
         $this->syncTripStudentsForSchool($trip, $studentIds, (int) $trip->school_id);
+
+        $message = count($studentIds) > 0
+            ? __('dashboard.trip_students_assigned', ['count' => count($studentIds)])
+            : __('dashboard.trip_students_cleared');
 
         return redirect()
             ->route('dashboard.trips.assign_students', [
                 'school_id' => $trip->school_id,
                 'trip_id' => $trip->id,
             ])
-            ->with('success', __('dashboard.trip_students_assigned', ['count' => count($studentIds)]));
+            ->with('success', $message);
     }
 
     public function formOptions(Request $request): JsonResponse

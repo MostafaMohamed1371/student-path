@@ -174,6 +174,16 @@
         });
     }
     tripSelect.addEventListener('change', refresh);
+
+    const form = document.getElementById('trip_assign_form');
+    if (form) {
+        form.addEventListener('submit', function () {
+            if (studentsSelect.disabled) {
+                studentsSelect.disabled = false;
+            }
+        });
+    }
+
     refresh();
 })();
 </script>
