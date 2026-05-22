@@ -79,6 +79,36 @@ class DriverTripController extends Controller
         return $this->parentSuccess($data, 'تم جلب بيانات الرحلة');
     }
 
+    public function tripSummary(Request $request, string $trip): JsonResponse
+    {
+        $driver = $this->currentDriver($request);
+        if (! $driver instanceof Driver) {
+            return $this->parentError('Only drivers can view trip summary.', null, 403);
+        }
+
+        $tripPk = $this->driverTripModuleService->parseTripPublicId($trip);
+        if ($tripPk === null) {
+            return $this->parentError('Invalid trip id.', null, 422);
+        }
+
+        $record = TripHistory::query()->find($tripPk);
+        if (! $record) {
+            return $this->parentError('Trip not found.', null, 404);
+        }
+
+        if ($record->driver_id === null || (int) $record->driver_id !== (int) $driver->id) {
+            return $this->parentError('forbidden', null, 403);
+        }
+
+        if ($record->driver_started_at === null) {
+            return $this->parentError('Trip has not been started yet.', null, 422);
+        }
+
+        $data = $this->driverTripModuleService->tripEndSummaryPayload($record);
+
+        return $this->parentSuccess($data, 'تم جلب ملخص الرحلة');
+    }
+
     public function startTrip(Request $request, string $trip): JsonResponse
     {
         $driver = $this->currentDriver($request);

@@ -9,6 +9,7 @@ use App\Models\HomeLocation;
 use App\Models\School;
 use App\Models\SosAlert;
 use App\Models\Student;
+use App\Models\TripFeedback;
 use App\Models\TripHistory;
 use App\Models\TripHistoryStudent;
 use App\Models\TripRequest;
@@ -2102,5 +2103,147 @@ class DriverTripModuleApiTest extends TestCase
             'trip_id' => 'TRP-'.$trip->id,
             'description' => 'ab',
         ])->assertStatus(422);
+    }
+
+    public function test_driver_trip_end_summary_counts_boarded_and_absent(): void
+    {
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'S',
+            'province' => 'P',
+            'district' => 'D',
+            'address' => 'A',
+            'status' => 'active',
+        ]);
+
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'G',
+            'phone' => '7300000994',
+            'status' => 'active',
+        ]);
+
+        $driverUser = User::factory()->create(['phone' => '9647909000995']);
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'D',
+            'father_name' => 'D',
+            'grandfather_name' => 'D',
+            'last_name' => 'S',
+            'age' => 30,
+            'id_card_number' => 'IDC-TS',
+            'license_number' => 'LIC-TS',
+            'primary_phone' => '7770000995',
+            'emergency_phone' => '7770001995',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+
+        $students = [];
+        foreach (['A', 'B', 'C'] as $suffix) {
+            $students[] = Student::query()->create([
+                'school_id' => $school->id,
+                'guardian_id' => $guardian->id,
+                'full_name' => 'Student '.$suffix,
+                'gender' => 'male',
+                'grade' => 'G1',
+                'student_phone' => '7400000'.$suffix,
+                'guardian_name' => $guardian->full_name,
+                'guardian_primary_phone' => $guardian->phone,
+                'relationship' => 'father',
+                'district_area' => 'Area',
+                'nearest_landmark' => 'LM',
+                'latitude' => 33.31,
+                'longitude' => 44.36,
+                'status' => 'active',
+            ]);
+        }
+
+        $startedAt = now()->subMinutes(30);
+        $endedAt = now();
+
+        $trip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => 'MORNING_PICKUP',
+            'bus_number' => 'B-SUM',
+            'route_title' => 'SUM',
+            'location' => 'L',
+            'students_count' => 3,
+            'distance_km' => 15,
+            'start_time' => $startedAt->copy()->subMinutes(5),
+            'driver_started_at' => $startedAt,
+            'end_time' => $endedAt,
+            'status' => 'COMPLETED',
+            'note' => 'Smooth trip with no issues.',
+        ]);
+
+        TripHistoryStudent::query()->create([
+            'trip_history_id' => $trip->id,
+            'student_id' => $students[0]->id,
+            'sort_order' => 0,
+            'status' => 'BOARDED',
+        ]);
+        TripHistoryStudent::query()->create([
+            'trip_history_id' => $trip->id,
+            'student_id' => $students[1]->id,
+            'sort_order' => 1,
+            'status' => 'BOARDED',
+        ]);
+        TripHistoryStudent::query()->create([
+            'trip_history_id' => $trip->id,
+            'student_id' => $students[2]->id,
+            'sort_order' => 2,
+            'status' => 'ABSENT',
+        ]);
+
+        Sanctum::actingAs($driverUser);
+
+        $this->getJson('/api/driver/trips/TRP-'.$trip->id.'/summary')
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.trip_id', 'TRP-'.$trip->id)
+            ->assertJsonPath('data.students_total', 3)
+            ->assertJsonPath('data.students_boarded', 2)
+            ->assertJsonPath('data.students_arrived', 2)
+            ->assertJsonPath('data.students_absent', 1)
+            ->assertJsonPath('data.duration_minutes', 30)
+            ->assertJsonPath('data.distance_km', 15)
+            ->assertJsonPath('data.distance_source', 'planned')
+            ->assertJsonPath('data.trip_notes', 'Smooth trip with no issues.')
+            ->assertJsonPath('data.students.0.boarded', true)
+            ->assertJsonPath('data.students.2.boarded', false)
+            ->assertJsonPath('data.students.2.status', 'ABSENT');
+
+        $trip->update(['note' => null]);
+
+        TripFeedback::query()->create([
+            'trip_history_id' => $trip->id,
+            'driver_id' => $driver->id,
+            'user_id' => $driverUser->id,
+            'description' => 'Feedback from trip-feedback endpoint.',
+        ]);
+
+        $this->getJson('/api/driver/trips/TRP-'.$trip->id.'/summary')
+            ->assertOk()
+            ->assertJsonPath('data.trip_notes', 'Feedback from trip-feedback endpoint.');
+
+        $notStarted = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => 'MORNING_PICKUP',
+            'bus_number' => 'B-NS',
+            'route_title' => 'NS',
+            'location' => 'L',
+            'students_count' => 0,
+            'distance_km' => 1,
+            'start_time' => now(),
+            'driver_started_at' => null,
+            'status' => 'PRESENT',
+        ]);
+
+        $this->getJson('/api/driver/trips/TRP-'.$notStarted->id.'/summary')
+            ->assertStatus(422);
     }
 }

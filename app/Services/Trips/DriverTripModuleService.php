@@ -9,6 +9,7 @@ use App\Http\Resources\StudentResource;
 use App\Models\Driver;
 use App\Models\School;
 use App\Models\Student;
+use App\Models\TripFeedback;
 use App\Models\TripHistory;
 use App\Models\TripHistoryStudent;
 use App\Models\User;
@@ -824,6 +825,84 @@ final class DriverTripModuleService
             'pending_students' => $pending,
             'boarding_students' => $boarding,
             'current_active_student_id' => $queueHeadId !== null ? $this->externalStudentId($queueHeadId) : null,
+            'students' => $studentsOut,
+        ];
+    }
+
+    /**
+     * End-of-trip summary for driver app (boarded / absent counts, duration, planned distance, notes).
+     *
+     * @return array<string, mixed>
+     */
+    public function tripEndSummaryPayload(TripHistory $trip): array
+    {
+        $this->ensurePivotRows($trip);
+        $trip->load(['tripHistoryStudents.student']);
+
+        $rows = $trip->tripHistoryStudents->sortBy(
+            fn (TripHistoryStudent $ths): array => [$ths->sort_order, $ths->id]
+        );
+
+        $boarded = 0;
+        $absent = 0;
+        $studentsOut = [];
+
+        foreach ($rows as $ths) {
+            $st = StudentTripStopStatus::tryFrom((string) $ths->status) ?? StudentTripStopStatus::IDLE;
+            if ($st === StudentTripStopStatus::BOARDED) {
+                $boarded++;
+            } else {
+                $absent++;
+            }
+
+            $studentsOut[] = [
+                'student_id' => $this->externalStudentId((int) $ths->student_id),
+                'name' => (string) ($ths->student?->full_name ?? ''),
+                'status' => $st->value,
+                'boarded' => $st === StudentTripStopStatus::BOARDED,
+            ];
+        }
+
+        $startedAt = $trip->driver_started_at instanceof Carbon
+            ? $trip->driver_started_at
+            : ($trip->driver_started_at !== null ? Carbon::parse((string) $trip->driver_started_at) : null);
+
+        $endedAt = $trip->end_time instanceof Carbon
+            ? $trip->end_time
+            : ($trip->end_time !== null ? Carbon::parse((string) $trip->end_time) : null);
+
+        $durationMinutes = null;
+        if ($startedAt !== null) {
+            $endPoint = $endedAt ?? now();
+            $durationMinutes = max(0, (int) $startedAt->diffInMinutes($endPoint));
+        }
+
+        $tripNotes = trim((string) ($trip->note ?? ''));
+        if ($tripNotes === '') {
+            $feedbackDescription = TripFeedback::query()
+                ->where('trip_history_id', $trip->id)
+                ->latest('id')
+                ->value('description');
+            if (is_string($feedbackDescription) && trim($feedbackDescription) !== '') {
+                $tripNotes = trim($feedbackDescription);
+            }
+        }
+
+        $distanceKm = $trip->distance_km !== null ? (float) $trip->distance_km : null;
+
+        return [
+            'trip_id' => $this->externalTripId($trip),
+            'status' => strtoupper((string) ($trip->status ?? '')),
+            'students_total' => $rows->count(),
+            'students_boarded' => $boarded,
+            'students_arrived' => $boarded,
+            'students_absent' => $absent,
+            'duration_minutes' => $durationMinutes,
+            'distance_km' => $distanceKm,
+            'distance_source' => $distanceKm !== null ? 'planned' : null,
+            'trip_notes' => $tripNotes !== '' ? $tripNotes : null,
+            'started_at' => $startedAt?->toIso8601String(),
+            'ended_at' => $endedAt?->toIso8601String(),
             'students' => $studentsOut,
         ];
     }

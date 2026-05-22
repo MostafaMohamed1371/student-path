@@ -156,6 +156,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('scheduled-trips', [V1DriverTripController::class, 'scheduledTrips']);
     Route::get('driver-overview', [V1DriverTripController::class, 'driverOverview']);
     Route::get('driver/trips/{trip}', [V1DriverTripController::class, 'tripDetails']);
+    Route::get('driver/trips/{trip}/summary', [V1DriverTripController::class, 'tripSummary']);
     Route::post('driver/trips/{trip}/finalize', [V1DriverTripController::class, 'finalizeTrip']);
     Route::get('trips/current-trip', [V1DriverTripController::class, 'currentTrip']);
     Route::post('trips/{trip}/start', [V1DriverTripController::class, 'startTrip']);
