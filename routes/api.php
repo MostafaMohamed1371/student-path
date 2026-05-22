@@ -162,6 +162,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::put('trips/end-trip', [V1DriverTripController::class, 'endTrip']);
     Route::put('update-status', [V1DriverTripController::class, 'updateStatus']);
     Route::post('delay-alert', [V1DriverTripController::class, 'sendDelayAlert']);
+    Route::post('trip-feedback', [V1DriverTripController::class, 'submitTripFeedback']);
     Route::post('driver/sos/trigger', [V1DriverTripController::class, 'triggerSos']);
     Route::post('driver/sos/{sos}/stop', [V1DriverTripController::class, 'stopSos']);
 

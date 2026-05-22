@@ -2008,4 +2008,99 @@ class DriverTripModuleApiTest extends TestCase
         $this->assertStringContainsString('House A, Baghdad', (string) $data['location']);
         $this->assertStringContainsString('المدرسة', (string) $data['location']);
     }
+
+    public function test_driver_can_submit_trip_feedback(): void
+    {
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'S',
+            'province' => 'P',
+            'district' => 'D',
+            'address' => 'A',
+            'status' => 'active',
+        ]);
+
+        $driverUser = User::factory()->create(['phone' => '9647909000992']);
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'D',
+            'father_name' => 'D',
+            'grandfather_name' => 'D',
+            'last_name' => 'F',
+            'age' => 30,
+            'id_card_number' => 'IDC-TF',
+            'license_number' => 'LIC-TF',
+            'primary_phone' => '7770000992',
+            'emergency_phone' => '7770001992',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+
+        $otherDriverUser = User::factory()->create(['phone' => '9647909000993']);
+        $otherDriver = Driver::query()->create([
+            'user_id' => $otherDriverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'O',
+            'father_name' => 'O',
+            'grandfather_name' => 'O',
+            'last_name' => 'F',
+            'age' => 31,
+            'id_card_number' => 'IDC-TF2',
+            'license_number' => 'LIC-TF2',
+            'primary_phone' => '7770000993',
+            'emergency_phone' => '7770001993',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+
+        $trip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => 'MORNING_PICKUP',
+            'bus_number' => 'B-FB',
+            'route_title' => 'FB',
+            'location' => 'L',
+            'students_count' => 0,
+            'distance_km' => 1,
+            'start_time' => now()->subHour(),
+            'end_time' => now(),
+            'status' => 'COMPLETED',
+        ]);
+
+        Sanctum::actingAs($driverUser);
+
+        $this->postJson('/api/trip-feedback', [
+            'trip_id' => 'TRP-'.$trip->id,
+            'description' => 'الرحلة كانت جيدة لكن الازدحام أخر التسليم.',
+        ])
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.trip_id', 'TRP-'.$trip->id)
+            ->assertJsonPath('data.description', 'الرحلة كانت جيدة لكن الازدحام أخر التسليم.');
+
+        $this->assertDatabaseHas('trip_feedbacks', [
+            'trip_history_id' => $trip->id,
+            'driver_id' => $driver->id,
+            'user_id' => $driverUser->id,
+            'description' => 'الرحلة كانت جيدة لكن الازدحام أخر التسليم.',
+        ]);
+
+        Sanctum::actingAs($otherDriverUser);
+
+        $this->postJson('/api/trip-feedback', [
+            'trip_id' => 'TRP-'.$trip->id,
+            'description' => 'Should not work',
+        ])->assertStatus(403);
+
+        $this->postJson('/api/trip-feedback', [
+            'trip_id' => 'TRP-99999',
+            'description' => 'Missing trip',
+        ])->assertStatus(404);
+
+        $this->postJson('/api/trip-feedback', [
+            'trip_id' => 'TRP-'.$trip->id,
+            'description' => 'ab',
+        ])->assertStatus(422);
+    }
 }

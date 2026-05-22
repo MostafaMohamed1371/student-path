@@ -11,6 +11,7 @@ use App\Models\DelayAlert;
 use App\Models\Driver;
 use App\Models\InAppNotification;
 use App\Models\SosAlert;
+use App\Models\TripFeedback;
 use App\Models\TripHistory;
 use App\Models\User;
 use App\Services\Trips\DriverShiftResolver;
@@ -322,6 +323,48 @@ class DriverTripController extends Controller
         }
 
         return $this->parentSuccess(null, 'تم إرسال بلاغ التأخير وتنبيه أولياء الأمور بنجاح');
+    }
+
+    public function submitTripFeedback(Request $request): JsonResponse
+    {
+        $driver = $this->currentDriver($request);
+        if (! $driver instanceof Driver) {
+            return $this->parentError('Only drivers can submit trip feedback.', null, 403);
+        }
+
+        $validated = $request->validate([
+            'trip_id' => ['required', 'string', 'max:64'],
+            'description' => ['required', 'string', 'min:3', 'max:4000'],
+        ]);
+
+        $tripPk = $this->driverTripModuleService->parseTripPublicId((string) $validated['trip_id']);
+        if ($tripPk === null) {
+            return $this->parentError('Invalid trip id.', null, 422);
+        }
+
+        $trip = TripHistory::query()->find($tripPk);
+        if (! $trip) {
+            return $this->parentError('Trip not found.', null, 404);
+        }
+        if ((int) ($trip->driver_id ?? 0) !== (int) $driver->id) {
+            return $this->parentError('forbidden', null, 403);
+        }
+
+        $description = trim((string) $validated['description']);
+
+        $feedback = TripFeedback::query()->create([
+            'trip_history_id' => $trip->id,
+            'driver_id' => $driver->id,
+            'user_id' => $request->user()->id,
+            'description' => $description,
+        ]);
+
+        return $this->parentSuccess([
+            'feedback_id' => (int) $feedback->id,
+            'trip_id' => $this->driverTripModuleService->externalTripId($trip),
+            'description' => $description,
+            'created_at' => $feedback->created_at?->toIso8601String(),
+        ], 'تم إرسال ملاحظاتك عن الرحلة بنجاح');
     }
 
     public function triggerSos(Request $request): JsonResponse

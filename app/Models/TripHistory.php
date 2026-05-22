@@ -65,5 +65,10 @@ class TripHistory extends Model
     {
         return $this->hasMany(SosAlert::class, 'trip_history_id')->latest('id');
     }
+
+    public function tripFeedbacks(): HasMany
+    {
+        return $this->hasMany(TripFeedback::class, 'trip_history_id')->latest('id');
+    }
 }
 
