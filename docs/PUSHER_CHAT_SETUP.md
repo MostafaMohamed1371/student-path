@@ -48,6 +48,10 @@ Base path: **`/api/user/chats`** — matches the MyAppBackend collection.
 | POST | `/api/user/chats/{chat_id}/unread` | Yes (`data.updated_count`) |
 | POST | `/api/user/chats/{chat_id}/block-user` | Yes |
 | POST | `/api/user/chats/{chat_id}/unblock-user` | Yes |
+| DELETE | `/api/user/chats/{chat_id}` | Yes (soft-delete) |
+| POST | `/api/user/chats/{chat_id}/report` | Yes (`reason`, optional `details`) |
+
+In-app notifications: created on send → `GET /api/in-app-notifications` (`data.type` = `CHAT_MESSAGE`). See `docs/CHAT.md`.
 
 Response shape: `{ message, data, pagination? }` with `MessageResource` / `ConversationResource` (includes `message_type`, `offer`, `attachment`, `is_pinned`, `is_muted`, `is_blocked`, etc.).
 

@@ -214,6 +214,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('conversations/{conversation}/unpin', [V1ChatController::class, 'unpinChat']);
         Route::post('conversations/{conversation}/block-user', [V1ChatController::class, 'blockUser']);
         Route::post('conversations/{conversation}/unblock-user', [V1ChatController::class, 'unblockUser']);
+        Route::delete('conversations/{conversation}', [V1ChatController::class, 'destroyConversation']);
+        Route::post('conversations/{conversation}/report', [V1ChatController::class, 'reportConversation']);
     });
 
     Route::prefix('user')->group(function (): void {
@@ -242,5 +244,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
             ->whereNumber(['chatId', 'messageId']);
         Route::get('chats/{chatId}/offers/{messageId}/thread', [UserChatController::class, 'offerThread'])
             ->whereNumber(['chatId', 'messageId']);
+        Route::delete('chats/{id}', [UserChatController::class, 'destroy'])->whereNumber('id');
+        Route::post('chats/{id}/report', [UserChatController::class, 'report'])->whereNumber('id');
     });
 });

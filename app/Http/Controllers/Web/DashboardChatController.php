@@ -24,6 +24,7 @@ class DashboardChatController extends Controller
         $staff = $request->user();
 
         $conversations = ChatConversation::query()
+            ->whereNull('deleted_at')
             ->with('user:id,name,phone')
             ->orderByDesc('last_message_at')
             ->orderByDesc('id')

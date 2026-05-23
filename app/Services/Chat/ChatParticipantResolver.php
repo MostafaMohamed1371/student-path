@@ -46,6 +46,8 @@ class ChatParticipantResolver
             $query->where('user_id', $user->id);
         }
 
+        $query->whereNull('chat_conversations.deleted_at');
+
         return $query->whereNotExists(function ($sub) use ($user) {
             $sub->selectRaw('1')
                 ->from('user_blocks')

@@ -35,4 +35,19 @@ return [
 
     'offer_updated_event_name' => 'offer.updated',
 
+    'in_app_notifications_enabled' => env('CHAT_IN_APP_NOTIFICATIONS_ENABLED', true),
+
+    'notification_title' => env('CHAT_NOTIFICATION_TITLE', 'New chat message'),
+
+    'notification_offer_preview' => 'Sent an offer',
+
+    'notification_image_preview' => 'Sent an image',
+
+    'notification_file_preview' => 'Sent a file',
+
+    /*
+    | When an app user messages support and no participant_id is set, notify all admins.
+    */
+    'notify_all_admins_on_user_message' => env('CHAT_NOTIFY_ALL_ADMINS', true),
+
 ];

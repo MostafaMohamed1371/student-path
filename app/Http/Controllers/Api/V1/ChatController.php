@@ -97,6 +97,7 @@ class ChatController extends Controller
         $conversation = ChatConversation::query()
             ->where('user_id', $user->id)
             ->where('status', 'open')
+            ->whereNull('deleted_at')
             ->first();
 
         $created = false;
@@ -287,6 +288,50 @@ class ChatController extends Controller
         }
 
         return $this->parentSuccess(['is_blocked' => false], 'User unblocked successfully');
+    }
+
+    public function destroyConversation(Request $request, ChatConversation $conversation): JsonResponse
+    {
+        if (! $conversation->canBeAccessedBy($request->user())) {
+            return $this->parentError('forbidden', null, 403);
+        }
+
+        try {
+            $conversation = $this->lifecycle->deleteConversation($conversation, $request->user());
+        } catch (ValidationException $e) {
+            return $this->parentError(collect($e->errors())->flatten()->first() ?: 'Error', $e->errors(), 422);
+        }
+
+        return $this->parentSuccess([
+            'id' => $conversation->id,
+            'deleted_at' => $conversation->deleted_at?->toIso8601String(),
+        ], 'Conversation deleted successfully');
+    }
+
+    public function reportConversation(Request $request, ChatConversation $conversation): JsonResponse
+    {
+        if (! $conversation->canBeAccessedBy($request->user())) {
+            return $this->parentError('forbidden', null, 403);
+        }
+
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:500'],
+            'details' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        try {
+            $this->lifecycle->assertNotBlocked($conversation, $request->user());
+            $data = $this->lifecycle->reportConversation(
+                $conversation,
+                $request->user(),
+                $validated['reason'],
+                $validated['details'] ?? null,
+            );
+        } catch (ValidationException $e) {
+            return $this->parentError(collect($e->errors())->flatten()->first() ?: 'Error', $e->errors(), 422);
+        }
+
+        return $this->parentSuccess($data, 'Chat reported successfully', 201);
     }
 
     private function setPinnedState(Request $request, ChatConversation $conversation, bool $pinned): JsonResponse

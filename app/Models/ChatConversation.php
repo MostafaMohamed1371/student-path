@@ -8,6 +8,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 
+/**
+ * @property Carbon|null $deleted_at
+ */
+
 class ChatConversation extends Model
 {
     protected $fillable = [
@@ -19,6 +23,8 @@ class ChatConversation extends Model
         'last_message_at',
         'user_last_read_at',
         'staff_last_read_at',
+        'deleted_at',
+        'deleted_by_user_id',
     ];
 
     protected function casts(): array
@@ -27,7 +33,23 @@ class ChatConversation extends Model
             'last_message_at' => 'datetime',
             'user_last_read_at' => 'datetime',
             'staff_last_read_at' => 'datetime',
+            'deleted_at' => 'datetime',
         ];
+    }
+
+    public function deletedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'deleted_by_user_id');
+    }
+
+    public function reports(): HasMany
+    {
+        return $this->hasMany(ChatReport::class);
+    }
+
+    public function isDeleted(): bool
+    {
+        return $this->deleted_at !== null;
     }
 
     public function user(): BelongsTo
@@ -99,6 +121,10 @@ class ChatConversation extends Model
 
     public function canBeAccessedBy(User $user): bool
     {
+        if ($this->isDeleted()) {
+            return false;
+        }
+
         if ($user->is_admin) {
             return true;
         }

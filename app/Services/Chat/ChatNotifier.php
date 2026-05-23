@@ -1,0 +1,103 @@
+<?php
+
+namespace App\Services\Chat;
+
+use App\Models\ChatConversation;
+use App\Models\ChatConversationUserSetting;
+use App\Models\ChatMessage;
+use App\Models\InAppNotification;
+use App\Models\User;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
+
+class ChatNotifier
+{
+    public function notifyNewMessage(ChatMessage $message): void
+    {
+        if (! config('chat.in_app_notifications_enabled', true)) {
+            return;
+        }
+
+        $message->loadMissing('sender:id,name,is_admin', 'conversation');
+
+        $conversation = $message->conversation;
+        $sender = $message->sender;
+
+        if (! $conversation || ! $sender || $conversation->deleted_at !== null) {
+            return;
+        }
+
+        foreach ($this->recipientsFor($conversation, $sender) as $recipient) {
+            if ($this->isMuted($conversation, $recipient)) {
+                continue;
+            }
+
+            InAppNotification::query()->create([
+                'user_id' => $recipient->id,
+                'title' => (string) config('chat.notification_title', 'New chat message'),
+                'body' => $this->previewBody($message, $sender),
+                'data' => [
+                    'type' => 'CHAT_MESSAGE',
+                    'conversation_id' => $conversation->id,
+                    'chat_id' => $conversation->id,
+                    'message_id' => $message->id,
+                    'sender_id' => $sender->id,
+                    'sender_name' => $sender->name,
+                ],
+            ]);
+        }
+    }
+
+    /**
+     * @return Collection<int, User>
+     */
+    private function recipientsFor(ChatConversation $conversation, User $sender): Collection
+    {
+        if ($sender->is_admin) {
+            $owner = $conversation->relationLoaded('user')
+                ? $conversation->user
+                : $conversation->user()->first();
+
+            return $owner ? collect([$owner]) : collect();
+        }
+
+        if ($conversation->participant_id) {
+            $participant = User::query()
+                ->whereKey($conversation->participant_id)
+                ->where('is_admin', true)
+                ->first();
+
+            return $participant ? collect([$participant]) : collect();
+        }
+
+        if (! config('chat.notify_all_admins_on_user_message', true)) {
+            return collect();
+        }
+
+        return User::query()
+            ->where('is_admin', true)
+            ->where('id', '!=', $sender->id)
+            ->get(['id', 'name', 'is_admin']);
+    }
+
+    private function isMuted(ChatConversation $conversation, User $recipient): bool
+    {
+        return ChatConversationUserSetting::query()
+            ->where('chat_conversation_id', $conversation->id)
+            ->where('user_id', $recipient->id)
+            ->where('is_muted', true)
+            ->exists();
+    }
+
+    private function previewBody(ChatMessage $message, User $sender): string
+    {
+        $name = trim((string) ($sender->name ?? 'User'));
+
+        return match ($message->message_type) {
+            'offer' => "{$name}: ".(string) config('chat.notification_offer_preview', 'Sent an offer'),
+            'image' => "{$name}: ".(string) config('chat.notification_image_preview', 'Sent an image'),
+            'file' => "{$name}: ".(string) config('chat.notification_file_preview', 'Sent a file'),
+            default => "{$name}: ".Str::limit(trim((string) ($message->body ?? '')), 120),
+        };
+    }
+}

@@ -6,6 +6,7 @@ use App\Events\ChatMessageSent;
 use App\Events\ChatTypingStatusUpdated;
 use App\Models\ChatConversation;
 use App\Models\ChatMessage;
+use App\Models\InAppNotification;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -208,6 +209,99 @@ class UserChatApiTest extends TestCase
         $this->postJson("/api/user/chats/{$conversation->id}/unpin")
             ->assertOk()
             ->assertJsonPath('data.is_pinned', false);
+    }
+
+    public function test_delete_conversation_report_and_in_app_notification(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true, 'name' => 'Support']);
+        $user = User::factory()->create(['is_admin' => false, 'name' => 'Parent']);
+
+        $conversation = ChatConversation::query()->create([
+            'user_id' => $user->id,
+            'participant_id' => $admin->id,
+            'status' => 'open',
+        ]);
+
+        Sanctum::actingAs($admin);
+
+        $this->postJson("/api/user/chats/{$conversation->id}/messages", [
+            'message_type' => 'text',
+            'body' => 'How can we help?',
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('in_app_notifications', [
+            'user_id' => $user->id,
+            'title' => 'New chat message',
+        ]);
+
+        $notification = InAppNotification::query()
+            ->where('user_id', $user->id)
+            ->latest('id')
+            ->first();
+
+        $this->assertSame('CHAT_MESSAGE', $notification?->data['type'] ?? null);
+        $this->assertSame($conversation->id, $notification?->data['conversation_id'] ?? null);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/user/chats/{$conversation->id}/report", [
+            'reason' => 'Inappropriate content',
+            'details' => 'Details here',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.reason', 'Inappropriate content')
+            ->assertJsonPath('data.status', 'pending');
+
+        $this->assertDatabaseHas('chat_reports', [
+            'chat_conversation_id' => $conversation->id,
+            'reporter_id' => $user->id,
+            'reason' => 'Inappropriate content',
+        ]);
+
+        $this->deleteJson("/api/user/chats/{$conversation->id}")
+            ->assertOk()
+            ->assertJsonStructure(['data' => ['id', 'deleted_at']]);
+
+        $conversation->refresh();
+        $this->assertNotNull($conversation->deleted_at);
+        $this->assertSame('closed', $conversation->status);
+
+        $this->getJson('/api/user/chats')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+
+        $this->postJson('/api/user/chats/start', ['participant_id' => $admin->id])
+            ->assertCreated()
+            ->assertJsonPath('existing', false);
+    }
+
+    public function test_muted_user_does_not_receive_chat_notification(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $user = User::factory()->create(['is_admin' => false]);
+
+        $conversation = ChatConversation::query()->create([
+            'user_id' => $user->id,
+            'participant_id' => $admin->id,
+            'status' => 'open',
+        ]);
+
+        \App\Models\ChatConversationUserSetting::query()->create([
+            'user_id' => $user->id,
+            'chat_conversation_id' => $conversation->id,
+            'is_muted' => true,
+        ]);
+
+        Sanctum::actingAs($admin);
+
+        $this->postJson("/api/user/chats/{$conversation->id}/messages", [
+            'message_type' => 'text',
+            'body' => 'Hello',
+        ])->assertCreated();
+
+        $this->assertDatabaseMissing('in_app_notifications', [
+            'user_id' => $user->id,
+        ]);
     }
 
     public function test_postman_file_message_upload(): void

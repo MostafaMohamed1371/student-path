@@ -13,6 +13,10 @@ use Illuminate\Validation\ValidationException;
 
 class ChatMessenger
 {
+    public function __construct(
+        private readonly ChatNotifier $notifier,
+    ) {}
+
     /**
      * @param  array<string, mixed>  $meta
      */
@@ -24,6 +28,12 @@ class ChatMessenger
         array $meta = [],
         ?UploadedFile $attachment = null,
     ): ChatMessage {
+        if ($conversation->deleted_at !== null) {
+            throw ValidationException::withMessages([
+                'conversation' => ['This conversation was deleted.'],
+            ]);
+        }
+
         if ($conversation->status !== 'open') {
             throw ValidationException::withMessages([
                 'body' => ['This conversation is closed.'],
@@ -85,6 +95,8 @@ class ChatMessenger
         $message->load('sender:id,name,is_admin,image');
 
         ChatMessageSent::dispatch($message);
+
+        $this->notifier->notifyNewMessage($message);
 
         return $message;
     }

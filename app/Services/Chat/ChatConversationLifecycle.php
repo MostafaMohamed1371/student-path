@@ -4,6 +4,7 @@ namespace App\Services\Chat;
 
 use App\Models\ChatConversation;
 use App\Models\ChatConversationUserSetting;
+use App\Models\ChatReport;
 use App\Models\User;
 use App\Models\UserBlock;
 use Illuminate\Http\Request;
@@ -155,5 +156,57 @@ class ChatConversationLifecycle
                 'conversation' => ['You cannot interact with this chat while the user is blocked.'],
             ]);
         }
+    }
+
+    public function deleteConversation(ChatConversation $conversation, User $actor): ChatConversation
+    {
+        if ($conversation->isDeleted()) {
+            throw ValidationException::withMessages([
+                'conversation' => ['This conversation is already deleted.'],
+            ]);
+        }
+
+        if (! $actor->is_admin && (int) $conversation->user_id !== (int) $actor->id) {
+            throw ValidationException::withMessages([
+                'conversation' => ['You cannot delete this conversation.'],
+            ]);
+        }
+
+        $conversation->forceFill([
+            'deleted_at' => now(),
+            'deleted_by_user_id' => $actor->id,
+            'status' => 'closed',
+        ])->save();
+
+        return $conversation->fresh();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function reportConversation(ChatConversation $conversation, User $reporter, string $reason, ?string $details): array
+    {
+        if ($conversation->isDeleted()) {
+            throw ValidationException::withMessages([
+                'conversation' => ['Cannot report a deleted conversation.'],
+            ]);
+        }
+
+        $report = ChatReport::query()->create([
+            'chat_conversation_id' => $conversation->id,
+            'reporter_id' => $reporter->id,
+            'reason' => $reason,
+            'details' => $details,
+            'status' => 'pending',
+        ]);
+
+        return [
+            'id' => $report->id,
+            'conversation_id' => $conversation->id,
+            'reason' => $report->reason,
+            'details' => $report->details,
+            'status' => $report->status,
+            'created_at' => $report->created_at?->toIso8601String(),
+        ];
     }
 }

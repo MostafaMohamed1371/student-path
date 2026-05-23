@@ -267,6 +267,32 @@ Used by mobile apps and documented in Postman. Response shape:
 | Method | Path | Body |
 |--------|------|------|
 | `POST` | `/api/user/chats/{id}/typing` | `{ "is_typing": true }` |
+| `DELETE` | `/api/user/chats/{id}` | Soft-delete conversation (owner or admin) |
+| `POST` | `/api/user/chats/{id}/report` | Body: `reason` (required), `details` (optional) |
+
+### In-app notifications (chat)
+
+When a message is sent, the backend creates an **`in_app_notifications`** row for the recipient(s):
+
+- **User receives** when admin/support replies.
+- **Admin(s) receive** when app user sends (assigned `participant_id`, or all admins if unset).
+- **Skipped** if recipient muted the chat (`is_muted` on preferences).
+- **Disabled** if `CHAT_IN_APP_NOTIFICATIONS_ENABLED=false` in `.env`.
+
+Notification `data` payload:
+
+```json
+{
+  "type": "CHAT_MESSAGE",
+  "conversation_id": 1,
+  "chat_id": 1,
+  "message_id": 10,
+  "sender_id": 2,
+  "sender_name": "Support"
+}
+```
+
+List via `GET /api/in-app-notifications` (existing API). Realtime still uses Pusher.
 
 ### Legacy API — `/api/chat`
 
@@ -288,6 +314,8 @@ Same business logic, **parent transport** response format (`success`, `message`,
 | `POST` | `/api/chat/conversations/{id}/unpin` |
 | `POST` | `/api/chat/conversations/{id}/block-user` |
 | `POST` | `/api/chat/conversations/{id}/unblock-user` |
+| `DELETE` | `/api/chat/conversations/{id}` |
+| `POST` | `/api/chat/conversations/{id}/report` |
 
 **Config response** (`GET /api/chat/config`):
 

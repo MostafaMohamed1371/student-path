@@ -409,6 +409,51 @@
           ]
         },
         {
+          "name": "Delete / Report",
+          "item": [
+            {
+              "name": "Delete Conversation",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{user_token}}" },
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "url": "{{base_url}}/api/user/chats/{{chat_id}}",
+                "description": "Soft-deletes the conversation (hidden from list). App user or admin. After delete, POST /start creates a new open chat."
+              }
+            },
+            {
+              "name": "Report Conversation",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{user_token}}" },
+                  { "key": "Accept", "value": "application/json" },
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Inappropriate content\",\n  \"details\": \"Optional details for support team\"\n}"
+                },
+                "url": "{{base_url}}/api/user/chats/{{chat_id}}/report"
+              }
+            },
+            {
+              "name": "List In-App Notifications (chat alerts)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{user_token}}" },
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "url": "{{base_url}}/api/in-app-notifications?unread_only=1&per_page=20",
+                "description": "New chat messages create rows with data.type = CHAT_MESSAGE and data.chat_id. Use this to show notification center / badge outside the chat screen."
+              }
+            }
+          ]
+        },
+        {
           "name": "Realtime",
           "item": [
             {
@@ -633,6 +678,33 @@
               { "key": "Accept", "value": "application/json" }
             ],
             "url": "{{base_url}}/api/chat/conversations/{{conversation_id}}/unblock-user"
+          }
+        },
+        {
+          "name": "DELETE conversation",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{user_token}}" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/chat/conversations/{{conversation_id}}"
+          }
+        },
+        {
+          "name": "POST report",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{user_token}}" },
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Spam\",\n  \"details\": \"Optional\"\n}"
+            },
+            "url": "{{base_url}}/api/chat/conversations/{{conversation_id}}/report"
           }
         }
       ]

@@ -120,6 +120,7 @@ class ChatController extends Controller
         $conversation = ChatConversation::query()
             ->where('user_id', $user->id)
             ->where('status', 'open')
+            ->whereNull('deleted_at')
             ->first();
 
         $existing = $conversation !== null;
@@ -581,6 +582,64 @@ class ChatController extends Controller
         ], 201);
     }
 
+    public function destroy(Request $request, int $id): JsonResponse
+    {
+        $conversation = $this->resolveConversation($request, $id);
+        if (! $conversation) {
+            return response()->json(['message' => 'Conversation not found.'], 404);
+        }
+
+        try {
+            $conversation = $this->lifecycle->deleteConversation($conversation, $request->user());
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => collect($e->errors())->flatten()->first() ?: 'Unable to delete conversation.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
+
+        return response()->json([
+            'message' => 'Conversation deleted successfully.',
+            'data' => [
+                'id' => $conversation->id,
+                'deleted_at' => $conversation->deleted_at?->toIso8601String(),
+            ],
+        ]);
+    }
+
+    public function report(Request $request, int $id): JsonResponse
+    {
+        $conversation = $this->resolveConversation($request, $id);
+        if (! $conversation) {
+            return response()->json(['message' => 'Conversation not found.'], 404);
+        }
+
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:500'],
+            'details' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        try {
+            $this->lifecycle->assertNotBlocked($conversation, $request->user());
+            $data = $this->lifecycle->reportConversation(
+                $conversation,
+                $request->user(),
+                $validated['reason'],
+                $validated['details'] ?? null,
+            );
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => collect($e->errors())->flatten()->first() ?: 'Unable to report conversation.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
+
+        return response()->json([
+            'message' => 'Chat reported successfully. Our team will review it.',
+            'data' => $data,
+        ], 201);
+    }
+
     public function offerThread(Request $request, int $chatId, int $messageId): JsonResponse
     {
         $message = $this->resolveOfferMessage($request, $chatId, $messageId);
@@ -604,6 +663,7 @@ class ChatController extends Controller
     private function resolveConversation(Request $request, int $id): ?ChatConversation
     {
         $conversation = ChatConversation::query()
+            ->whereNull('deleted_at')
             ->when(
                 ! $request->user()->is_admin,
                 fn (Builder $q) => $q->where('user_id', $request->user()->id),
