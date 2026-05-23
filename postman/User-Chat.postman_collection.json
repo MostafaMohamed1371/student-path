@@ -1,0 +1,641 @@
+{
+  "info": {
+    "name": "Student-Path Support Chat APIs",
+    "_postman_id": "8e19d2d4-705f-4657-bdb0-6b9fdddb8d8a",
+    "description": "Student-Path support live chat (Pusher).\n\n## Setup\n1. Set `base_url` (e.g. http://127.0.0.1:8000).\n2. Run **Auth → Verify OTP (guardian)** or **Verify OTP (driver)** — copy token into `user_token`.\n3. For admin/support replies, use **Verify OTP (admin)** → `admin_token`.\n4. Run **Start Conversation** — set `chat_id` from response `data.id`.\n\n## Routes\n- **Primary (Postman contract):** `/api/user/chats/*`\n- **Legacy parent app:** `/api/chat/*` (same features, different response shape: `success`, `message`, `data`)\n\n## Roles\n- App user (guardian/driver/student): starts chat, owns conversation.\n- Admin (`is_admin`): lists all chats, replies; cannot use POST `/start` on app API.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://127.0.0.1:8000" },
+    { "key": "user_token", "value": "" },
+    { "key": "admin_token", "value": "" },
+    { "key": "participant_id", "value": "1", "description": "Admin user id (support agent)" },
+    { "key": "post_id", "value": "", "description": "Optional context id" },
+    { "key": "chat_id", "value": "1" },
+    { "key": "conversation_id", "value": "1" },
+    { "key": "message_id", "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "Auth (get tokens)",
+      "item": [
+        {
+          "name": "Send OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"7701234567\",\n  \"type_user\": \"guardian\"\n}"
+            },
+            "url": "{{base_url}}/api/auth/send-otp"
+          }
+        },
+        {
+          "name": "Verify OTP (guardian)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"7701234567\",\n  \"code\": \"0000\",\n  \"type_user\": \"guardian\"\n}"
+            },
+            "url": "{{base_url}}/api/auth/verify-otp",
+            "description": "Copy `data.token` → collection variable `user_token`"
+          }
+        },
+        {
+          "name": "Verify OTP (driver)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"7701234568\",\n  \"code\": \"0000\",\n  \"type_user\": \"driver\"\n}"
+            },
+            "url": "{{base_url}}/api/auth/verify-otp"
+          }
+        },
+        {
+          "name": "Verify OTP (admin / support)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"7700000001\",\n  \"code\": \"0000\",\n  \"type_user\": \"guardian\"\n}"
+            },
+            "url": "{{base_url}}/api/auth/verify-otp",
+            "description": "Use admin dashboard user phone. Copy token → `admin_token` for support-side calls."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Config & Realtime",
+      "item": [
+        {
+          "name": "GET Pusher config (legacy /api/chat)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{user_token}}" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/chat/config"
+          }
+        },
+        {
+          "name": "POST Broadcasting auth (Pusher private channel)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{user_token}}" },
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"socket_id\": \"1234.5678\",\n  \"channel_name\": \"private-chat.{{chat_id}}\"\n}"
+            },
+            "url": "{{base_url}}/broadcasting/auth",
+            "description": "Laravel Echo calls this automatically. Channel: private-chat.{chat_id}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "/api/user/chats (primary)",
+      "item": [
+        {
+          "name": "Chats",
+          "item": [
+            {
+              "name": "List Conversations",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{user_token}}" },
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "url": "{{base_url}}/api/user/chats?search=&per_page=20"
+              }
+            },
+            {
+              "name": "Unread Messages Count",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{user_token}}" },
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "url": "{{base_url}}/api/user/chats/unread-count"
+              }
+            },
+            {
+              "name": "Start Support Conversation",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{user_token}}" },
+                  { "key": "Accept", "value": "application/json" },
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"participant_id\": {{participant_id}},\n  \"post_id\": null\n}"
+                },
+                "url": "{{base_url}}/api/user/chats/start",
+                "description": "Guardian/driver only (not admin). participant_id = admin user id (optional)."
+              }
+            },
+            {
+              "name": "Get Conversation Messages",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{user_token}}" },
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "url": "{{base_url}}/api/user/chats/{{chat_id}}/messages?per_page=30"
+              }
+            },
+            {
+              "name": "Mark Conversation Read",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{user_token}}" },
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "url": "{{base_url}}/api/user/chats/{{chat_id}}/read"
+              }
+            },
+            {
+              "name": "Mark Conversation Unread",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{user_token}}" },
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "url": "{{base_url}}/api/user/chats/{{chat_id}}/unread"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Messages",
+          "item": [
+            {
+              "name": "Send Text Message",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{user_token}}" },
+                  { "key": "Accept", "value": "application/json" },
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"message_type\": \"text\",\n  \"body\": \"مرحبا، أحتاج مساعدة من الدعم\"\n}"
+                },
+                "url": "{{base_url}}/api/user/chats/{{chat_id}}/messages"
+              }
+            },
+            {
+              "name": "Send Offer Message",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{user_token}}" },
+                  { "key": "Accept", "value": "application/json" },
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"message_type\": \"offer\",\n  \"body\": \"عرض سعر\",\n  \"meta\": {\n    \"amount\": 125000,\n    \"currency\": \"IQD\",\n    \"title\": \"عرض\",\n    \"details\": \"تفاصيل العرض\",\n    \"valid_until\": \"2026-12-31T12:00:00Z\"\n  }\n}"
+                },
+                "url": "{{base_url}}/api/user/chats/{{chat_id}}/messages"
+              }
+            },
+            {
+              "name": "Send File/Image (form-data)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{user_token}}" },
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    { "key": "message_type", "value": "file", "type": "text" },
+                    { "key": "body", "value": "مرفق", "type": "text" },
+                    { "key": "attachment", "type": "file", "src": "" }
+                  ]
+                },
+                "url": "{{base_url}}/api/user/chats/{{chat_id}}/messages"
+              }
+            },
+            {
+              "name": "Edit Message",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{user_token}}" },
+                  { "key": "Accept", "value": "application/json" },
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"body\": \"تم تعديل الرسالة\"\n}"
+                },
+                "url": "{{base_url}}/api/user/chats/{{chat_id}}/messages/{{message_id}}"
+              }
+            },
+            {
+              "name": "Delete Message",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{user_token}}" },
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "url": "{{base_url}}/api/user/chats/{{chat_id}}/messages/{{message_id}}"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Offer Actions",
+          "item": [
+            {
+              "name": "Accept Offer",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{user_token}}" },
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "url": "{{base_url}}/api/user/chats/{{chat_id}}/messages/{{message_id}}/offer/accept"
+              }
+            },
+            {
+              "name": "Reject Offer",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{user_token}}" },
+                  { "key": "Accept", "value": "application/json" },
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"السعر غير مناسب\"\n}"
+                },
+                "url": "{{base_url}}/api/user/chats/{{chat_id}}/messages/{{message_id}}/offer/reject"
+              }
+            },
+            {
+              "name": "Counter Offer",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{user_token}}" },
+                  { "key": "Accept", "value": "application/json" },
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"amount\": 98000,\n  \"currency\": \"IQD\",\n  \"title\": \"عرض مقابل\",\n  \"details\": \"هذا آخر سعر\",\n  \"valid_until\": \"2026-12-31T12:00:00Z\",\n  \"body\": \"Counter offer submitted\"\n}"
+                },
+                "url": "{{base_url}}/api/user/chats/{{chat_id}}/messages/{{message_id}}/offer/counter"
+              }
+            },
+            {
+              "name": "Offer Thread History",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{user_token}}" },
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "url": "{{base_url}}/api/user/chats/{{chat_id}}/offers/{{message_id}}/thread"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pin / Mute / Block",
+          "item": [
+            {
+              "name": "Update Preferences (pin + mute)",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{user_token}}" },
+                  { "key": "Accept", "value": "application/json" },
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"is_pinned\": true,\n  \"is_muted\": false\n}"
+                },
+                "url": "{{base_url}}/api/user/chats/{{chat_id}}/preferences"
+              }
+            },
+            {
+              "name": "Pin Chat",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{user_token}}" },
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "url": "{{base_url}}/api/user/chats/{{chat_id}}/pin"
+              }
+            },
+            {
+              "name": "Unpin Chat",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{user_token}}" },
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "url": "{{base_url}}/api/user/chats/{{chat_id}}/unpin"
+              }
+            },
+            {
+              "name": "Block User (support side)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{user_token}}" },
+                  { "key": "Accept", "value": "application/json" },
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"spam\"\n}"
+                },
+                "url": "{{base_url}}/api/user/chats/{{chat_id}}/block-user"
+              }
+            },
+            {
+              "name": "Unblock User",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{user_token}}" },
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "url": "{{base_url}}/api/user/chats/{{chat_id}}/unblock-user"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Realtime",
+          "item": [
+            {
+              "name": "Typing Indicator",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{user_token}}" },
+                  { "key": "Accept", "value": "application/json" },
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"is_typing\": true\n}"
+                },
+                "url": "{{base_url}}/api/user/chats/{{chat_id}}/typing"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admin — List all (use admin_token)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/user/chats?per_page=20"
+          }
+        },
+        {
+          "name": "Admin — Reply text (use admin_token)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message_type\": \"text\",\n  \"body\": \"مرحباً، كيف يمكننا مساعدتك؟\"\n}"
+            },
+            "url": "{{base_url}}/api/user/chats/{{chat_id}}/messages"
+          }
+        }
+      ]
+    },
+    {
+      "name": "/api/chat (legacy parent API)",
+      "item": [
+        {
+          "name": "GET config",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{user_token}}" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/chat/config"
+          }
+        },
+        {
+          "name": "GET unread-count",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{user_token}}" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/chat/unread-count"
+          }
+        },
+        {
+          "name": "GET conversations (list)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{user_token}}" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/chat/conversations?per_page=20"
+          }
+        },
+        {
+          "name": "POST conversations (start)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{user_token}}" },
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subject\": \"مساعدة في الرحلة\"\n}"
+            },
+            "url": "{{base_url}}/api/chat/conversations"
+          }
+        },
+        {
+          "name": "GET conversation by id",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{user_token}}" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/chat/conversations/{{conversation_id}}"
+          }
+        },
+        {
+          "name": "GET messages",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{user_token}}" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/chat/conversations/{{conversation_id}}/messages?before_id=&limit=50"
+          }
+        },
+        {
+          "name": "POST message (text)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{user_token}}" },
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"body\": \"رسالة دعم\"\n}"
+            },
+            "url": "{{base_url}}/api/chat/conversations/{{conversation_id}}/messages"
+          }
+        },
+        {
+          "name": "POST read",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{user_token}}" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/chat/conversations/{{conversation_id}}/read"
+          }
+        },
+        {
+          "name": "POST unread",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{user_token}}" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/chat/conversations/{{conversation_id}}/unread"
+          }
+        },
+        {
+          "name": "PUT preferences (pin/mute)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{user_token}}" },
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_pinned\": true,\n  \"is_muted\": false\n}"
+            },
+            "url": "{{base_url}}/api/chat/conversations/{{conversation_id}}/preferences"
+          }
+        },
+        {
+          "name": "POST pin",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{user_token}}" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/chat/conversations/{{conversation_id}}/pin"
+          }
+        },
+        {
+          "name": "POST unpin",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{user_token}}" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/chat/conversations/{{conversation_id}}/unpin"
+          }
+        },
+        {
+          "name": "POST block-user",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{user_token}}" },
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"spam\"\n}"
+            },
+            "url": "{{base_url}}/api/chat/conversations/{{conversation_id}}/block-user"
+          }
+        },
+        {
+          "name": "POST unblock-user",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{user_token}}" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/chat/conversations/{{conversation_id}}/unblock-user"
+          }
+        }
+      ]
+    }
+  ]
+}

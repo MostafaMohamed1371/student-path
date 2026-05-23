@@ -5,7 +5,8 @@
 Full documentation:
 - `docs/PROJECT_DOCUMENTATION.md`
 - Parent mobile API (`/api`): `docs/API_V1_PARENT_TRANSPORT.md`
-- Postman: `postman/OTP-Auth.postman_collection.json` (core API), `postman/V1-Parent-Transport.postman_collection.json` (parent v1)
+- **Support live chat (Pusher):** `docs/CHAT.md` — setup: `docs/PUSHER_CHAT_SETUP.md`
+- Postman: `postman/OTP-Auth.postman_collection.json` (core API), `postman/V1-Parent-Transport.postman_collection.json` (parent v1), `postman/User-Chat.postman_collection.json` (chat)
 
 It provides:
 - OTP login with Iraqi phone rules

@@ -155,6 +155,9 @@
                 <a href="{{ route('dashboard.trip_requests.index') }}" class="btn-primary" style="width: auto; padding: 10px 14px; text-decoration: none;">{{ __('dashboard.menu_trip_requests') }}</a>
                 <a href="{{ route('dashboard.absences.index') }}" class="btn-primary" style="width: auto; padding: 10px 14px; text-decoration: none;">{{ __('dashboard.menu_absences') }}</a>
                 <a href="{{ route('dashboard.support_complaints.index') }}" class="btn-primary" style="width: auto; padding: 10px 14px; text-decoration: none;">{{ __('dashboard.menu_support_complaints') }}</a>
+                @if(auth()->user()?->is_admin)
+                    <a href="{{ route('dashboard.support_chat.index') }}" class="btn-primary" style="width: auto; padding: 10px 14px; text-decoration: none;">{{ __('dashboard.menu_support_chat') }}</a>
+                @endif
             </div>
             <p style="margin: 14px 0 6px; color: var(--text-muted); font-size: 0.9rem;">{{ __('dashboard.overview_quick_add') }}</p>
             <div style="display: flex; flex-wrap: wrap; gap: 10px;">

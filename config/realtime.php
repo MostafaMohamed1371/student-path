@@ -10,7 +10,7 @@ return [
 
     'laravel_echo' => [
         'private_channel_template' => 'trip.{tripHistoryId}',
-        'broadcaster' => env('BROADCAST_DRIVER', 'null'),
+        'broadcaster' => env('BROADCAST_CONNECTION', 'null'),
         'key' => env('PUSHER_APP_KEY'),
         'cluster' => env('PUSHER_APP_CLUSTER'),
         'ws_host' => env('PUSHER_HOST'),

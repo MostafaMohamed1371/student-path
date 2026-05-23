@@ -11,8 +11,11 @@ use App\Http\Controllers\Api\Legacy\LegacyUserExtrasController;
 use App\Http\Controllers\Api\SchoolController;
 use App\Http\Controllers\Api\StudentController;
 use App\Http\Controllers\Api\TripHistoryController;
+use App\Http\Controllers\Api\User\ChatController as UserChatController;
 use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\V1\AbsenceController as V1AbsenceController;
+use App\Http\Controllers\Api\V1\ChatController as V1ChatController;
+use App\Http\Controllers\Api\V1\DriverTripController as V1DriverTripController;
 use App\Http\Controllers\Api\V1\HomeLocationController as V1HomeLocationController;
 use App\Http\Controllers\Api\V1\InAppNotificationController as V1InAppNotificationController;
 use App\Http\Controllers\Api\V1\LocationController as V1LocationController;
@@ -24,7 +27,6 @@ use App\Http\Controllers\Api\V1\ProfileController as V1ProfileController;
 use App\Http\Controllers\Api\V1\QiCardWalletPaymentController as V1QiCardWalletPaymentController;
 use App\Http\Controllers\Api\V1\TrackingInfoController as V1TrackingInfoController;
 use App\Http\Controllers\Api\V1\TransportLinesDriverController as V1TransportLinesDriverController;
-use App\Http\Controllers\Api\V1\DriverTripController as V1DriverTripController;
 use App\Http\Controllers\Api\V1\TripParentController as V1TripParentController;
 use App\Http\Controllers\Api\V1\TripRequestController as V1TripRequestController;
 use App\Http\Controllers\Api\V1\WalletController as V1WalletController;
@@ -196,4 +198,49 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('in-app-notifications', [V1InAppNotificationController::class, 'index']);
     Route::post('in-app-notifications/read', [V1InAppNotificationController::class, 'markRead']);
     Route::delete('in-app-notifications/{notification}', [V1InAppNotificationController::class, 'destroy']);
+
+    Route::prefix('chat')->group(function (): void {
+        Route::get('config', [V1ChatController::class, 'config']);
+        Route::get('unread-count', [V1ChatController::class, 'unreadMessagesCount']);
+        Route::get('conversations', [V1ChatController::class, 'indexConversations']);
+        Route::post('conversations', [V1ChatController::class, 'storeConversation']);
+        Route::get('conversations/{conversation}', [V1ChatController::class, 'showConversation']);
+        Route::get('conversations/{conversation}/messages', [V1ChatController::class, 'indexMessages']);
+        Route::post('conversations/{conversation}/messages', [V1ChatController::class, 'storeMessage']);
+        Route::post('conversations/{conversation}/read', [V1ChatController::class, 'markRead']);
+        Route::post('conversations/{conversation}/unread', [V1ChatController::class, 'markUnread']);
+        Route::put('conversations/{conversation}/preferences', [V1ChatController::class, 'updatePreferences']);
+        Route::post('conversations/{conversation}/pin', [V1ChatController::class, 'pinChat']);
+        Route::post('conversations/{conversation}/unpin', [V1ChatController::class, 'unpinChat']);
+        Route::post('conversations/{conversation}/block-user', [V1ChatController::class, 'blockUser']);
+        Route::post('conversations/{conversation}/unblock-user', [V1ChatController::class, 'unblockUser']);
+    });
+
+    Route::prefix('user')->group(function (): void {
+        Route::get('chats', [UserChatController::class, 'index']);
+        Route::get('chats/unread-count', [UserChatController::class, 'unreadMessagesCount']);
+        Route::post('chats/start', [UserChatController::class, 'start']);
+        Route::get('chats/{id}/messages', [UserChatController::class, 'messages'])->whereNumber('id');
+        Route::post('chats/{id}/messages', [UserChatController::class, 'send'])->whereNumber('id');
+        Route::post('chats/{id}/read', [UserChatController::class, 'markRead'])->whereNumber('id');
+        Route::post('chats/{id}/unread', [UserChatController::class, 'markUnread'])->whereNumber('id');
+        Route::put('chats/{id}/preferences', [UserChatController::class, 'updatePreferences'])->whereNumber('id');
+        Route::post('chats/{id}/pin', [UserChatController::class, 'pinChat'])->whereNumber('id');
+        Route::post('chats/{id}/unpin', [UserChatController::class, 'unpinChat'])->whereNumber('id');
+        Route::post('chats/{id}/block-user', [UserChatController::class, 'blockUser'])->whereNumber('id');
+        Route::post('chats/{id}/unblock-user', [UserChatController::class, 'unblockUser'])->whereNumber('id');
+        Route::post('chats/{id}/typing', [UserChatController::class, 'typing'])->whereNumber('id');
+        Route::put('chats/{chatId}/messages/{messageId}', [UserChatController::class, 'updateMessage'])
+            ->whereNumber(['chatId', 'messageId']);
+        Route::delete('chats/{chatId}/messages/{messageId}', [UserChatController::class, 'deleteMessage'])
+            ->whereNumber(['chatId', 'messageId']);
+        Route::post('chats/{chatId}/messages/{messageId}/offer/accept', [UserChatController::class, 'acceptOffer'])
+            ->whereNumber(['chatId', 'messageId']);
+        Route::post('chats/{chatId}/messages/{messageId}/offer/reject', [UserChatController::class, 'rejectOffer'])
+            ->whereNumber(['chatId', 'messageId']);
+        Route::post('chats/{chatId}/messages/{messageId}/offer/counter', [UserChatController::class, 'counterOffer'])
+            ->whereNumber(['chatId', 'messageId']);
+        Route::get('chats/{chatId}/offers/{messageId}/thread', [UserChatController::class, 'offerThread'])
+            ->whereNumber(['chatId', 'messageId']);
+    });
 });

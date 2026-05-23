@@ -102,6 +102,11 @@ class User extends Authenticatable
         return $this->hasMany(InAppNotification::class);
     }
 
+    public function chatConversations(): HasMany
+    {
+        return $this->hasMany(ChatConversation::class);
+    }
+
     public function driver(): HasOne
     {
         return $this->hasOne(Driver::class);

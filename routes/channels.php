@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\ChatConversation;
 use App\Models\TripHistory;
 use App\Services\Trips\StudentTripStatusResolver;
 use App\Support\ParentContext;
@@ -31,4 +32,20 @@ Broadcast::channel('trip.{tripHistoryId}', function ($user, string $tripHistoryI
     }
 
     return false;
+});
+
+/*
+| Support live chat (Pusher): private channel "chat.{conversationId}".
+*/
+Broadcast::channel('chat.{conversationId}', function ($user, string $conversationId) {
+    $conversation = ChatConversation::query()->find($conversationId);
+    if (! $conversation || ! $conversation->canBeAccessedBy($user)) {
+        return false;
+    }
+
+    return [
+        'id' => $user->id,
+        'name' => $user->name,
+        'is_staff' => (bool) $user->is_admin,
+    ];
 });
