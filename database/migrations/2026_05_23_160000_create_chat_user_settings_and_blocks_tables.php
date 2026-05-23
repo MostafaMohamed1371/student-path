@@ -17,7 +17,8 @@ return new class extends Migration
             $table->boolean('is_muted')->default(false);
             $table->timestamps();
 
-            $table->unique(['user_id', 'chat_conversation_id']);
+            // MySQL identifier limit is 64 chars; default auto-name exceeds it.
+            $table->unique(['user_id', 'chat_conversation_id'], 'ccus_user_conversation_uniq');
         });
 
         Schema::create('user_blocks', function (Blueprint $table): void {
