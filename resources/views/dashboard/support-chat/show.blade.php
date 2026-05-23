@@ -81,8 +81,14 @@
 
         .chat-compose {
             display: flex;
+            flex-direction: column;
             gap: 10px;
             margin-top: 12px;
+        }
+
+        .chat-compose-row {
+            display: flex;
+            gap: 10px;
             align-items: flex-end;
         }
 
@@ -113,18 +119,36 @@
             color: var(--text-muted);
         }
 
-        .chat-realtime-off {
+        .chat-realtime-off,
+        .chat-blocked-notice {
             margin: 0 0 12px;
             padding: 10px 12px;
             border-radius: 10px;
+            font-size: 13px;
+        }
+
+        .chat-realtime-off {
             background: #fffbeb;
             border: 1px solid #fde68a;
             color: #92400e;
-            font-size: 13px;
+        }
+
+        .chat-blocked-notice {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+        }
+
+        .chat-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
         }
     </style>
 
     @php($title = __('dashboard.support_chat_with', ['name' => $conversation->user?->name ?? '#'.$conversation->id]))
+    @php($canCompose = $conversation->status === 'open' && ! ($isBlocked ?? false))
     @component('dashboard.partials.shell', ['title' => $title])
         <div class="chat-layout">
             <div class="chat-meta">
@@ -133,7 +157,7 @@
                     <p class="mono">{{ $conversation->user?->phone ?? '—' }}
                         · {{ __('dashboard.support_chat_conversation_id') }} #{{ $conversation->id }}</p>
                 </div>
-                <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+                <div class="chat-actions">
                     @if ($conversation->status === 'open')
                         <span class="badge ok">{{ __('dashboard.support_chat_status_open') }}</span>
                         <form method="post" action="{{ route('dashboard.support_chat.close', $conversation) }}">
@@ -147,6 +171,26 @@
                             <button type="submit" class="btn-muted">{{ __('dashboard.support_chat_reopen') }}</button>
                         </form>
                     @endif
+
+                    @if ($isBlocked ?? false)
+                        <form method="post" action="{{ route('dashboard.support_chat.unblock', $conversation) }}">
+                            @csrf
+                            <button type="submit" class="btn-muted">{{ __('dashboard.support_chat_unblock_user') }}</button>
+                        </form>
+                    @else
+                        <form method="post" action="{{ route('dashboard.support_chat.block', $conversation) }}">
+                            @csrf
+                            <button type="submit" class="btn-muted">{{ __('dashboard.support_chat_block_user') }}</button>
+                        </form>
+                    @endif
+
+                    <form method="post" action="{{ route('dashboard.support_chat.destroy', $conversation) }}" onsubmit="return confirm(@json(__('dashboard.support_chat_delete_confirm')))">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="btn-muted">{{ __('dashboard.support_chat_delete') }}</button>
+                    </form>
+
+                    <a href="{{ route('dashboard.chat_reports.index', ['status' => 'pending']) }}" class="link">{{ __('dashboard.support_chat_view_reports') }}</a>
                     <a href="{{ route('dashboard.support_chat.index') }}" class="link">{{ __('dashboard.support_chat_back') }}</a>
                 </div>
             </div>
@@ -155,6 +199,10 @@
                 <p class="chat-realtime-off">{{ __('dashboard.support_chat_pusher_disabled') }}</p>
             @endunless
 
+            @if ($isBlocked ?? false)
+                <p class="chat-blocked-notice">{{ __('dashboard.support_chat_blocked_notice') }}</p>
+            @endif
+
             <section class="card chat-panel">
                 <div id="chat-messages" class="chat-messages" aria-live="polite">
                     @foreach ($messages as $message)
@@ -162,141 +210,184 @@
                     @endforeach
                 </div>
 
-                <form id="chat-compose-form" class="chat-compose" @if ($conversation->status !== 'open') style="opacity:0.6" @endif>
-                    <label style="flex:1;display:flex;flex-direction:column;gap:6px;">
+                <form id="chat-compose-form" class="chat-compose" enctype="multipart/form-data" @if (! $canCompose) style="opacity:0.6" @endif>
+                    <label style="display:flex;flex-direction:column;gap:6px;">
                         <span class="field-label" style="margin:0;">{{ __('dashboard.support_chat_reply_label') }}</span>
-                        <textarea
-                            id="chat-body"
-                            name="body"
-                            maxlength="{{ (int) config('chat.max_message_length', 5000) }}"
-                            placeholder="{{ __('dashboard.support_chat_reply_placeholder') }}"
-                            @disabled($conversation->status !== 'open')
-                            required
-                        ></textarea>
+                        <div class="chat-compose-row">
+                            <textarea
+                                id="chat-body"
+                                name="body"
+                                maxlength="{{ (int) config('chat.max_message_length', 5000) }}"
+                                placeholder="{{ __('dashboard.support_chat_reply_placeholder') }}"
+                                @disabled(! $canCompose)
+                            ></textarea>
+                            <button type="submit" class="btn-primary" style="width:auto;padding:12px 18px;white-space:nowrap;" @disabled(! $canCompose)>
+                                {{ __('dashboard.support_chat_send') }}
+                            </button>
+                        </div>
                     </label>
-                    <button type="submit" class="btn-primary" style="width:auto;padding:12px 18px;" @disabled($conversation->status !== 'open')>
-                        {{ __('dashboard.support_chat_send') }}
-                    </button>
+                    <label style="display:flex;flex-direction:column;gap:6px;">
+                        <span class="field-label" style="margin:0;">{{ __('dashboard.support_chat_attachment_label') }}</span>
+                        <input type="file" id="chat-attachment" name="attachment" accept="image/*,.pdf,.doc,.docx,.xlsx,.txt,.zip" @disabled(! $canCompose)>
+                    </label>
                 </form>
                 <p id="chat-status" class="chat-status-pill" style="margin:8px 0 0;"></p>
             </section>
         </div>
     @endcomponent
 
-    @if ($chatEnabled && $conversation->status === 'open')
-        <script src="https://js.pusher.com/8.4.0-rc2/pusher.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/laravel-echo@1.19.0/dist/echo.iife.js"></script>
-        <script>
-            (function () {
-                const conversationId = @json($conversation->id);
-                const staffUserId = @json(auth()->id());
-                const messagesEl = document.getElementById('chat-messages');
-                const form = document.getElementById('chat-compose-form');
-                const bodyInput = document.getElementById('chat-body');
-                const statusEl = document.getElementById('chat-status');
-                const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
-                const eventName = @json($eventName);
-                const messagesUrl = @json(route('dashboard.support_chat.messages', $conversation));
-                const sendUrl = @json(route('dashboard.support_chat.messages.store', $conversation));
-                const renderedIds = new Set(
-                    Array.from(messagesEl.querySelectorAll('[data-message-id]')).map((el) => Number(el.dataset.messageId))
-                );
+    <script>
+        (function () {
+            const conversationId = @json($conversation->id);
+            const messagesEl = document.getElementById('chat-messages');
+            const form = document.getElementById('chat-compose-form');
+            const bodyInput = document.getElementById('chat-body');
+            const attachmentInput = document.getElementById('chat-attachment');
+            const statusEl = document.getElementById('chat-status');
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+            const messagesUrl = @json(route('dashboard.support_chat.messages', $conversation));
+            const sendUrl = @json(route('dashboard.support_chat.messages.store', $conversation));
+            const renderedIds = new Set(
+                Array.from(messagesEl.querySelectorAll('[data-message-id]')).map((el) => Number(el.dataset.messageId))
+            );
 
-                function escapeHtml(value) {
-                    return String(value)
-                        .replaceAll('&', '&amp;')
-                        .replaceAll('<', '&lt;')
-                        .replaceAll('>', '&gt;')
-                        .replaceAll('"', '&quot;')
-                        .replaceAll("'", '&#39;');
+            function escapeHtml(value) {
+                return String(value)
+                    .replaceAll('&', '&amp;')
+                    .replaceAll('<', '&lt;')
+                    .replaceAll('>', '&gt;')
+                    .replaceAll('"', '&quot;')
+                    .replaceAll("'", '&#39;');
+            }
+
+            function attachmentHtml(payload) {
+                const attachment = payload?.attachment || payload?.meta?.attachment;
+                if (!attachment?.url) {
+                    return '';
                 }
-
-                function appendMessage(payload) {
-                    if (!payload?.id || renderedIds.has(payload.id)) {
-                        return;
-                    }
-                    renderedIds.add(payload.id);
-                    const isStaff = Boolean(payload.sender?.is_staff);
-                    const bubble = document.createElement('div');
-                    bubble.className = 'chat-bubble ' + (isStaff ? 'is-staff' : 'is-user');
-                    bubble.dataset.messageId = String(payload.id);
-                    const when = payload.created_at ? new Date(payload.created_at).toLocaleString() : '';
-                    bubble.innerHTML =
-                        '<div>' + escapeHtml(payload.body || '') + '</div>' +
-                        '<span class="chat-bubble-meta">' +
-                        escapeHtml(payload.sender?.name || '') + (when ? ' · ' + escapeHtml(when) : '') +
-                        '</span>';
-                    messagesEl.appendChild(bubble);
-                    messagesEl.scrollTop = messagesEl.scrollHeight;
+                const mime = String(attachment.mime || '');
+                const url = escapeHtml(attachment.url);
+                const name = escapeHtml(attachment.name || @json(__('dashboard.support_chat_download_attachment')));
+                if (mime.startsWith('image/')) {
+                    return '<a href="' + url + '" target="_blank" rel="noopener"><img src="' + url + '" alt="" style="display:block;max-width:min(100%,220px);margin-top:8px;border-radius:8px;"></a>';
                 }
+                return '<a href="' + url + '" target="_blank" rel="noopener" style="display:inline-block;margin-top:8px;font-size:13px;">' + name + '</a>';
+            }
 
-                window.Pusher = Pusher;
-                const echo = new Echo({
-                    broadcaster: 'pusher',
-                    key: @json($pusherKey),
-                    cluster: @json($pusherCluster),
-                    forceTLS: true,
-                    authEndpoint: @json(url('/broadcasting/auth')),
-                    auth: {
+            function appendMessage(payload) {
+                if (!payload?.id || renderedIds.has(payload.id)) {
+                    return;
+                }
+                renderedIds.add(payload.id);
+                const isStaff = Boolean(payload.sender?.is_staff);
+                const bubble = document.createElement('div');
+                bubble.className = 'chat-bubble ' + (isStaff ? 'is-staff' : 'is-user');
+                bubble.dataset.messageId = String(payload.id);
+                const when = payload.created_at ? new Date(payload.created_at).toLocaleString() : '';
+                const bodyPart = payload.is_deleted
+                    ? '<div style="font-style:italic;opacity:0.8;">' + escapeHtml(@json(__('dashboard.support_chat_message_deleted'))) + '</div>'
+                    : '<div>' + escapeHtml(payload.body || '') + '</div>' + attachmentHtml(payload);
+                bubble.innerHTML =
+                    bodyPart +
+                    '<span class="chat-bubble-meta">' +
+                    escapeHtml(payload.sender?.name || '') + (when ? ' · ' + escapeHtml(when) : '') +
+                    '</span>';
+                messagesEl.appendChild(bubble);
+                messagesEl.scrollTop = messagesEl.scrollHeight;
+            }
+
+            async function sendMessage() {
+                const body = bodyInput.value.trim();
+                const file = attachmentInput?.files?.[0];
+                if (!body && !file) {
+                    return;
+                }
+                statusEl.textContent = @json(__('dashboard.support_chat_sending'));
+                const formData = new FormData();
+                if (body) {
+                    formData.append('body', body);
+                }
+                if (file) {
+                    formData.append('attachment', file);
+                }
+                try {
+                    const res = await fetch(sendUrl, {
+                        method: 'POST',
                         headers: {
-                            'X-CSRF-TOKEN': csrf,
                             'Accept': 'application/json',
+                            'X-CSRF-TOKEN': csrf,
+                            'X-Requested-With': 'XMLHttpRequest',
                         },
-                    },
-                });
-
-                echo.private('chat.' + conversationId)
-                    .listen('.' + eventName, (event) => {
-                        if (event?.message) {
-                            appendMessage(event.message);
-                        }
+                        body: formData,
                     });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                        const err = data?.message || data?.errors?.body?.[0] || data?.errors?.conversation?.[0] || @json(__('dashboard.support_chat_send_failed'));
+                        throw new Error(err);
+                    }
+                    appendMessage(data.message);
+                    bodyInput.value = '';
+                    if (attachmentInput) {
+                        attachmentInput.value = '';
+                    }
+                    statusEl.textContent = '';
+                } catch (err) {
+                    statusEl.textContent = err?.message || @json(__('dashboard.support_chat_send_failed'));
+                }
+            }
 
-                form?.addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    const body = bodyInput.value.trim();
-                    if (!body) {
+            form?.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                await sendMessage();
+            });
+
+            @if ($chatEnabled && $canCompose)
+            const eventName = @json($eventName);
+            const pusherScript = document.createElement('script');
+            pusherScript.src = 'https://js.pusher.com/8.4.0-rc2/pusher.min.js';
+            pusherScript.onload = function () {
+                const echoScript = document.createElement('script');
+                echoScript.src = 'https://cdn.jsdelivr.net/npm/laravel-echo@1.19.0/dist/echo.iife.js';
+                echoScript.onload = function () {
+                    window.Pusher = Pusher;
+                    const echo = new Echo({
+                        broadcaster: 'pusher',
+                        key: @json($pusherKey),
+                        cluster: @json($pusherCluster),
+                        forceTLS: true,
+                        authEndpoint: @json(url('/broadcasting/auth')),
+                        auth: {
+                            headers: {
+                                'X-CSRF-TOKEN': csrf,
+                                'Accept': 'application/json',
+                            },
+                        },
+                    });
+                    echo.private('chat.' + conversationId)
+                        .listen('.' + eventName, (event) => {
+                            if (event?.message) {
+                                appendMessage(event.message);
+                            }
+                        });
+                };
+                document.body.appendChild(echoScript);
+            };
+            document.body.appendChild(pusherScript);
+            @endif
+
+            setInterval(async () => {
+                const lastId = Math.max(0, ...Array.from(renderedIds));
+                try {
+                    const res = await fetch(messagesUrl + '?after_id=' + lastId, {
+                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    });
+                    if (!res.ok) {
                         return;
                     }
-                    statusEl.textContent = @json(__('dashboard.support_chat_sending'));
-                    try {
-                        const res = await fetch(sendUrl, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Accept': 'application/json',
-                                'X-CSRF-TOKEN': csrf,
-                                'X-Requested-With': 'XMLHttpRequest',
-                            },
-                            body: JSON.stringify({ body }),
-                        });
-                        const data = await res.json().catch(() => ({}));
-                        if (!res.ok) {
-                            const err = data?.message || data?.errors?.body?.[0] || @json(__('dashboard.support_chat_send_failed'));
-                            throw new Error(err);
-                        }
-                        appendMessage(data.message);
-                        bodyInput.value = '';
-                        statusEl.textContent = '';
-                    } catch (err) {
-                        statusEl.textContent = err?.message || @json(__('dashboard.support_chat_send_failed'));
-                    }
-                });
-
-                setInterval(async () => {
-                    const lastId = Math.max(0, ...Array.from(renderedIds));
-                    try {
-                        const res = await fetch(messagesUrl + '?after_id=' + lastId, {
-                            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                        });
-                        if (!res.ok) {
-                            return;
-                        }
-                        const data = await res.json();
-                        (data.items || []).forEach(appendMessage);
-                    } catch (_) {}
-                }, 30000);
-            })();
-        </script>
-    @endif
+                    const data = await res.json();
+                    (data.items || []).forEach(appendMessage);
+                } catch (_) {}
+            }, 30000);
+        })();
+    </script>
 @endsection

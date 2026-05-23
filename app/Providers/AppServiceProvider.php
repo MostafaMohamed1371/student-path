@@ -2,7 +2,15 @@
 
 namespace App\Providers;
 
+use App\Contracts\Push\FcmTopicSubscriber;
+use App\Contracts\Push\PushNotifier;
 use App\Contracts\Sms\SmsSender;
+use App\Models\InAppNotification;
+use App\Observers\InAppNotificationObserver;
+use App\Services\Push\FakeFcmTopicSubscriber;
+use App\Services\Push\FakePushNotifier;
+use App\Services\Push\FcmPushNotifier;
+use App\Services\Push\FcmTopicSubscriber as FirebaseFcmTopicSubscriber;
 use App\Services\Sms\FakeSmsSender;
 use App\Services\Sms\StandingTechSmsSender;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -12,6 +20,7 @@ use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Kreait\Firebase\Contract\Messaging;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -32,6 +41,32 @@ class AppServiceProvider extends ServiceProvider
             }
 
             return $app->make(StandingTechSmsSender::class);
+        });
+
+        $this->app->bind(PushNotifier::class, function ($app) {
+            if (! config('fcm.enabled', false) || config('fcm.mock', true)) {
+                return $app->make(FakePushNotifier::class);
+            }
+
+            if (trim((string) config('fcm.credentials')) === '') {
+                Log::warning('FCM_ENABLED is true but FIREBASE_CREDENTIALS is empty; using FakePushNotifier.');
+
+                return $app->make(FakePushNotifier::class);
+            }
+
+            return new FcmPushNotifier($app->make(Messaging::class));
+        });
+
+        $this->app->bind(FcmTopicSubscriber::class, function ($app) {
+            if (! config('fcm.enabled', false) || config('fcm.mock', true)) {
+                return $app->make(FakeFcmTopicSubscriber::class);
+            }
+
+            if (trim((string) config('fcm.credentials')) === '') {
+                return $app->make(FakeFcmTopicSubscriber::class);
+            }
+
+            return new FirebaseFcmTopicSubscriber($app->make(Messaging::class));
         });
     }
 
@@ -67,6 +102,8 @@ class AppServiceProvider extends ServiceProvider
 
         Broadcast::routes(['middleware' => ['auth:sanctum']]);
         Broadcast::routes(['middleware' => ['web', 'auth']]);
+
+        InAppNotification::observe(InAppNotificationObserver::class);
 
         require base_path('routes/channels.php');
     }

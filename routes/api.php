@@ -16,10 +16,13 @@ use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\V1\AbsenceController as V1AbsenceController;
 use App\Http\Controllers\Api\V1\ChatController as V1ChatController;
 use App\Http\Controllers\Api\V1\DriverTripController as V1DriverTripController;
+use App\Http\Controllers\Api\V1\FcmTokenController as V1FcmTokenController;
+use App\Http\Controllers\Api\V1\FcmTripTopicController as V1FcmTripTopicController;
 use App\Http\Controllers\Api\V1\HomeLocationController as V1HomeLocationController;
 use App\Http\Controllers\Api\V1\InAppNotificationController as V1InAppNotificationController;
 use App\Http\Controllers\Api\V1\LocationController as V1LocationController;
 use App\Http\Controllers\Api\V1\MetaController as V1MetaController;
+use App\Http\Controllers\Api\V1\NotificationPreferenceController as V1NotificationPreferenceController;
 use App\Http\Controllers\Api\V1\OrderController as V1OrderController;
 use App\Http\Controllers\Api\V1\ParentStudentController as V1ParentStudentController;
 use App\Http\Controllers\Api\V1\PlacesController as V1PlacesController;
@@ -68,7 +71,10 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('language', [UserProfileController::class, 'changeLanguage']);
         Route::get('driver', [DriverController::class, 'myDriver']);
         Route::get('settings/notifications', [LegacyUserExtrasController::class, 'notificationSettings']);
+        Route::put('settings/notifications', [V1NotificationPreferenceController::class, 'update']);
         Route::get('performance', [LegacyUserExtrasController::class, 'performance']);
+        Route::post('fcm-token', [V1FcmTokenController::class, 'store']);
+        Route::delete('fcm-token', [V1FcmTokenController::class, 'destroy']);
     });
 
     Route::prefix('bus')->group(function (): void {
@@ -175,6 +181,9 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('trips/{trip}', [V1TripParentController::class, 'show']);
 
     Route::get('trip-tracking/config', V1TrackingInfoController::class);
+    Route::get('trip-tracking/topics', [V1FcmTripTopicController::class, 'index']);
+    Route::post('trip-tracking/topics/subscribe', [V1FcmTripTopicController::class, 'subscribe']);
+    Route::delete('trip-tracking/topics/unsubscribe', [V1FcmTripTopicController::class, 'unsubscribe']);
 
     Route::post('trip-requests', [V1TripRequestController::class, 'store']);
     Route::get('trip-requests', [V1TripRequestController::class, 'index']);

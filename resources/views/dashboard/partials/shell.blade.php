@@ -17,13 +17,15 @@
             <a href="{{ route('dashboard.trip_requests.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.trip_requests.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_trip_requests') }}</a>
             <a href="{{ route('dashboard.absences.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.absences.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_absences') }}</a>
             <a href="{{ route('dashboard.payments') }}" class="sidebar-link {{ request()->routeIs('dashboard.payments') ? 'is-active' : '' }}">{{ __('dashboard.menu_payments') }}</a>
-            <a href="{{ route('dashboard.in_app_notifications') }}" class="sidebar-link {{ request()->routeIs('dashboard.in_app_notifications') ? 'is-active' : '' }}">{{ __('dashboard.menu_in_app_notifications') }}</a>
-            <a href="{{ route('dashboard.delay_alerts') }}" class="sidebar-link {{ request()->routeIs('dashboard.delay_alerts') ? 'is-active' : '' }}">{{ __('dashboard.menu_delay_alerts') }}</a>
-            <a href="{{ route('dashboard.sos_alerts') }}" class="sidebar-link {{ request()->routeIs('dashboard.sos_alerts') ? 'is-active' : '' }}">{{ __('dashboard.menu_sos_alerts') }}</a>
-            <a href="{{ route('dashboard.trip_finalization_reports') }}" class="sidebar-link {{ request()->routeIs('dashboard.trip_finalization_reports') ? 'is-active' : '' }}">{{ __('dashboard.menu_trip_finalization_reports') }}</a>
+            <a href="{{ route('dashboard.notifications.hub') }}" class="sidebar-link {{ request()->routeIs('dashboard.notifications.hub', 'dashboard.in_app_notifications', 'dashboard.delay_alerts', 'dashboard.sos_alerts', 'dashboard.trip_finalization_reports') ? 'is-active' : '' }}">{{ __('dashboard.menu_notifications_hub') }}</a>
+            <a href="{{ route('dashboard.in_app_notifications') }}" class="sidebar-link {{ request()->routeIs('dashboard.in_app_notifications') ? 'is-active' : '' }}" style="padding-left: 1.25rem; font-size: 0.92rem;">{{ __('dashboard.menu_in_app_notifications') }}</a>
+            <a href="{{ route('dashboard.delay_alerts') }}" class="sidebar-link {{ request()->routeIs('dashboard.delay_alerts') ? 'is-active' : '' }}" style="padding-left: 1.25rem; font-size: 0.92rem;">{{ __('dashboard.menu_delay_alerts') }}</a>
+            <a href="{{ route('dashboard.sos_alerts') }}" class="sidebar-link {{ request()->routeIs('dashboard.sos_alerts') ? 'is-active' : '' }}" style="padding-left: 1.25rem; font-size: 0.92rem;">{{ __('dashboard.menu_sos_alerts') }}</a>
+            <a href="{{ route('dashboard.trip_finalization_reports') }}" class="sidebar-link {{ request()->routeIs('dashboard.trip_finalization_reports') ? 'is-active' : '' }}" style="padding-left: 1.25rem; font-size: 0.92rem;">{{ __('dashboard.menu_trip_finalization_reports') }}</a>
             <a href="{{ route('dashboard.support_complaints.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.support_complaints.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_support_complaints') }}</a>
             @if(auth()->user()?->is_admin)
                 <a href="{{ route('dashboard.support_chat.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.support_chat.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_support_chat') }}</a>
+                <a href="{{ route('dashboard.chat_reports.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.chat_reports.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_chat_reports') }}</a>
                 <a href="{{ route('dashboard.users.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.users.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_users') }}</a>
             @endif
             <a href="{{ route('dashboard.buses.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.buses.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_bus') }}</a>

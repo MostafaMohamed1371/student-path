@@ -3,6 +3,7 @@
 use App\Http\Controllers\Web\DashboardAbsenceController;
 use App\Http\Controllers\Web\DashboardBusController;
 use App\Http\Controllers\Web\DashboardChatController;
+use App\Http\Controllers\Web\DashboardChatReportController;
 use App\Http\Controllers\Web\DashboardDriverController;
 use App\Http\Controllers\Web\DashboardGeocodeController;
 use App\Http\Controllers\Web\DashboardGuardianController;
@@ -106,6 +107,7 @@ Route::middleware('auth')->group(function (): void {
     Route::delete('/dashboard/users/{user}', [DashboardUserController::class, 'destroy'])->name('dashboard.users.destroy');
 
     Route::get('/dashboard/payments', [DashboardReportsController::class, 'payments'])->name('dashboard.payments');
+    Route::get('/dashboard/notifications', [DashboardReportsController::class, 'notificationsHub'])->name('dashboard.notifications.hub');
     Route::get('/dashboard/in-app-notifications', [DashboardReportsController::class, 'notifications'])->name('dashboard.in_app_notifications');
     Route::get('/dashboard/delay-alerts', [DashboardReportsController::class, 'delayAlerts'])->name('dashboard.delay_alerts');
     Route::get('/dashboard/sos-alerts', [DashboardReportsController::class, 'sosAlerts'])->name('dashboard.sos_alerts');
@@ -144,6 +146,12 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/dashboard/support-chat/{conversation}/read', [DashboardChatController::class, 'markRead'])->name('dashboard.support_chat.read');
     Route::post('/dashboard/support-chat/{conversation}/close', [DashboardChatController::class, 'close'])->name('dashboard.support_chat.close');
     Route::post('/dashboard/support-chat/{conversation}/reopen', [DashboardChatController::class, 'reopen'])->name('dashboard.support_chat.reopen');
+    Route::delete('/dashboard/support-chat/{conversation}', [DashboardChatController::class, 'destroy'])->name('dashboard.support_chat.destroy');
+    Route::post('/dashboard/support-chat/{conversation}/block', [DashboardChatController::class, 'block'])->name('dashboard.support_chat.block');
+    Route::post('/dashboard/support-chat/{conversation}/unblock', [DashboardChatController::class, 'unblock'])->name('dashboard.support_chat.unblock');
+
+    Route::get('/dashboard/chat-reports', [DashboardChatReportController::class, 'index'])->name('dashboard.chat_reports.index');
+    Route::post('/dashboard/chat-reports/{report}/status', [DashboardChatReportController::class, 'updateStatus'])->name('dashboard.chat_reports.update_status');
 
     Route::get('/dashboard/support-complaints', [DashboardSupportComplaintController::class, 'index'])->name('dashboard.support_complaints.index');
     Route::get('/dashboard/support-complaints/create', [DashboardSupportComplaintController::class, 'create'])->name('dashboard.support_complaints.create');

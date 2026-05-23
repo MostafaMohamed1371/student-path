@@ -1,0 +1,600 @@
+{
+  "info": {
+    "name": "Student-Path FCM (Push & Topics)",
+    "_postman_id": "a3f8c2e1-9b4d-4f6a-bc12-fcm-push-2026",
+    "description": "All notification-related APIs: FCM tokens, preferences, in-app list/count, trip topics, and endpoints that **create** notifications.\n\n## Setup\n1. `base_url` (e.g. `http://127.0.0.1:8000`).\n2. **Auth → Verify OTP** (guardian or driver) → sets `token`.\n3. `fcm_token` from mobile Firebase SDK (or sample value for API-only tests).\n4. `trip_id` = `TRP-{id}` from **GET /api/trips/active** or driver current trip.\n\n## Notification `data.type` values\n`CHAT_MESSAGE` | `DELAY_ALERT` | `SOS_TRIGGERED` | `TRIP_STARTED` | `TRIP_COMPLETED` | `RETURN_TRIP_STARTED` | `RETURN_TRIP_COMPLETED` | `TRIP_STUDENT_ARRIVED`\n\n## Server `.env`\n`FCM_ENABLED=true`, `FCM_MOCK=false`, `FIREBASE_CREDENTIALS=storage/app/firebase/service-account.json`\n\nChat messages: use **User-Chat** collection to send chat → `CHAT_MESSAGE`.\n\nDocs: `docs/FCM.md`",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "description": "Sanctum Bearer token (set by Verify OTP test script)"
+    },
+    {
+      "key": "fcm_token",
+      "value": "dGhpcyBpcyBhIHNhbXBsZSBmY20tcmVnaXN0cmF0aW9uLXRva2VuLWZvci1hcGktdGVzdGluZy1vbmx5LTEyMzQ1Ng",
+      "description": "FCM device registration token from Firebase SDK on mobile"
+    },
+    {
+      "key": "trip_id",
+      "value": "TRP-1",
+      "description": "Public trip id (TRP-{id}) or numeric trip_histories.id"
+    },
+    {
+      "key": "notification_id",
+      "value": "1",
+      "description": "in_app_notifications.id"
+    },
+    {
+      "key": "device_id",
+      "value": "postman-test-device",
+      "description": "Optional stable device identifier"
+    },
+    {
+      "key": "student_id",
+      "value": "ST-001",
+      "description": "Public student id for PUT /api/update-status (ST-{id padded})"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "description": "OTP login to obtain Bearer token for all FCM routes.",
+      "item": [
+        {
+          "name": "POST Send OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"7701234567\",\n  \"type_user\": \"guardian\"\n}"
+            },
+            "url": "{{base_url}}/api/auth/send-otp",
+            "description": "Requires valid phone in DB. Use OTP_STATIC_CODE in .env (e.g. 0000) for local testing."
+          }
+        },
+        {
+          "name": "POST Verify OTP (guardian)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const t = json?.data?.token ?? json?.token;",
+                  "if (t) {",
+                  "  pm.collectionVariables.set('token', t);",
+                  "  console.log('Saved token to collection variable');",
+                  "}",
+                  "pm.test('OTP success', () => pm.expect(json.success).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"7701234567\",\n  \"code\": \"0000\",\n  \"type_user\": \"guardian\"\n}"
+            },
+            "url": "{{base_url}}/api/auth/verify-otp"
+          }
+        },
+        {
+          "name": "POST Verify OTP (driver)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const t = json?.data?.token ?? json?.token;",
+                  "if (t) { pm.collectionVariables.set('token', t); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"7701234568\",\n  \"code\": \"0000\",\n  \"type_user\": \"driver\"\n}"
+            },
+            "url": "{{base_url}}/api/auth/verify-otp"
+          }
+        },
+        {
+          "name": "GET Auth me",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/auth/me"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Device token",
+      "description": "Register the mobile FCM registration token after login. Required before topic subscribe and direct pushes.",
+      "item": [
+        {
+          "name": "POST Register FCM token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('success', () => pm.expect(json.success).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{fcm_token}}\",\n  \"platform\": \"android\",\n  \"device_id\": \"{{device_id}}\"\n}"
+            },
+            "url": "{{base_url}}/api/user/fcm-token",
+            "description": "Upserts token for current user. Same token reassigned if another user had it."
+          }
+        },
+        {
+          "name": "DELETE Remove FCM token",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{fcm_token}}\"\n}"
+            },
+            "url": "{{base_url}}/api/user/fcm-token",
+            "description": "Call on logout to stop pushes to this device."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notification preferences",
+      "description": "Per-user toggles. When false, in-app notification rows are still created but FCM push is skipped.",
+      "item": [
+        {
+          "name": "GET Notification settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/user/settings/notifications",
+            "description": "Legacy shape: `{ success, data: { tripNotifications, chatNotifications, ... }, msg }`"
+          }
+        },
+        {
+          "name": "PUT Notification settings (partial)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chatNotifications\": {\n    \"messages\": true\n  },\n  \"tripNotifications\": {\n    \"busMovement\": true,\n    \"busArrival\": true,\n    \"returnTrip\": true,\n    \"driverDelay\": true,\n    \"sos\": true\n  },\n  \"paymentNotifications\": {\n    \"installmentReminder\": true,\n    \"paymentConfirmation\": true\n  },\n  \"systemNotifications\": {\n    \"appUpdates\": true\n  }\n}"
+            },
+            "url": "{{base_url}}/api/user/settings/notifications"
+          }
+        },
+        {
+          "name": "PUT Disable chat push only",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chatNotifications\": {\n    \"messages\": false\n  }\n}"
+            },
+            "url": "{{base_url}}/api/user/settings/notifications",
+            "description": "CHAT_MESSAGE pushes skipped; in-app notifications still created."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Trip tracking topics",
+      "description": "Server-side FCM topic subscribe for live trip updates. Topic name: `trip_{tripHistoryId}` (see config response).",
+      "item": [
+        {
+          "name": "GET Trip tracking config",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const template = json?.data?.topic_template;",
+                  "if (template) {",
+                  "  console.log('Topic template:', template);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/trip-tracking/config",
+            "description": "Returns topic_template, Firebase hints, Pusher/Echo config, topic_subscribe_endpoint."
+          }
+        },
+        {
+          "name": "POST Subscribe to trip topic",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"trip_id\": \"{{trip_id}}\",\n  \"token\": \"{{fcm_token}}\"\n}"
+            },
+            "url": "{{base_url}}/api/trip-tracking/topics/subscribe",
+            "description": "Omit `token` to subscribe all devices registered for the user. Requires FCM_ENABLED + credentials on server for real Firebase subscribe."
+          }
+        },
+        {
+          "name": "POST Subscribe (all user tokens, no token in body)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"trip_id\": \"{{trip_id}}\"\n}"
+            },
+            "url": "{{base_url}}/api/trip-tracking/topics/subscribe"
+          }
+        },
+        {
+          "name": "GET List my topic subscriptions",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/trip-tracking/topics"
+          }
+        },
+        {
+          "name": "DELETE Unsubscribe from trip topic",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"trip_id\": \"{{trip_id}}\",\n  \"token\": \"{{fcm_token}}\"\n}"
+            },
+            "url": "{{base_url}}/api/trip-tracking/topics/unsubscribe"
+          }
+        }
+      ]
+    },
+    {
+      "name": "In-app notifications (read & manage)",
+      "description": "List, unread count, mark read, delete. FCM push is sent when rows are created (see **Triggers** folders).",
+      "item": [
+        {
+          "name": "GET Unread count (haveNewMessages)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/haveNewMessages",
+            "description": "Badge: `data.unreadCount`, `data.hasNewMessages`."
+          }
+        },
+        {
+          "name": "GET In-app notifications (paginated)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/in-app-notifications?per_page=20&page=1",
+            "description": "Returns `items`, `unread_count`, `pagination`. Add `unread_only=1` to filter."
+          }
+        },
+        {
+          "name": "GET In-app notifications (unread only)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/in-app-notifications?unread_only=1&per_page=20"
+          }
+        },
+        {
+          "name": "GET Legacy notifications list",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/notifications?limit=50",
+            "description": "Flat list with `time_ago`, `is_read` (older mobile contract)."
+          }
+        },
+        {
+          "name": "POST Mark notifications read",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ids\": [{{notification_id}}]\n}"
+            },
+            "url": "{{base_url}}/api/in-app-notifications/read",
+            "description": "Body `{ \"ids\": [1,2] }` or `{}` to mark all unread as read."
+          }
+        },
+        {
+          "name": "POST Mark all notifications read",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{base_url}}/api/in-app-notifications/read"
+          }
+        },
+        {
+          "name": "DELETE In-app notification",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/in-app-notifications/{{notification_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Triggers — trip (driver token)",
+      "description": "Use **Verify OTP (driver)**. Creates `in_app_notifications` for guardians (+ FCM if enabled). Preference: busMovement, busArrival, returnTrip, driverDelay, sos.",
+      "item": [
+        {
+          "name": "GET Current trip (driver)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/trips/current-trip",
+            "description": "Set `trip_id` from `data.trip_id` before start/delay/SOS."
+          }
+        },
+        {
+          "name": "POST Start trip → TRIP_STARTED / RETURN_TRIP_STARTED",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/trips/{{trip_id}}/start",
+            "description": "Pickup → busMovement pref. Return trip types → returnTrip pref."
+          }
+        },
+        {
+          "name": "PUT End trip → TRIP_COMPLETED / RETURN_TRIP_COMPLETED",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/trips/end-trip",
+            "description": "Quick end. Do not call finalize after this if you want a single completion notification."
+          }
+        },
+        {
+          "name": "POST Finalize trip → TRIP_COMPLETED / RETURN_TRIP_COMPLETED",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"trip_id\": \"{{trip_id}}\",\n  \"driver_notes\": \"تمت الرحلة بنجاح\",\n  \"final_lat\": 33.3123,\n  \"final_lng\": 44.361,\n  \"end_timestamp\": \"2026-05-10T18:05:00Z\"\n}"
+            },
+            "url": "{{base_url}}/api/driver/trips/{{trip_id}}/finalize",
+            "description": "Path and body `trip_id` must match. Sets COMPLETED + final_lat/lng/notes. Notifies guardians once (same types as end-trip)."
+          }
+        },
+        {
+          "name": "PUT Student ON_WAY",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"student_id\": \"{{student_id}}\",\n  \"new_status\": \"ON_WAY\"\n}"
+            },
+            "url": "{{base_url}}/api/update-status",
+            "description": "No push (sequence step before ARRIVED)."
+          }
+        },
+        {
+          "name": "PUT Student ARRIVED → TRIP_STUDENT_ARRIVED",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"student_id\": \"{{student_id}}\",\n  \"new_status\": \"ARRIVED\",\n  \"driver_lat\": 33.3124,\n  \"driver_lng\": 44.361234\n}"
+            },
+            "url": "{{base_url}}/api/update-status",
+            "description": "Notifies student's guardian. Requires student lat/lng on record and driver within proximity."
+          }
+        },
+        {
+          "name": "POST Delay alert → DELAY_ALERT",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"trip_id\": \"{{trip_id}}\",\n  \"reason_type\": \"TRAFFIC\",\n  \"delay_duration_minutes\": 10,\n  \"driver_lat\": 33.31,\n  \"driver_lng\": 44.36\n}"
+            },
+            "url": "{{base_url}}/api/delay-alert"
+          }
+        },
+        {
+          "name": "POST SOS trigger → SOS_TRIGGERED",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"trip_id\": \"{{trip_id}}\",\n  \"driver_lat\": 33.3128,\n  \"driver_lng\": 44.3615,\n  \"emergency_type\": \"SOS\",\n  \"timestamp\": \"2026-05-10T17:48:00Z\"\n}"
+            },
+            "url": "{{base_url}}/api/driver/sos/trigger",
+            "description": "Notifies guardians on trip + school admins."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Triggers — chat (see User-Chat collection)",
+      "description": "Sending a chat message creates `CHAT_MESSAGE` notifications. Import `postman/User-Chat.postman_collection.json` → send message on `/api/user/chats/{id}/messages` or `/api/chat/conversations/{id}/messages`.",
+      "item": [
+        {
+          "name": "(doc) Use User-Chat collection",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": "{{base_url}}/api/support/info",
+            "description": "Placeholder request — use User-Chat collection for real chat → notification flow."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Parent — Trips (context)",
+      "description": "Helper requests to find a valid trip_id for topic subscribe.",
+      "item": [
+        {
+          "name": "GET trips/active",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/trips/active?student_id="
+          }
+        },
+        {
+          "name": "GET trips/{trip}",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/trips/1",
+            "description": "Replace path id with trip_histories.id"
+          }
+        }
+      ]
+    }
+  ]
+}

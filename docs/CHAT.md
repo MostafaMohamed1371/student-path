@@ -456,12 +456,15 @@ For users with `is_admin`:
 
 | URL | Purpose |
 |-----|---------|
-| `/dashboard/support-chat` | List all support conversations |
-| `/dashboard/support-chat/{id}` | Open thread, reply, realtime updates |
+| `/dashboard/support-chat` | List conversations (excludes deleted); link to reports |
+| `/dashboard/support-chat/{id}` | Thread: text + **file upload**, Pusher realtime, block/unblock, delete |
 | `POST .../close` | Set `status = closed` |
 | `POST .../reopen` | Set `status = open` |
+| `DELETE .../{id}` | Soft-delete conversation |
+| `POST .../block` / `unblock` | Block app user (same as API) |
+| `/dashboard/chat-reports` | List user-submitted chat reports; update status |
 
-Sidebar: **Live support chat** (admin only).
+Sidebar: **Live support chat** and **Chat reports** (admin only).
 
 Echo on the dashboard uses **session cookies** + CSRF for `/broadcasting/auth`.
 

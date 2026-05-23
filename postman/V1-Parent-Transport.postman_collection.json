@@ -851,6 +851,74 @@
                         ],
                         "url": "{{base_url}}/api/trip-tracking/config"
                     }
+                },
+                {
+                    "name": "POST /api/trip-tracking/topics/subscribe",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/trip-tracking/topics/subscribe",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"trip_id\": \"{{trip_id}}\"\n}"
+                        }
+                    },
+                    "description": "Subscribe FCM tokens to trip_{id} topic. Register FCM token first via POST /api/user/fcm-token."
+                },
+                {
+                    "name": "DELETE /api/trip-tracking/topics/unsubscribe",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/trip-tracking/topics/unsubscribe",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"trip_id\": \"{{trip_id}}\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "GET /api/trip-tracking/topics",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/trip-tracking/topics"
+                    }
                 }
             ]
         },
@@ -1265,6 +1333,58 @@
                     }
                 },
                 {
+                    "name": "POST /api/user/fcm-token",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/user/fcm-token",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"token\": \"<fcm_registration_token>\",\n  \"platform\": \"android\",\n  \"device_id\": \"optional-device-id\"\n}"
+                        }
+                    },
+                    "description": "Register device FCM token after login. See docs/FCM.md."
+                },
+                {
+                    "name": "DELETE /api/user/fcm-token",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/user/fcm-token",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"token\": \"<fcm_registration_token>\"\n}"
+                        }
+                    },
+                    "description": "Remove token on logout. See docs/FCM.md."
+                },
+                {
                     "name": "DELETE /api/in-app-notifications/{id}",
                     "request": {
                         "method": "DELETE",
@@ -1447,6 +1567,32 @@
                         ],
                         "url": "{{base_url}}/api/user/settings/notifications"
                     }
+                },
+                {
+                    "name": "PUT /api/user/settings/notifications",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/user/settings/notifications",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"chatNotifications\": { \"messages\": true },\n  \"tripNotifications\": { \"driverDelay\": true, \"sos\": true }\n}"
+                        }
+                    },
+                    "description": "Per-user push toggles. See docs/FCM.md."
                 },
                 {
                     "name": "GET /api/user/performance",

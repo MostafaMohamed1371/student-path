@@ -102,6 +102,21 @@ class User extends Authenticatable
         return $this->hasMany(InAppNotification::class);
     }
 
+    public function fcmTokens(): HasMany
+    {
+        return $this->hasMany(UserFcmToken::class);
+    }
+
+    public function fcmTopicSubscriptions(): HasMany
+    {
+        return $this->hasMany(UserFcmTopicSubscription::class);
+    }
+
+    public function notificationPreference(): HasOne
+    {
+        return $this->hasOne(UserNotificationPreference::class);
+    }
+
     public function chatConversations(): HasMany
     {
         return $this->hasMany(ChatConversation::class);

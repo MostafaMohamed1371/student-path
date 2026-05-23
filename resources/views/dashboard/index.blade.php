@@ -148,6 +148,7 @@
             <p style="margin: 0 0 14px; color: var(--text-muted);">{{ __('dashboard.payments_hub_cards_text') }}</p>
             <div style="display: flex; flex-wrap: wrap; gap: 10px;">
                 <a href="{{ route('dashboard.payments') }}" class="btn-primary" style="width: auto; padding: 10px 14px; text-decoration: none;">{{ __('dashboard.menu_payments') }}</a>
+                <a href="{{ route('dashboard.notifications.hub') }}" class="btn-primary" style="width: auto; padding: 10px 14px; text-decoration: none;">{{ __('dashboard.menu_notifications_hub') }}</a>
                 <a href="{{ route('dashboard.in_app_notifications') }}" class="btn-primary" style="width: auto; padding: 10px 14px; text-decoration: none;">{{ __('dashboard.menu_in_app_notifications') }}</a>
                 <a href="{{ route('dashboard.delay_alerts') }}" class="btn-primary" style="width: auto; padding: 10px 14px; text-decoration: none;">{{ __('dashboard.menu_delay_alerts') }}</a>
                 <a href="{{ route('dashboard.sos_alerts') }}" class="btn-primary" style="width: auto; padding: 10px 14px; text-decoration: none;">{{ __('dashboard.menu_sos_alerts') }}</a>

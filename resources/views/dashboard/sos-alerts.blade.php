@@ -7,6 +7,8 @@
     @component('dashboard.partials.shell', ['title' => $title])
         <p style="color: var(--text-muted); margin: 0 0 20px;">{{ __('dashboard.sos_alerts_page_intro') }}</p>
 
+        @include('dashboard.partials.notification_hub_nav')
+
         @include('dashboard.partials.school_driver_filter')
 
         <section class="card">

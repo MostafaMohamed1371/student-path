@@ -62,6 +62,14 @@ class LegacyNotificationsController extends Controller
         $data = $n->data ?? [];
         if (! empty($data['type']) && is_string($data['type'])) {
             $t = strtoupper($data['type']);
+            $tripTypes = [
+                'TRIP_STARTED', 'TRIP_COMPLETED', 'RETURN_TRIP_STARTED', 'RETURN_TRIP_COMPLETED',
+                'TRIP_STUDENT_ARRIVED', 'DELAY_ALERT', 'SOS_TRIGGERED',
+            ];
+            if (in_array($t, $tripTypes, true)) {
+                return 'TRIP_STATUS';
+            }
+
             $allowed = ['TRIP', 'TRIP_STATUS', 'WALLET', 'WALLET_TRANSACTION', 'USER_INFO', 'CHAT', 'SUPPORT', 'SYSTEM'];
             if (in_array($t, $allowed, true)) {
                 if ($t === 'TRIP_STATUS') {

@@ -46,19 +46,6 @@ return [
         ],
     ],
 
-    'notification_settings' => [
-        'tripNotifications' => [
-            'busMovement' => true,
-            'busArrival' => true,
-            'returnTrip' => true,
-            'driverDelay' => true,
-        ],
-        'paymentNotifications' => [
-            'installmentReminder' => true,
-            'paymentConfirmation' => true,
-        ],
-        'systemNotifications' => [
-            'appUpdates' => true,
-        ],
-    ],
+    // Static fallback; per-user values come from user_notification_preferences (see config/notification_preferences.php).
+    'notification_settings' => config('notification_preferences.defaults', []),
 ];

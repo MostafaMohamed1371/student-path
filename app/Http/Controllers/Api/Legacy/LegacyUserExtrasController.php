@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Legacy;
 use App\Http\Controllers\Api\Legacy\Concerns\RespondsWithLegacySuccess;
 use App\Http\Controllers\Controller;
 use App\Models\TripHistory;
+use App\Services\Notifications\UserNotificationPreferenceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -15,9 +16,13 @@ class LegacyUserExtrasController extends Controller
 {
     use RespondsWithLegacySuccess;
 
-    public function notificationSettings(): JsonResponse
+    public function __construct(
+        private readonly UserNotificationPreferenceService $notificationPreferences,
+    ) {}
+
+    public function notificationSettings(Request $request): JsonResponse
     {
-        return $this->legacySuccess(config('mobile_legacy_api.notification_settings', []));
+        return $this->legacySuccess($this->notificationPreferences->forUser($request->user()));
     }
 
     public function performance(Request $request): JsonResponse

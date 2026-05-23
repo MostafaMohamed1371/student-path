@@ -1,7 +1,7 @@
-@if(($showSchoolFilter ?? false) || ($showDriverFilter ?? false) || ($showShiftFilter ?? false) || ($showStudentFilter ?? false) || ($showGuardianFilter ?? false) || ($showUserRoleFilter ?? false) || ($showTripTypeFilter ?? false))
+@if(($showSchoolFilter ?? false) || ($showDriverFilter ?? false) || ($showShiftFilter ?? false) || ($showStudentFilter ?? false) || ($showGuardianFilter ?? false) || ($showUserRoleFilter ?? false) || ($showTripTypeFilter ?? false) || ($showNotificationTypeFilter ?? false) || ($showUnreadFilter ?? false))
     <section class="card" style="margin-bottom:16px;">
         <form method="get" action="{{ $filterAction }}" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
-            @foreach(request()->except(['school_id', 'driver_id', 'shift_period', 'student_id', 'guardian_id', 'user_role', 'trip_type', 'page']) as $key => $value)
+            @foreach(request()->except(['school_id', 'driver_id', 'shift_period', 'student_id', 'guardian_id', 'user_role', 'trip_type', 'notification_type', 'unread_only', 'page']) as $key => $value)
                 @if(is_scalar($value))
                     <input type="hidden" name="{{ $key }}" value="{{ $value }}">
                 @endif
@@ -92,6 +92,23 @@
                             <option value="{{ $tt }}" @selected(($filterTripType ?? '') === $tt)>{{ $tt }}</option>
                         @endforeach
                     </select>
+                </label>
+            @endif
+            @if($showNotificationTypeFilter ?? false)
+                <label>
+                    <span class="field-label">{{ __('dashboard.table_col_notification_type') }}</span>
+                    <select class="input" name="notification_type" style="min-width:220px;">
+                        <option value="" @selected(($filterNotificationType ?? '') === '')>{{ __('dashboard.report_filter_all_notification_types') }}</option>
+                        @foreach($notificationTypeOptions ?? [] as $nt)
+                            <option value="{{ $nt }}" @selected(($filterNotificationType ?? '') === $nt)>{{ \App\Support\Dashboard\InAppNotificationPresenter::typeLabel($nt) }}</option>
+                        @endforeach
+                    </select>
+                </label>
+            @endif
+            @if($showUnreadFilter ?? false)
+                <label style="display:flex;align-items:center;gap:8px;padding-bottom:6px;">
+                    <input type="checkbox" name="unread_only" value="1" @checked($filterUnreadOnly ?? false)>
+                    <span class="field-label" style="margin:0;">{{ __('dashboard.report_filter_unread_only') }}</span>
                 </label>
             @endif
             <button type="submit" class="btn-primary" style="width:auto;padding:10px 16px;">{{ __('dashboard.filter') }}</button>

@@ -25,6 +25,7 @@ final class DriverTripModuleService
     public function __construct(
         private readonly TransportDriverCardBuilder $transportDriverCardBuilder,
         private readonly DriverShiftResolver $driverShiftResolver,
+        private readonly TripNotificationService $tripNotifications,
     ) {}
 
     /**
@@ -271,7 +272,7 @@ final class DriverTripModuleService
     }
 
     /**
-     * @return array{0: \Illuminate\Support\Carbon, 1: \Illuminate\Support\Carbon}
+     * @return array{0: Carbon, 1: Carbon}
      */
     public function driverTripStartWindow(TripHistory $trip): array
     {
@@ -512,6 +513,8 @@ final class DriverTripModuleService
             return ['success' => false, 'message' => 'Unable to start trip.', 'http_status' => 422];
         }
 
+        $this->tripNotifications->notifyTripStarted($trip);
+
         $payload = $this->currentTripPayload($trip);
 
         return [
@@ -531,6 +534,8 @@ final class DriverTripModuleService
             return ['success' => false, 'message' => 'No active trip.'];
         }
 
+        $wasCompleted = strtoupper((string) $trip->status) === 'COMPLETED';
+
         DB::transaction(function () use ($trip): void {
             $trip->forceFill([
                 'end_time' => now(),
@@ -539,6 +544,10 @@ final class DriverTripModuleService
         });
 
         $trip->refresh();
+
+        if (! $wasCompleted && strtoupper((string) $trip->status) === 'COMPLETED') {
+            $this->tripNotifications->notifyTripCompleted($trip);
+        }
 
         return [
             'success' => true,
@@ -572,6 +581,8 @@ final class DriverTripModuleService
             return ['success' => false, 'message' => 'Cannot finalize cancelled trip.', 'http_status' => 422];
         }
 
+        $wasCompleted = strtoupper((string) $trip->status) === 'COMPLETED';
+
         DB::transaction(function () use ($trip, $driverNotes, $finalLat, $finalLng, $endTimestamp): void {
             $trip->forceFill([
                 'note' => $driverNotes !== null && trim($driverNotes) !== '' ? trim($driverNotes) : $trip->note,
@@ -581,6 +592,12 @@ final class DriverTripModuleService
                 'status' => 'COMPLETED',
             ])->save();
         });
+
+        $trip->refresh();
+
+        if (! $wasCompleted && strtoupper((string) $trip->status) === 'COMPLETED') {
+            $this->tripNotifications->notifyTripCompleted($trip);
+        }
 
         return [
             'success' => true,
@@ -995,6 +1012,13 @@ final class DriverTripModuleService
             }
             $ths->save();
         });
+
+        if ($newStatus === StudentTripStopStatus::ARRIVED) {
+            $student = Student::query()->find($studentId);
+            if ($student) {
+                $this->tripNotifications->notifyStudentArrived($trip, $student);
+            }
+        }
 
         $lessThan50 = $newStatus === StudentTripStopStatus::ARRIVED;
 

@@ -35,7 +35,8 @@ class TrackingInfoController extends Controller
                 'project_id' => $firebase['project_id'] ?? null,
                 'database_url' => $firebase['database_url'] ?? null,
             ],
-            'hint' => 'Use topic '.$prefix.'<tripId> on Firebase, or subscribe to private-trip.<tripId> via Laravel Echo after authenticating at the auth_endpoint.',
+            'topic_subscribe_endpoint' => url('/api/trip-tracking/topics/subscribe'),
+            'hint' => 'Subscribe server-side via POST '.$prefix.'<tripId> at topic_subscribe_endpoint (trip_id = TRP-{id} or numeric id), or client-side on Firebase topic '.$prefix.'<tripHistoryId>. Laravel Echo: private-trip.<tripHistoryId> at auth_endpoint.',
         ], 'success');
     }
 }

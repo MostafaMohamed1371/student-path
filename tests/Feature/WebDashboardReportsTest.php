@@ -30,6 +30,7 @@ class WebDashboardReportsTest extends TestCase
     public function test_payments_and_notifications_redirect_guest_to_login(): void
     {
         $this->get(route('dashboard.payments'))->assertRedirect(route('login'));
+        $this->get(route('dashboard.notifications.hub'))->assertRedirect(route('login'));
         $this->get(route('dashboard.in_app_notifications'))->assertRedirect(route('login'));
         $this->get(route('dashboard.delay_alerts'))->assertRedirect(route('login'));
         $this->get(route('dashboard.sos_alerts'))->assertRedirect(route('login'));
@@ -1278,5 +1279,49 @@ class WebDashboardReportsTest extends TestCase
             ->assertOk()
             ->assertSee('REQ-PAGE-01', false)
             ->assertDontSee('REQ-PAGE-26', false);
+    }
+
+    public function test_notifications_hub_and_in_app_type_filter(): void
+    {
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'School N',
+            'province' => 'P',
+            'district' => '1',
+            'address' => 'A',
+            'status' => 'active',
+        ]);
+
+        $parent = User::factory()->create(['school_id' => $school->id]);
+        InAppNotification::query()->create([
+            'user_id' => $parent->id,
+            'title' => 'Trip started title',
+            'body' => 'Trip started body',
+            'data' => ['type' => 'TRIP_STARTED', 'trip_id' => 'TRP-99'],
+        ]);
+        InAppNotification::query()->create([
+            'user_id' => $parent->id,
+            'title' => 'Chat ping',
+            'body' => 'Chat body',
+            'data' => ['type' => 'CHAT_MESSAGE', 'conversation_id' => 1],
+        ]);
+
+        $admin = User::factory()->create(['is_admin' => true]);
+        $this->actingAs($admin);
+
+        $this->get(route('dashboard.notifications.hub'))
+            ->assertOk()
+            ->assertSee(__('dashboard.menu_notifications_hub'), false)
+            ->assertSee('Trip started title', false);
+
+        $this->get(route('dashboard.in_app_notifications', ['notification_type' => 'TRIP_STARTED']))
+            ->assertOk()
+            ->assertSee('Trip started title', false)
+            ->assertDontSee('Chat ping', false);
+
+        $this->get(route('dashboard.in_app_notifications', ['unread_only' => 1]))
+            ->assertOk()
+            ->assertSee('Trip started title', false)
+            ->assertSee('Chat ping', false);
     }
 }

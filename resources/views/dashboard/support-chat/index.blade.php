@@ -7,6 +7,15 @@
     @component('dashboard.partials.shell', ['title' => $title])
         <p style="color: var(--text-muted); margin: 0 0 20px;">{{ __('dashboard.support_chat_page_intro') }}</p>
 
+        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:16px;">
+            <a href="{{ route('dashboard.chat_reports.index') }}" class="btn-muted" style="text-decoration:none;padding:8px 14px;">
+                {{ __('dashboard.support_chat_view_reports') }}
+                @if (($pendingReports ?? 0) > 0)
+                    <span class="badge off" style="margin-inline-start:6px;">{{ $pendingReports }}</span>
+                @endif
+            </a>
+        </div>
+
         <section class="card">
             <div style="overflow:auto;">
                 <table class="table">
