@@ -6,8 +6,13 @@
     </a>
     <a href="{{ route('dashboard.in_app_notifications') }}"
        class="btn-muted"
-       style="width:auto;padding:8px 12px;text-decoration:none;{{ request()->routeIs('dashboard.in_app_notifications') ? 'opacity:1;font-weight:600;' : '' }}">
+       style="width:auto;padding:8px 12px;text-decoration:none;{{ request()->routeIs('dashboard.in_app_notifications*') ? 'opacity:1;font-weight:600;' : '' }}">
         {{ __('dashboard.menu_in_app_notifications') }}
+    </a>
+    <a href="{{ route('dashboard.fcm_tokens.index') }}"
+       class="btn-muted"
+       style="width:auto;padding:8px 12px;text-decoration:none;{{ request()->routeIs('dashboard.fcm_tokens.*') ? 'opacity:1;font-weight:600;' : '' }}">
+        {{ __('dashboard.menu_fcm_tokens') }}
     </a>
     <a href="{{ route('dashboard.delay_alerts') }}"
        class="btn-muted"

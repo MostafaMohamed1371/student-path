@@ -47,7 +47,9 @@ Send the token to the API after the user logs in (Bearer Sanctum token required)
 
 ## Step 5 — Register token (API)
 
-**POST** `/api/user/fcm-token`
+**POST** `/api/notifications/fcm-token` (StudentWay contract)
+
+**POST** `/api/user/fcm-token` (alias)
 
 Headers: `Authorization: Bearer <sanctum_token>`
 

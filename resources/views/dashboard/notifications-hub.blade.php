@@ -11,6 +11,8 @@
 
         @include('dashboard.partials.school_driver_filter')
 
+        @include('dashboard.partials.notifications_hub_quick_links')
+
         <div class="stats-grid" style="margin-bottom: 24px;">
             <article class="stat-card">
                 <h3>{{ __('dashboard.notifications_stat_in_app_7d') }}</h3>
@@ -19,6 +21,10 @@
             <article class="stat-card">
                 <h3>{{ __('dashboard.notifications_stat_unread') }}</h3>
                 <p>{{ $stats['in_app_unread'] }}</p>
+            </article>
+            <article class="stat-card">
+                <h3>{{ __('dashboard.notifications_stat_fcm_tokens') }}</h3>
+                <p>{{ $stats['fcm_tokens'] }}</p>
             </article>
             <article class="stat-card">
                 <h3>{{ __('dashboard.notifications_stat_delay_7d') }}</h3>
@@ -62,7 +68,11 @@
                         @php($dataType = \App\Support\Dashboard\InAppNotificationPresenter::dataType($n))
                         @php($tripRef = \App\Support\Dashboard\InAppNotificationPresenter::tripReference($n))
                         <tr>
-                            <td>{{ $n->id }}</td>
+                            <td>
+                                <a href="{{ route('dashboard.in_app_notifications.show', array_merge(['notification' => $n->id], request()->only(['school_id', 'driver_id']))) }}" class="link mono">
+                                    {{ $n->id }}
+                                </a>
+                            </td>
                             <td>{{ $u?->name ?? '—' }}</td>
                             <td>
                                 @if($dataType)

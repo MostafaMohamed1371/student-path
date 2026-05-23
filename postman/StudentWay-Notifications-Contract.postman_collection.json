@@ -1,0 +1,223 @@
+{
+  "info": {
+    "name": "StudentWay — Notifications API Contract",
+    "_postman_id": "b7e4a1c2-5f6d-4e8a-9c01-studentway-notif-2026",
+    "description": "Postman collection for the **StudentWay Notifications** backend contract.\n\nSource: `notifications_backend_api_contract_README.md` · Implementation: `docs/NOTIFICATIONS_API_CONTRACT.md`\n\n## Setup\n1. Set collection variable `base_url` (e.g. `http://127.0.0.1:8000` or `https://khatyiq.com`).\n2. Run **Auth → POST Verify OTP** — saves `token` automatically.\n3. Run **GET Notifications** — test script saves first `notification_id`.\n4. Use **PATCH Mark one read** / **PATCH Mark all read** / **POST Register FCM token**.\n\n## Contract endpoints (all under `/api`, Bearer required)\n| Method | Path |\n|--------|------|\n| GET | `/notifications` |\n| PATCH | `/notifications/{id}/read` |\n| PATCH | `/notifications/read-all` |\n| POST | `/notifications/fcm-token` |\n\n## Response shape\n```json\n{ \"success\": true, \"message\": \"...\", \"data\": {} }\n```\n\n## Notification `type` values\n`TRIP` · `ALERT` · `SCHEDULE` · `WARNING` · `LOCATION`\n\n## FCM data payload (when push is sent)\n`notificationId`, `type`, `title`, `body`\n\nExtended APIs (preferences, paginated list, trip topics): import **Student-Path FCM** collection.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000",
+      "description": "Laravel API base URL (no trailing slash)"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "description": "Sanctum Bearer token (set by Verify OTP test script)"
+    },
+    {
+      "key": "fcm_token",
+      "value": "dGhpcyBpcyBhIHNhbXBsZSBmY20tcmVnaXN0cmF0aW9uLXRva2VuLWZvci1hcGktdGVzdGluZy1vbmx5LTEyMzQ1Ng",
+      "description": "FCM device registration token (min 32 chars for API validation)"
+    },
+    {
+      "key": "notification_id",
+      "value": "1",
+      "description": "in_app_notifications.id — auto-set from GET Notifications"
+    },
+    {
+      "key": "otp_phone",
+      "value": "7701234567",
+      "description": "Registered user phone (10 digits, no country code)"
+    },
+    {
+      "key": "otp_code",
+      "value": "0000",
+      "description": "OTP code (use OTP_STATIC_CODE from .env in local dev)"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth (prerequisite)",
+      "description": "Contract endpoints require `Authorization: Bearer {{token}}`. Not part of the notifications contract document — included so this collection is runnable standalone.",
+      "item": [
+        {
+          "name": "POST Send OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{otp_phone}}\",\n  \"type_user\": \"guardian\"\n}"
+            },
+            "url": "{{base_url}}/api/auth/send-otp",
+            "description": "Phone must exist in `users`. Set `otp_phone` collection variable."
+          }
+        },
+        {
+          "name": "POST Verify OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success is true', () => pm.expect(json.success).to.eql(true));",
+                  "const t = json?.data?.token ?? json?.token;",
+                  "if (t) {",
+                  "  pm.collectionVariables.set('token', t);",
+                  "  console.log('token saved to collection variable');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{otp_phone}}\",\n  \"code\": \"{{otp_code}}\",\n  \"type_user\": \"guardian\"\n}"
+            },
+            "url": "{{base_url}}/api/auth/verify-otp"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications (contract)",
+      "description": "Exact endpoints from **notifications_backend_api_contract_README.md**. Paths are prefixed with `/api` on this server.",
+      "item": [
+        {
+          "name": "GET Notifications",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('success', () => pm.expect(json.success).to.eql(true));",
+                  "pm.test('message', () => pm.expect(json.message).to.eql('Notifications fetched successfully'));",
+                  "pm.test('data is array', () => pm.expect(json.data).to.be.an('array'));",
+                  "if (json.data && json.data.length > 0) {",
+                  "  const first = json.data[0];",
+                  "  pm.test('notification shape', () => {",
+                  "    pm.expect(first).to.have.keys('id', 'title', 'body', 'type', 'isRead', 'createdAt');",
+                  "  });",
+                  "  pm.collectionVariables.set('notification_id', first.id);",
+                  "  console.log('notification_id set to', first.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/notifications",
+            "description": "**Contract:** `GET /notifications`\n\n**Notes enforced:**\n- `data` is a plain array (no `pagination` / `items`).\n- No filtering: `?unread_only`, `?page`, `?limit`, etc. → **422**.\n- No deep links in items (only id, title, body, type, isRead, createdAt).\n- Newest first; `createdAt` = ISO-8601 UTC (`2026-05-23T16:30:00Z`).\n- Read state: `isRead` from DB `read_at` (use PATCH read endpoints).\n\nFor paginated/filtered list use `GET /api/in-app-notifications`."
+          }
+        },
+        {
+          "name": "PATCH Mark notification as read",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('success', () => pm.expect(json.success).to.eql(true));",
+                  "pm.test('message', () => pm.expect(json.message).to.eql('Notification marked as read'));",
+                  "pm.test('data is null', () => pm.expect(json.data).to.eql(null));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/notifications/{{notification_id}}/read",
+            "description": "**Contract:** `PATCH /notifications/{id}/read`\n\nPath `id` = notification id string from list response."
+          }
+        },
+        {
+          "name": "PATCH Mark all notifications as read",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('success', () => pm.expect(json.success).to.eql(true));",
+                  "pm.test('message', () => pm.expect(json.message).to.eql('All notifications marked as read'));",
+                  "pm.test('data is null', () => pm.expect(json.data).to.eql(null));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/notifications/read-all",
+            "description": "**Contract:** `PATCH /notifications/read-all`"
+          }
+        },
+        {
+          "name": "POST Register FCM token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('success', () => pm.expect(json.success).to.eql(true));",
+                  "pm.test('message', () => pm.expect(json.message).to.eql('FCM token registered successfully'));",
+                  "pm.test('data is null', () => pm.expect(json.data).to.eql(null));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{fcm_token}}\"\n}"
+            },
+            "url": "{{base_url}}/api/notifications/fcm-token",
+            "description": "**Contract:** `POST /notifications/fcm-token`\n\nRequest body (contract minimum):\n```json\n{ \"token\": \"fcm_device_token\" }\n```\n\nServer also accepts optional `platform` (`ios`|`android`|`web`) and `device_id`."
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -150,6 +150,7 @@
                 <a href="{{ route('dashboard.payments') }}" class="btn-primary" style="width: auto; padding: 10px 14px; text-decoration: none;">{{ __('dashboard.menu_payments') }}</a>
                 <a href="{{ route('dashboard.notifications.hub') }}" class="btn-primary" style="width: auto; padding: 10px 14px; text-decoration: none;">{{ __('dashboard.menu_notifications_hub') }}</a>
                 <a href="{{ route('dashboard.in_app_notifications') }}" class="btn-primary" style="width: auto; padding: 10px 14px; text-decoration: none;">{{ __('dashboard.menu_in_app_notifications') }}</a>
+                <a href="{{ route('dashboard.fcm_tokens.index') }}" class="btn-primary" style="width: auto; padding: 10px 14px; text-decoration: none;">{{ __('dashboard.menu_fcm_tokens') }}</a>
                 <a href="{{ route('dashboard.delay_alerts') }}" class="btn-primary" style="width: auto; padding: 10px 14px; text-decoration: none;">{{ __('dashboard.menu_delay_alerts') }}</a>
                 <a href="{{ route('dashboard.sos_alerts') }}" class="btn-primary" style="width: auto; padding: 10px 14px; text-decoration: none;">{{ __('dashboard.menu_sos_alerts') }}</a>
                 <a href="{{ route('dashboard.trip_finalization_reports') }}" class="btn-primary" style="width: auto; padding: 10px 14px; text-decoration: none;">{{ __('dashboard.menu_trip_finalization_reports') }}</a>

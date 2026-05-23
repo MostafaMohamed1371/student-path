@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\V1\InAppNotificationController as V1InAppNotificati
 use App\Http\Controllers\Api\V1\LocationController as V1LocationController;
 use App\Http\Controllers\Api\V1\MetaController as V1MetaController;
 use App\Http\Controllers\Api\V1\NotificationPreferenceController as V1NotificationPreferenceController;
+use App\Http\Controllers\Api\V1\NotificationsContractController as V1NotificationsContractController;
 use App\Http\Controllers\Api\V1\OrderController as V1OrderController;
 use App\Http\Controllers\Api\V1\ParentStudentController as V1ParentStudentController;
 use App\Http\Controllers\Api\V1\PlacesController as V1PlacesController;
@@ -60,6 +61,10 @@ Route::middleware('auth:sanctum')->group(function (): void {
 
     Route::get('transactions', [LegacyTransactionsController::class, 'index']);
     Route::get('notifications', [LegacyNotificationsController::class, 'index']);
+    Route::patch('notifications/read-all', [V1NotificationsContractController::class, 'markAllRead']);
+    Route::patch('notifications/{notification}/read', [V1NotificationsContractController::class, 'markRead'])
+        ->whereNumber('notification');
+    Route::post('notifications/fcm-token', [V1NotificationsContractController::class, 'registerFcmToken']);
     Route::get('haveNewMessages', [LegacyNotificationsController::class, 'haveNewMessages']);
 
     Route::post('support/complaint', [LegacySupportController::class, 'complaint']);

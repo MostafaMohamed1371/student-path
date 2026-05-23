@@ -79,7 +79,7 @@ class ApiLegacyMobileContractTest extends TestCase
 
         Sanctum::actingAs($user);
 
-        $this->getJson('/api/notifications')
+        $this->getJson('/api/notifications?legacy=1')
             ->assertOk()
             ->assertJsonPath('data.0.type', 'TRIP_STATUS')
             ->assertJsonPath('data.0.is_read', false)

@@ -372,6 +372,57 @@
           }
         },
         {
+          "name": "GET Notifications (StudentWay contract)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/notifications",
+            "description": "camelCase: `id`, `type` (TRIP|ALERT|…), `isRead`, `createdAt`. See docs/NOTIFICATIONS_API_CONTRACT.md"
+          }
+        },
+        {
+          "name": "PATCH Mark one notification read (contract)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/notifications/{{notification_id}}/read"
+          }
+        },
+        {
+          "name": "PATCH Mark all notifications read (contract)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/api/notifications/read-all"
+          }
+        },
+        {
+          "name": "POST Register FCM token (contract path)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{fcm_token}}\",\n  \"platform\": \"android\",\n  \"device_id\": \"{{device_id}}\"\n}"
+            },
+            "url": "{{base_url}}/api/notifications/fcm-token",
+            "description": "Alias: POST /api/user/fcm-token"
+          }
+        },
+        {
           "name": "GET Legacy notifications list",
           "request": {
             "method": "GET",
@@ -379,7 +430,7 @@
               { "key": "Accept", "value": "application/json" },
               { "key": "Authorization", "value": "Bearer {{token}}" }
             ],
-            "url": "{{base_url}}/api/notifications?limit=50",
+            "url": "{{base_url}}/api/notifications?legacy=1&limit=50",
             "description": "Flat list with `time_ago`, `is_read` (older mobile contract)."
           }
         },

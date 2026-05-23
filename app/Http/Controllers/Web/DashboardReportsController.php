@@ -3,13 +3,14 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\Web\Concerns\AppliesDashboardInAppNotificationFilters;
 use App\Http\Controllers\Web\Concerns\ConstrainsDashboardUserScope;
 use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
 use App\Http\Controllers\Web\Concerns\ProvidesDashboardSchoolDriverFilters;
+use App\Http\Controllers\Web\Concerns\QueriesDashboardInAppNotifications;
 use App\Models\DelayAlert;
 use App\Models\InAppNotification;
 use App\Models\SosAlert;
+use App\Models\UserFcmToken;
 use App\Models\TripHistory;
 use App\Models\WalletQicardPayment;
 use App\Models\WalletTransaction;
@@ -21,10 +22,10 @@ use Illuminate\View\View;
 
 class DashboardReportsController extends Controller
 {
-    use AppliesDashboardInAppNotificationFilters;
     use ConstrainsDashboardUserScope;
     use ManagesDashboardScoping;
     use ProvidesDashboardSchoolDriverFilters;
+    use QueriesDashboardInAppNotifications;
 
     public function notificationsHub(Request $request): View
     {
@@ -43,9 +44,13 @@ class DashboardReportsController extends Controller
         $tripsBase = TripHistory::query()->where('status', 'COMPLETED');
         $this->applyDashboardReportFilters($tripsBase, $filters, 'trip_history');
 
+        $fcmBase = UserFcmToken::query();
+        $this->applyDashboardReportFilters($fcmBase, $filters, 'user_relation');
+
         $stats = [
             'in_app_7d' => (clone $inAppBase)->where('in_app_notifications.created_at', '>=', $since)->count(),
             'in_app_unread' => (clone $inAppBase)->whereNull('read_at')->count(),
+            'fcm_tokens' => (clone $fcmBase)->count(),
             'delay_7d' => (clone $delayBase)->where('delay_alerts.created_at', '>=', $since)->count(),
             'sos_active' => (clone $sosBase)->where('status', 'TRIGGERED')->whereNull('stopped_at')->count(),
             'trips_completed_7d' => (clone $tripsBase)->where('trip_histories.updated_at', '>=', $since)->count(),
@@ -110,33 +115,13 @@ class DashboardReportsController extends Controller
     public function notifications(Request $request): View
     {
         $perPage = $this->dashboardListPerPage();
-        $filters = array_merge(
-            $this->dashboardReportFilterContext(
-                $request,
-                withUserRoleFilter: true,
-                withGuardianFilter: true,
-            ),
-            $this->dashboardInAppNotificationExtraFilters($request),
-        );
+        $filters = $this->dashboardInAppNotificationFiltersFromRequest($request);
 
-        $query = InAppNotification::query()
+        $notifications = $this->dashboardInAppNotificationQuery($request)
             ->with('user')
-            ->latest('in_app_notifications.id');
-        $this->applyDashboardReportFilters($query, $filters, 'user_relation');
-        $role = (string) ($filters['filterUserRole'] ?? '');
-        if ($role !== '') {
-            $query->whereHas('user', function (Builder $userQuery) use ($filters): void {
-                $this->applyDashboardUserRoleFilter($userQuery, $filters);
-            });
-        }
-        $guardianId = (int) ($filters['filterGuardianId'] ?? 0);
-        if ($guardianId > 0) {
-            $query->whereHas('user', function (Builder $userQuery) use ($guardianId): void {
-                $this->constrainUsersToGuardian($userQuery, $guardianId);
-            });
-        }
-        $this->applyDashboardInAppNotificationFilters($query, $filters);
-        $notifications = $query->paginate($perPage)->withQueryString();
+            ->latest('in_app_notifications.id')
+            ->paginate($perPage)
+            ->withQueryString();
 
         return view('dashboard.in-app-notifications', array_merge($filters, [
             'filterAction' => route('dashboard.in_app_notifications'),

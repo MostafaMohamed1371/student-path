@@ -4,6 +4,7 @@ namespace App\Observers;
 
 use App\Contracts\Push\PushNotifier;
 use App\Models\InAppNotification;
+use App\Services\Notifications\NotificationContractMapper;
 use App\Services\Notifications\UserNotificationPreferenceService;
 
 class InAppNotificationObserver
@@ -24,11 +25,24 @@ class InAppNotificationObserver
             return;
         }
 
+        $title = (string) $notification->title;
+        $body = $notification->body;
+
+        $fcmData = array_merge(
+            $data,
+            NotificationContractMapper::fcmDataPayload(
+                (int) $notification->id,
+                $title,
+                $body,
+                $data,
+            ),
+        );
+
         $this->pushNotifier->notifyUser(
             (int) $notification->user_id,
-            (string) $notification->title,
-            $notification->body,
-            $data,
+            $title,
+            $body,
+            $fcmData,
         );
     }
 }

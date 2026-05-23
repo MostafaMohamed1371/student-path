@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Legacy;
 
 use App\Http\Controllers\Api\Legacy\Concerns\RespondsWithLegacySuccess;
+use App\Http\Controllers\Api\V1\NotificationsContractController;
 use App\Http\Controllers\Controller;
 use App\Models\InAppNotification;
 use Carbon\Carbon;
@@ -16,7 +17,20 @@ class LegacyNotificationsController extends Controller
 {
     use RespondsWithLegacySuccess;
 
+    public function __construct(
+        private readonly NotificationsContractController $contract,
+    ) {}
+
     public function index(Request $request): JsonResponse
+    {
+        if (! $request->boolean('legacy')) {
+            return $this->contract->index($request);
+        }
+
+        return $this->legacyIndex($request);
+    }
+
+    public function legacyIndex(Request $request): JsonResponse
     {
         $limit = min(100, max(1, (int) $request->query('limit', 50)));
 
