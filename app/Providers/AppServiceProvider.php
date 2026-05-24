@@ -5,6 +5,9 @@ namespace App\Providers;
 use App\Contracts\Push\FcmTopicSubscriber;
 use App\Contracts\Push\PushNotifier;
 use App\Contracts\Sms\SmsSender;
+use App\Contracts\Trips\TripLocationRepository;
+use App\Services\Trips\CacheTripLocationRepository;
+use App\Services\Trips\FirebaseTripLocationRepository;
 use App\Models\InAppNotification;
 use App\Observers\InAppNotificationObserver;
 use App\Services\Push\FakeFcmTopicSubscriber;
@@ -57,6 +60,20 @@ class AppServiceProvider extends ServiceProvider
             return new FcmPushNotifier($app->make(Messaging::class));
         });
 
+        $this->app->singleton(TripLocationRepository::class, function () {
+            $store = strtolower((string) config('trips.location_store', 'auto'));
+
+            if ($store === 'cache') {
+                return new CacheTripLocationRepository;
+            }
+
+            if ($store === 'firebase' || ($store === 'auto' && self::firebaseLocationStoreAvailable())) {
+                return new FirebaseTripLocationRepository;
+            }
+
+            return new CacheTripLocationRepository;
+        });
+
         $this->app->bind(FcmTopicSubscriber::class, function ($app) {
             if (! config('fcm.enabled', false) || config('fcm.mock', true)) {
                 return $app->make(FakeFcmTopicSubscriber::class);
@@ -106,5 +123,16 @@ class AppServiceProvider extends ServiceProvider
         InAppNotification::observe(InAppNotificationObserver::class);
 
         require base_path('routes/channels.php');
+    }
+
+    private static function firebaseLocationStoreAvailable(): bool
+    {
+        if (trim((string) config('realtime.firebase.database_url')) === '') {
+            return false;
+        }
+
+        $credentials = trim((string) config('fcm.credentials', ''));
+
+        return $credentials !== '' && is_readable($credentials);
     }
 }

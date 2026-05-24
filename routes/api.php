@@ -16,6 +16,8 @@ use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\V1\AbsenceController as V1AbsenceController;
 use App\Http\Controllers\Api\V1\ChatController as V1ChatController;
 use App\Http\Controllers\Api\V1\DriverTripController as V1DriverTripController;
+use App\Http\Controllers\Api\V1\DriverTripLocationController as V1DriverTripLocationController;
+use App\Http\Controllers\Api\V1\TripTrackingController as V1TripTrackingController;
 use App\Http\Controllers\Api\V1\FcmTokenController as V1FcmTokenController;
 use App\Http\Controllers\Api\V1\FcmTripTopicController as V1FcmTripTopicController;
 use App\Http\Controllers\Api\V1\HomeLocationController as V1HomeLocationController;
@@ -171,6 +173,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('driver/trips/{trip}', [V1DriverTripController::class, 'tripDetails']);
     Route::get('driver/trips/{trip}/summary', [V1DriverTripController::class, 'tripSummary']);
     Route::post('driver/trips/{trip}/finalize', [V1DriverTripController::class, 'finalizeTrip']);
+    Route::post('driver/trips/{trip}/location', [V1DriverTripLocationController::class, 'store']);
     Route::get('trips/current-trip', [V1DriverTripController::class, 'currentTrip']);
     Route::post('trips/{trip}/start', [V1DriverTripController::class, 'startTrip']);
     Route::put('trips/end-trip', [V1DriverTripController::class, 'endTrip']);
@@ -183,6 +186,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('trips/available', [V1TripParentController::class, 'available']);
     Route::get('trips/active', [V1TripParentController::class, 'active']);
     Route::get('trips/{trip}/driver', [V1TripParentController::class, 'driver']);
+    Route::get('trips/{trip}/tracking', [V1TripTrackingController::class, 'show']);
     Route::get('trips/{trip}', [V1TripParentController::class, 'show']);
 
     Route::get('trip-tracking/config', V1TrackingInfoController::class);

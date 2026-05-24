@@ -120,6 +120,8 @@ Implemented by `Api\V1\ProfileController`, which **delegates** to `UserProfileCo
 | GET | `/api/trips/active` | Query: optional `student_id`. Current trip payload(s). |
 | GET | `/api/trips/{trip}` | Trip detail (parent-scoped school). |
 | GET | `/api/trips/{trip}/driver` | Driver + bus when resolvable from trip. |
+| GET | `/api/trips/{trip}/tracking` | Driver details + live location (Firebase/cache) + distance to student pickup or school. Query: optional `student_id`. |
+| POST | `/api/driver/trips/{trip}/location` | **Driver only.** Body: `latitude`, `longitude`, optional `heading`, `speed_kmh`, `accuracy_m`, `recorded_at`. Writes to Firebase RTDB path `trips/{id}/tracking`. Trip must be started. |
 | GET | `/api/trip-tracking/config` | Echo / Firebase hints for realtime. |
 | POST | `/api/trip-requests` | Body: `student_id`, optional `trip_history_id`, `notes`. |
 | GET | `/api/trip-requests` | Paginated list for current user. |

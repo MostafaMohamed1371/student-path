@@ -18,7 +18,9 @@ use App\Services\Trips\DriverShiftResolver;
 use App\Services\Trips\DriverTripModuleService;
 use App\Services\Trips\StudentShiftFilter;
 use App\Services\Trips\TripStudentAvailability;
+use App\Services\Trips\TripLocationTrackingService;
 use App\Services\Trips\TripTransportRouteApplier;
+use App\Services\Push\TripTrackingAuthorization;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -57,14 +59,116 @@ class DashboardTripController extends Controller
         ]));
     }
 
-    public function show(TripHistory $trip, DriverTripModuleService $driverTripModule): View
-    {
+    public function show(
+        TripHistory $trip,
+        DriverTripModuleService $driverTripModule,
+        TripLocationTrackingService $locationTracking,
+        TripTrackingAuthorization $trackingAuth,
+    ): View {
         abort_unless($this->tripHistoryVisible($trip), 404);
-        $trip->load(['school', 'driver', 'tripHistoryStudents.student']);
+        $trip->load(['school', 'driver.bus', 'tripHistoryStudents.student']);
 
         $tripDetail = $driverTripModule->tripDetailPayload($trip);
 
-        return view('dashboard.trips.show', compact('trip', 'tripDetail'));
+        $user = auth()->user();
+        $canTrackTrip = $user !== null && $trackingAuth->canSubscribe($user, $trip);
+        $tripTrackingInitial = null;
+
+        if ($canTrackTrip) {
+            try {
+                $tripTrackingInitial = $locationTracking->trackingPayloadForUser($user, $trip);
+            } catch (\Throwable) {
+                $tripTrackingInitial = null;
+            }
+        }
+
+        $status = strtoupper((string) ($trip->status ?? ''));
+        $tripIsLive = $trip->driver_started_at !== null
+            && ! in_array($status, ['CANCELLED', 'COMPLETED'], true);
+
+        $mapMarkers = $this->tripMapMarkers($trip);
+
+        $broadcastConnection = (string) config('broadcasting.default', 'null');
+        $pusherEnabled = $broadcastConnection === 'pusher'
+            && filled(config('broadcasting.connections.pusher.key'));
+
+        return view('dashboard.trips.show', [
+            'trip' => $trip,
+            'tripDetail' => $tripDetail,
+            'canTrackTrip' => $canTrackTrip,
+            'tripTrackingInitial' => $tripTrackingInitial,
+            'tripIsLive' => $tripIsLive,
+            'mapMarkers' => $mapMarkers,
+            'pusherEnabled' => $pusherEnabled,
+            'pusherKey' => config('broadcasting.connections.pusher.key'),
+            'pusherCluster' => config('broadcasting.connections.pusher.cluster'),
+            'locationBroadcastEvent' => (string) config('trips.location_broadcast_event', 'driver.location.updated'),
+            'trackingPollUrl' => route('dashboard.trips.tracking', $trip),
+        ]);
+    }
+
+    public function tracking(
+        TripHistory $trip,
+        TripLocationTrackingService $locationTracking,
+        TripTrackingAuthorization $trackingAuth,
+    ): JsonResponse {
+        abort_unless($this->tripHistoryVisible($trip), 404);
+
+        $user = auth()->user();
+        if ($user === null || ! $trackingAuth->canSubscribe($user, $trip)) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $trip->loadMissing(['school', 'driver.bus', 'tripHistoryStudents.student']);
+
+        try {
+            $data = $locationTracking->trackingPayloadForUser($user, $trip);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => $e->getMessage() ?: 'Unable to load tracking.',
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+            'markers' => $this->tripMapMarkers($trip),
+        ]);
+    }
+
+    /**
+     * @return array{school: array<string, mixed>|null, students: list<array<string, mixed>>}
+     */
+    private function tripMapMarkers(TripHistory $trip): array
+    {
+        $school = null;
+        if ($trip->school && $trip->school->latitude !== null && $trip->school->longitude !== null) {
+            $school = [
+                'latitude' => (float) $trip->school->latitude,
+                'longitude' => (float) $trip->school->longitude,
+                'label' => (string) ($trip->school->name_en ?: $trip->school->name_ar),
+            ];
+        }
+
+        $students = [];
+        foreach ($trip->tripHistoryStudents as $ths) {
+            $student = $ths->student;
+            if (! $student || $student->latitude === null || $student->longitude === null) {
+                continue;
+            }
+            $students[] = [
+                'id' => (int) $student->id,
+                'name' => (string) $student->full_name,
+                'latitude' => (float) $student->latitude,
+                'longitude' => (float) $student->longitude,
+                'status' => (string) $ths->status,
+            ];
+        }
+
+        return [
+            'school' => $school,
+            'students' => $students,
+        ];
     }
 
     public function create(): View|RedirectResponse

@@ -19,6 +19,8 @@
             </section>
         @endif
 
+        @include('dashboard.trips._live_tracking_map')
+
         <section class="card" style="margin-bottom: 16px;">
             <p style="margin: 0 0 8px;"><strong>{{ __('dashboard.school') }}:</strong> {{ $trip->school?->name_en ?? '—' }}</p>
             <p style="margin: 0 0 8px;"><strong>{{ __('dashboard.trip_field_driver') }}:</strong>

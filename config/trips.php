@@ -45,6 +45,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Live driver location (Firebase Realtime Database + API)
+    |--------------------------------------------------------------------------
+    |
+    | Store: auto (firebase when FIREBASE_DATABASE_URL + credentials exist), firebase, cache
+    | Path: trips/{tripId}/tracking — mobile apps can listen at .../location
+    |
+    */
+    'location_store' => env('TRIP_LOCATION_STORE', 'auto'),
+    'location_firebase_path' => 'trips/{tripId}/tracking',
+    'location_cache_ttl_seconds' => (int) env('TRIP_LOCATION_CACHE_TTL_SECONDS', 86400),
+    'location_max_updates_per_minute' => (int) env('TRIP_LOCATION_MAX_UPDATES_PER_MINUTE', 30),
+
+    'location_broadcast_enabled' => env('TRIP_LOCATION_BROADCAST_ENABLED', true),
+    'location_broadcast_event' => env('TRIP_LOCATION_BROADCAST_EVENT', 'driver.location.updated'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Automatic trip status sync
     |--------------------------------------------------------------------------
     |

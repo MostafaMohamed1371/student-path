@@ -26,6 +26,7 @@ final class DriverTripModuleService
         private readonly TransportDriverCardBuilder $transportDriverCardBuilder,
         private readonly DriverShiftResolver $driverShiftResolver,
         private readonly TripNotificationService $tripNotifications,
+        private readonly TripLocationTrackingService $locationTracking,
     ) {}
 
     /**
@@ -547,6 +548,7 @@ final class DriverTripModuleService
 
         if (! $wasCompleted && strtoupper((string) $trip->status) === 'COMPLETED') {
             $this->tripNotifications->notifyTripCompleted($trip);
+            $this->locationTracking->deactivate($trip);
         }
 
         return [
@@ -597,6 +599,7 @@ final class DriverTripModuleService
 
         if (! $wasCompleted && strtoupper((string) $trip->status) === 'COMPLETED') {
             $this->tripNotifications->notifyTripCompleted($trip);
+            $this->locationTracking->deactivate($trip);
         }
 
         return [

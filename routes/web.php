@@ -96,6 +96,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/dashboard/trips/driver-auto-fill', [DashboardTripController::class, 'driverAutoFill'])->name('dashboard.trips.driver_auto_fill');
     Route::post('/dashboard/trips', [DashboardTripController::class, 'store'])->name('dashboard.trips.store');
     Route::get('/dashboard/trips/{trip}', [DashboardTripController::class, 'show'])->name('dashboard.trips.show');
+    Route::get('/dashboard/trips/{trip}/tracking', [DashboardTripController::class, 'tracking'])->name('dashboard.trips.tracking');
     Route::get('/dashboard/trips/{trip}/edit', [DashboardTripController::class, 'edit'])->name('dashboard.trips.edit');
     Route::put('/dashboard/trips/{trip}', [DashboardTripController::class, 'update'])->name('dashboard.trips.update');
     Route::delete('/dashboard/trips/{trip}', [DashboardTripController::class, 'destroy'])->name('dashboard.trips.destroy');

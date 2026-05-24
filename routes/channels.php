@@ -31,6 +31,11 @@ Broadcast::channel('trip.{tripHistoryId}', function ($user, string $tripHistoryI
         return ['id' => $user->id, 'name' => $user->name];
     }
 
+    $user->loadMissing('driver');
+    if ($user->driver && (int) $user->driver->id === (int) ($trip->driver_id ?? 0)) {
+        return ['id' => $user->id, 'name' => $user->name];
+    }
+
     return false;
 });
 
