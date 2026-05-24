@@ -133,6 +133,12 @@ class TripLocationTrackingTest extends TestCase
         $meters = $this->getJson('/api/trips/TRP-'.$trip->id.'/tracking')->json('data.distance.meters');
         $this->assertIsNumeric($meters);
         $this->assertGreaterThan(0, $meters);
+
+        $this->getJson('/api/trips/'.$trip->id.'/tracking/location')
+            ->assertOk()
+            ->assertJsonPath('data.tracking_active', true)
+            ->assertJsonPath('data.location.latitude', 33.315)
+            ->assertJsonPath('data.firebase_path', 'trips/'.$trip->id.'/tracking/location');
     }
 
     public function test_driver_cannot_post_location_before_trip_started(): void
