@@ -8,8 +8,10 @@ use App\Models\ChatConversation;
 use App\Models\ChatMessage;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class ChatMessenger
 {
@@ -94,11 +96,36 @@ class ChatMessenger
 
         $message->load('sender:id,name,is_admin,image');
 
-        ChatMessageSent::dispatch($message);
-
-        $this->notifier->notifyNewMessage($message);
+        $this->dispatchMessageSent($message);
+        $this->notifyNewMessageSafely($message);
 
         return $message;
+    }
+
+    private function dispatchMessageSent(ChatMessage $message): void
+    {
+        try {
+            ChatMessageSent::dispatch($message);
+        } catch (Throwable $e) {
+            Log::warning('Chat message broadcast failed', [
+                'message_id' => $message->id,
+                'conversation_id' => $message->chat_conversation_id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function notifyNewMessageSafely(ChatMessage $message): void
+    {
+        try {
+            $this->notifier->notifyNewMessage($message);
+        } catch (Throwable $e) {
+            Log::warning('Chat in-app notification failed', [
+                'message_id' => $message->id,
+                'conversation_id' => $message->chat_conversation_id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
