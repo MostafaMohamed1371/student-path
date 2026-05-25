@@ -18,6 +18,54 @@ class DashboardTripFormOptionsTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_trip_edit_page_renders_status_select(): void
+    {
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'School',
+            'province' => 'P',
+            'district' => 'D',
+            'address' => 'A',
+            'status' => 'active',
+        ]);
+
+        $driverUser = User::factory()->create();
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'Ali',
+            'father_name' => 'H',
+            'grandfather_name' => 'H',
+            'last_name' => 'Driver',
+            'age' => 35,
+            'id_card_number' => 'IDC-TRIP-EDIT',
+            'license_number' => 'LIC-TRIP-EDIT',
+            'primary_phone' => '7770000199',
+            'emergency_phone' => '7770000198',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+
+        $trip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'bus_number' => 'BUS-EDIT',
+            'route_title' => 'Route',
+            'students_count' => 0,
+            'distance_km' => 0,
+            'start_time' => now()->addHour(),
+            'status' => 'ACTIVE',
+        ]);
+
+        $admin = User::factory()->create(['is_admin' => true]);
+        $this->actingAs($admin);
+
+        $this->get(route('dashboard.trips.edit', $trip))
+            ->assertOk()
+            ->assertSee('name="status"', false)
+            ->assertSee('value="ACTIVE"', false);
+    }
+
     public function test_form_options_includes_driver_bus_number_and_capacity(): void
     {
         $school = School::query()->create([

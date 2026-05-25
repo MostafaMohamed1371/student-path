@@ -233,12 +233,15 @@ class DashboardTripController extends Controller
         $schoolId = (int) old('school_id', $trip->school_id);
         $tripType = old('trip_type', $trip->trip_type);
         $drivers = $this->driversForTripForm($schoolId, is_string($tripType) ? $tripType : null);
+        $tripStatus = strtoupper((string) old('status', $trip->status ?? ''));
+        $selectableStatus = in_array($tripStatus, ['ACTIVE', 'PRESENT'], true) ? $tripStatus : 'PRESENT';
 
         return view('dashboard.trips.edit', [
             'trip' => $trip,
             'schools' => $schools,
             'drivers' => $drivers,
             'tripTypes' => $tripTypes,
+            'selectableStatus' => $selectableStatus,
             'formOptionsUrl' => route('dashboard.trips.form_options'),
             'driverAutoFillUrl' => route('dashboard.trips.driver_auto_fill'),
             'exceptTripId' => (int) $trip->id,

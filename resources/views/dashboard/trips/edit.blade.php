@@ -3,7 +3,9 @@
 @section('title', __('dashboard.edit_trip'))
 
 @section('content')
-    @php($title = __('dashboard.edit_trip'))
+    @php
+        $title = __('dashboard.edit_trip');
+    @endphp
     @component('dashboard.partials.shell', ['title' => $title])
         <section class="card">
             <form method="post" action="{{ route('dashboard.trips.update', $trip) }}" class="form-grid" id="trip_form">
@@ -56,8 +58,7 @@
                 <label><span>{{ __('dashboard.trip_start_time') }}</span><input type="datetime-local" name="start_time" value="{{ old('start_time', optional($trip->start_time)->format('Y-m-d\TH:i')) }}" required></label>
                 <label><span>{{ __('dashboard.trip_end_time') }}</span><input type="datetime-local" name="end_time" value="{{ old('end_time', optional($trip->end_time)->format('Y-m-d\TH:i')) }}"></label>
                 @php
-                    $tripStatus = strtoupper((string) old('status', $trip->status ?? ''));
-                    $selectableStatus = in_array($tripStatus, ['ACTIVE', 'PRESENT'], true) ? $tripStatus : 'PRESENT';
+                    $selectableStatus = $selectableStatus ?? 'PRESENT';
                 @endphp
                 <label>
                     <span>{{ __('dashboard.trip_status') }}</span>
