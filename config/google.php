@@ -2,11 +2,13 @@
 
 return [
     'places_api_key' => env('GOOGLE_PLACES_API_KEY', ''),
+    'directions_api_key' => env('GOOGLE_DIRECTIONS_API_KEY', env('GOOGLE_PLACES_API_KEY', '')),
 
     /*
     | BCP-47 language for Places (e.g. ar, en). Empty uses primary language from app.locale.
     */
     'places_language' => env('GOOGLE_PLACES_LANGUAGE', ''),
+    'directions_language' => env('GOOGLE_DIRECTIONS_LANGUAGE', env('GOOGLE_PLACES_LANGUAGE', '')),
 
     /*
     | Region bias (ccTLD / region code), e.g. iq — improves local relevance without hard-filtering.

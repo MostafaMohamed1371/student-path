@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\User\ChatController as UserChatController;
 use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\V1\AbsenceController as V1AbsenceController;
 use App\Http\Controllers\Api\V1\ChatController as V1ChatController;
+use App\Http\Controllers\Api\V1\DirectionsController as V1DirectionsController;
 use App\Http\Controllers\Api\V1\DriverTripController as V1DriverTripController;
 use App\Http\Controllers\Api\V1\DriverTripLocationController as V1DriverTripLocationController;
 use App\Http\Controllers\Api\V1\TripTrackingController as V1TripTrackingController;
@@ -150,6 +151,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('places/autocomplete', [V1PlacesController::class, 'autocomplete'])
         ->middleware('throttle:google-places');
     Route::get('places/{place}', [V1PlacesController::class, 'details'])
+        ->middleware('throttle:google-places');
+    Route::post('directions/flat', [V1DirectionsController::class, 'flat'])
         ->middleware('throttle:google-places');
 
     Route::get('meta/schools', [V1MetaController::class, 'schools']);

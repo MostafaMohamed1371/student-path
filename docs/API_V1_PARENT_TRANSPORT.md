@@ -109,6 +109,7 @@ Implemented by `Api\V1\ProfileController`, which **delegates** to `UserProfileCo
 | GET | `/api/locations/iraq` | **`data`**: array of districts → areas → **neighborhoods** (`distance_km` = Haversine km from reference). **Default reference** (when `latitude`/`longitude` omitted): approximate centre of Iraq — see `config/locations.php` / env `LOCATIONS_IRAQ_REF_*`. **Optional query** `latitude`+`longitude`: distances from the client point instead (`distance_reference.source` = `request` vs `iraq_default`). Optional **`max_radius_km`**: exclude neighborhoods farther than radius from the active reference. Response also includes root **`distance_reference`** `{ latitude, longitude, source, label }`. |
 | GET | `/api/places/autocomplete` | Query: `input`, optional `sessiontoken`. Requires `GOOGLE_PLACES_API_KEY`; otherwise **503**. Throttle: `google-places`. |
 | GET | `/api/places/{place}` | Google Place Details for `{place}` (place_id). Throttle: `google-places`. |
+| POST | `/api/directions/flat` | Google Directions bridge. Body: `origin.latitude`, `origin.longitude`, `destination.latitude`, `destination.longitude`; optional `mode` (`driving`, `walking`, `bicycling`, `transit`), `units`, `language`, `alternatives`. Returns flat distance/duration/polyline/steps + Google Maps URL. Requires `GOOGLE_DIRECTIONS_API_KEY` or `GOOGLE_PLACES_API_KEY`. |
 | GET | `/api/meta/schools` | Query: optional `format=minimal` (`id` + `name`) or full `SchoolResource` list; school-scoped for non-admins. |
 | GET | `/api/meta/grades` | Grade catalog. |
 | GET | `/api/students` | Parent: linked students (+ `current_trip`). Guardian with no students: empty list (no full-school leak). |
@@ -214,7 +215,7 @@ Standard REST under Sanctum. **Route order:** `GET /api/org/trips/history` is re
 
 | Variable | Used for |
 |----------|----------|
-| `GOOGLE_PLACES_API_KEY` | Places autocomplete/details |
+| `GOOGLE_PLACES_API_KEY`, `GOOGLE_DIRECTIONS_API_KEY` | Places autocomplete/details and Directions bridge |
 | `BROADCAST_DRIVER`, `PUSHER_*` | Laravel Echo / websockets |
 | `FIREBASE_PROJECT_ID`, `FIREBASE_DATABASE_URL` | Hints in tracking config |
 | `QI_CARD_*`, `QI_CARD_ENABLED`, `QI_CARD_BLOCK_DIRECT_RECHARGE` | Qi Card wallet init/webhook/finish (see `.env.example` and `QiCardWalletPaymentController`) |

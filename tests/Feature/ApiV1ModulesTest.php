@@ -122,6 +122,94 @@ class ApiV1ModulesTest extends TestCase
             ->assertJsonPath('data.google_status', 'NOT_FOUND');
     }
 
+    public function test_v1_directions_without_key_returns_503(): void
+    {
+        config([
+            'google.places_api_key' => '',
+            'google.directions_api_key' => '',
+        ]);
+
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/directions/flat', [
+            'origin' => ['latitude' => 33.3152, 'longitude' => 44.3661],
+            'destination' => ['latitude' => 33.3120, 'longitude' => 44.3620],
+        ])->assertStatus(503);
+    }
+
+    public function test_v1_directions_flat_returns_mobile_friendly_payload(): void
+    {
+        config(['google.directions_api_key' => 'test-key']);
+
+        Http::fake([
+            'maps.googleapis.com/*' => Http::response([
+                'status' => 'OK',
+                'routes' => [[
+                    'overview_polyline' => ['points' => 'abc123'],
+                    'bounds' => [
+                        'northeast' => ['lat' => 33.32, 'lng' => 44.37],
+                        'southwest' => ['lat' => 33.31, 'lng' => 44.36],
+                    ],
+                    'legs' => [[
+                        'start_address' => 'Driver location',
+                        'end_address' => 'Student pickup',
+                        'distance' => ['text' => '1.2 km', 'value' => 1200],
+                        'duration' => ['text' => '4 mins', 'value' => 240],
+                        'steps' => [[
+                            'html_instructions' => 'Head <b>east</b>',
+                            'distance' => ['text' => '0.5 km', 'value' => 500],
+                            'duration' => ['text' => '2 mins', 'value' => 120],
+                            'start_location' => ['lat' => 33.3152, 'lng' => 44.3661],
+                            'end_location' => ['lat' => 33.3160, 'lng' => 44.3670],
+                            'polyline' => ['points' => 'step-polyline'],
+                            'travel_mode' => 'DRIVING',
+                        ]],
+                    ]],
+                ]],
+            ], 200),
+        ]);
+
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/directions/flat', [
+            'origin' => ['latitude' => 33.3152, 'longitude' => 44.3661],
+            'destination' => ['latitude' => 33.3120, 'longitude' => 44.3620],
+            'mode' => 'driving',
+        ])
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.route_found', true)
+            ->assertJsonPath('data.distance.value', 1200)
+            ->assertJsonPath('data.duration.value', 240)
+            ->assertJsonPath('data.overview_polyline', 'abc123')
+            ->assertJsonPath('data.steps.0.instruction', 'Head east');
+    }
+
+    public function test_v1_directions_request_denied_returns_503(): void
+    {
+        config(['google.directions_api_key' => 'test-key']);
+
+        Http::fake([
+            'maps.googleapis.com/*' => Http::response([
+                'status' => 'REQUEST_DENIED',
+                'error_message' => 'Directions API not enabled.',
+            ], 200),
+        ]);
+
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/directions/flat', [
+            'origin' => ['latitude' => 33.3152, 'longitude' => 44.3661],
+            'destination' => ['latitude' => 33.3120, 'longitude' => 44.3620],
+        ])
+            ->assertStatus(503)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('data.google_status', 'REQUEST_DENIED');
+    }
+
     public function test_v1_profile_put_delegates(): void
     {
         $user = User::factory()->create(['name' => 'Old']);
