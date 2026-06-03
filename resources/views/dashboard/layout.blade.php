@@ -148,6 +148,43 @@
             background: var(--primary-hover);
         }
 
+        .btn-primary:disabled,
+        .btn-secondary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            width: 100%;
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            background: #fff;
+            color: var(--text-main);
+            padding: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-secondary:hover {
+            background: #f8fafc;
+        }
+
+        .btn-link {
+            width: 100%;
+            border: 0;
+            background: transparent;
+            color: var(--text-muted);
+            padding: 4px 0 0;
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
         .login-links {
             margin-top: 24px;
             display: flex;

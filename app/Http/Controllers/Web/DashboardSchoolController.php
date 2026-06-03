@@ -6,7 +6,7 @@ use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
 use App\Http\Controllers\Web\Concerns\ProvidesDashboardSchoolDriverFilters;
 use App\Http\Controllers\Controller;
 use App\Models\School;
-use App\Models\User;
+use App\Services\Phone\DashboardPhoneUserProvisioner;
 use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -57,7 +57,7 @@ class DashboardSchoolController extends Controller
         }
 
         $school = School::query()->create($payload);
-        $this->syncSchoolAdminUser($school, $phoneNormalizer);
+        $this->syncSchoolAdminUser($school, $phoneNormalizer, app(DashboardPhoneUserProvisioner::class));
 
         return redirect()->route('dashboard.schools.index')->with('success', __('dashboard.school_created'));
     }
@@ -78,7 +78,7 @@ class DashboardSchoolController extends Controller
         }
 
         $school->update($payload);
-        $this->syncSchoolAdminUser($school->fresh(), $phoneNormalizer);
+        $this->syncSchoolAdminUser($school->fresh(), $phoneNormalizer, app(DashboardPhoneUserProvisioner::class));
 
         return redirect()->route('dashboard.schools.index')->with('success', __('dashboard.school_updated'));
     }
@@ -111,25 +111,17 @@ class DashboardSchoolController extends Controller
         ]);
     }
 
-    private function syncSchoolAdminUser(School $school, PhoneNormalizer $phoneNormalizer): void
-    {
+    private function syncSchoolAdminUser(
+        School $school,
+        PhoneNormalizer $phoneNormalizer,
+        DashboardPhoneUserProvisioner $provisioner,
+    ): void {
         if (! $school->admin_phone || ! $phoneNormalizer->isValidIraqiMobile((string) $school->admin_phone)) {
             return;
         }
 
-        $phone = $phoneNormalizer->normalize((string) $school->admin_phone);
         $name = $school->principal_name ?: $school->name_en ?: $school->name_ar;
-
-        User::query()->firstOrCreate(
-            ['phone' => $phone],
-            [
-                'name' => $name,
-                'school_id' => $school->id,
-                'password' => config('dashboard.seed_password'),
-                'is_active' => $school->status === 'active',
-                'phone_verified_at' => now(),
-            ]
-        );
+        $provisioner->upsertSchoolStaff($school, (string) $school->admin_phone, (string) $name);
     }
 
     private function isAdmin(): bool

@@ -9,6 +9,7 @@ use App\Http\Requests\Web\StoreDashboardDriverRequest;
 use App\Http\Requests\Web\UpdateDashboardDriverRequest;
 use App\Models\Driver;
 use App\Models\User;
+use App\Services\Phone\DashboardPhoneUserProvisioner;
 use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -63,11 +64,21 @@ class DashboardDriverController extends Controller
         $ratingAvg = Arr::pull($validated, 'rating_avg');
         $ratingCount = Arr::pull($validated, 'rating_count');
         $patchExistingUserRatings = $request->filled('rating_avg') || $request->filled('rating_count');
-        $user = $this->resolveDriverUser($validated, $phoneNormalizer, $ratingAvg, $ratingCount, false, $patchExistingUserRatings);
+        $user = $this->resolveDriverUser(
+            $validated,
+            $phoneNormalizer,
+            app(DashboardPhoneUserProvisioner::class),
+            $ratingAvg,
+            $ratingCount,
+            false,
+            $patchExistingUserRatings,
+        );
         $this->syncDriverProfileImage($user, $request->file('profile_image'));
 
+        $driverData = Arr::except($validated, ['route_description', 'monthly_subscription_price', 'shift_period']);
+
         Driver::query()->create([
-            ...$validated,
+            ...$driverData,
             'user_id' => $user->id,
             'id_card_image' => $this->storeFile($request->file('id_card_image'), 'drivers'),
             'license_image' => $this->storeFile($request->file('license_image'), 'drivers'),
@@ -92,10 +103,18 @@ class DashboardDriverController extends Controller
         $this->abortUnlessCanMutateSchoolRosterForSchool((int) ($validated['school_id'] ?? $driver->school_id));
         $ratingAvg = Arr::pull($validated, 'rating_avg');
         $ratingCount = Arr::pull($validated, 'rating_count');
-        $user = $this->resolveDriverUser($validated, $phoneNormalizer, $ratingAvg, $ratingCount, true, false);
+        $user = $this->resolveDriverUser(
+            $validated,
+            $phoneNormalizer,
+            app(DashboardPhoneUserProvisioner::class),
+            $ratingAvg,
+            $ratingCount,
+            true,
+            false,
+        );
         $this->syncDriverProfileImage($user, $request->file('profile_image'));
 
-        $payload = [...$validated];
+        $payload = Arr::except($validated, ['route_description', 'monthly_subscription_price', 'shift_period']);
         $payload['user_id'] = $user->id;
         $payload['id_card_image'] = $this->replaceFile($request->file('id_card_image'), $driver->id_card_image, 'drivers');
         $payload['license_image'] = $this->replaceFile($request->file('license_image'), $driver->license_image, 'drivers');
@@ -155,12 +174,12 @@ class DashboardDriverController extends Controller
     private function resolveDriverUser(
         array $validated,
         PhoneNormalizer $phoneNormalizer,
+        DashboardPhoneUserProvisioner $provisioner,
         mixed $ratingAvg,
         mixed $ratingCount,
         bool $syncRatingsFromForm,
         bool $patchExistingUserRatingsOnCreate,
     ): User {
-        $phone = $phoneNormalizer->normalize((string) ($validated['primary_phone'] ?? ''));
         $name = trim(
             ($validated['first_name'] ?? '').' '.
             ($validated['father_name'] ?? '').' '.
@@ -170,17 +189,18 @@ class DashboardDriverController extends Controller
         $initialRate = $this->normalizeDriverUserRatingAvg($ratingAvg);
         $initialVotes = $this->normalizeDriverUserRatingCount($ratingCount);
 
-        $user = User::query()->firstOrCreate(
-            ['phone' => $phone],
-            [
-                'name' => $name !== '' ? $name : null,
-                'password' => config('dashboard.seed_password'),
-                'is_active' => true,
-                'phone_verified_at' => now(),
+        $user = $provisioner->upsertDriver(
+            (string) ($validated['primary_phone'] ?? ''),
+            $name,
+            ($validated['status'] ?? 'active') === 'active',
+        );
+
+        if ($user->wasRecentlyCreated) {
+            $user->forceFill([
                 'votes' => $initialVotes,
                 'rate' => $initialRate,
-            ]
-        );
+            ])->save();
+        }
 
         if ($syncRatingsFromForm) {
             $user->forceFill([

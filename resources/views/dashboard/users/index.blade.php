@@ -33,7 +33,7 @@
                     </thead>
                     <tbody>
                     @forelse($users as $user)
-                        @php($typeUser = \App\Support\LoginTypeUser::resolve($user))
+                        @php($typeUser = \App\Support\DashboardUserDisplayType::resolve($user))
                         <tr>
                             <td>{{ $user->id }}</td>
                             <td>{{ $user->school?->name_en ?: '—' }}</td>

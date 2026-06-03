@@ -2,11 +2,17 @@
 
 namespace App\Http\Requests\Api;
 
+use App\Enums\PhoneAccountType;
+use App\Http\Requests\Concerns\ValidatesUniqueDashboardPhone;
+use App\Models\Driver;
+use App\Services\Phone\PhoneRecordIdentity;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class UpdateDriverRequest extends FormRequest
 {
+    use ValidatesUniqueDashboardPhone;
     public function authorize(): bool
     {
         return true;
@@ -33,5 +39,43 @@ class UpdateDriverRequest extends FormRequest
             'licenseImage' => ['sometimes', 'nullable', 'file', 'image', 'max:4096'],
             'nonConvictionCertificate' => ['sometimes', 'nullable', 'file', 'max:4096'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        if (! $this->hasAny(['primaryPhone', 'emergencyPhone'])) {
+            return;
+        }
+
+        /** @var Driver $driver */
+        $driver = $this->route('driver');
+
+        $driverUserId = $driver->user_id ? (int) $driver->user_id : null;
+
+        if ($this->filled('primaryPhone')) {
+            $this->assertUniqueDashboardPhone(
+                $validator,
+                'primaryPhone',
+                PhoneAccountType::Driver,
+                new PhoneRecordIdentity(
+                    driverId: (int) $driver->id,
+                    driverUserId: $driverUserId,
+                    driverPhoneField: 'primary_phone',
+                ),
+            );
+        }
+
+        if ($this->filled('emergencyPhone')) {
+            $this->assertUniqueDashboardPhone(
+                $validator,
+                'emergencyPhone',
+                PhoneAccountType::Driver,
+                new PhoneRecordIdentity(
+                    driverId: (int) $driver->id,
+                    driverUserId: $driverUserId,
+                    driverPhoneField: 'emergency_phone',
+                ),
+            );
+        }
     }
 }

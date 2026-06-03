@@ -27,6 +27,82 @@ final class OtpService
     ) {}
 
     /**
+     * Dashboard login for non-admin users (session auth, no Sanctum token).
+     *
+     * @return array{expires_in: int, resend_in: int, plain_code: string}
+     */
+    public function sendForDashboard(string $rawPhone): array
+    {
+        $phone = $this->phoneNormalizer->normalize($rawPhone);
+        $user = User::query()->where('phone', $phone)->first();
+
+        if (! $user) {
+            throw ValidationException::withMessages([
+                'phone' => ['This phone number is not registered.'],
+            ]);
+        }
+
+        if (! $user->is_active) {
+            throw ValidationException::withMessages([
+                'phone' => ['This account is disabled.'],
+            ]);
+        }
+
+        if ($user->is_admin) {
+            throw ValidationException::withMessages([
+                'phone' => ['Administrators must sign in with a password.'],
+            ]);
+        }
+
+        return $this->send($rawPhone, OtpPurpose::Login, 'dashboard');
+    }
+
+    public function verifyForDashboard(string $rawPhone, string $rawCode): User
+    {
+        $phone = $this->phoneNormalizer->normalize($rawPhone);
+        $code = preg_replace('/\D+/', '', $rawCode) ?? '';
+
+        $staticPlain = $this->staticOtpPlain();
+        if ($staticPlain !== null && hash_equals($staticPlain, $code)) {
+            return $this->verifyDashboardWithStaticOtp($phone);
+        }
+
+        return DB::transaction(function () use ($phone, $code): User {
+            /** @var OtpCode|null $otp */
+            $otp = OtpCode::query()
+                ->forPhoneAndPurpose($phone, OtpPurpose::Login)
+                ->active()
+                ->lockForUpdate()
+                ->latest('id')
+                ->first();
+
+            if (! $otp) {
+                throw ValidationException::withMessages([
+                    'code' => ['Invalid or expired verification code.'],
+                ]);
+            }
+
+            if ($otp->attempts >= $otp->max_attempts) {
+                throw ValidationException::withMessages([
+                    'code' => ['Too many failed attempts. Please request a new code.'],
+                ]);
+            }
+
+            if (! hash_equals((string) $otp->code, (string) $code)) {
+                $otp->increment('attempts');
+
+                throw ValidationException::withMessages([
+                    'code' => ['Invalid verification code.'],
+                ]);
+            }
+
+            $otp->forceFill(['verified_at' => now()])->save();
+
+            return $this->resolveDashboardUserAfterOtp($phone);
+        });
+    }
+
+    /**
      * @return array{expires_in: int, resend_in: int, plain_code: string}
      */
     public function send(string $rawPhone, OtpPurpose $purpose, string $typeUser): array
@@ -47,7 +123,13 @@ final class OtpService
             ]);
         }
 
-        LoginTypeUser::assertMatches($typeUser, $user);
+        if ($typeUser !== 'dashboard') {
+            LoginTypeUser::assertMatches($typeUser, $user);
+        } elseif ($user->is_admin) {
+            throw ValidationException::withMessages([
+                'phone' => ['Administrators must sign in with a password.'],
+            ]);
+        }
 
         $latest = OtpCode::query()
             ->forPhoneAndPurpose($phone, $purpose)
@@ -192,6 +274,44 @@ final class OtpService
     /**
      * @return array{user: User, token: string}
      */
+    private function verifyDashboardWithStaticOtp(string $phone): User
+    {
+        return DB::transaction(fn (): User => $this->resolveDashboardUserAfterOtp($phone, lock: true));
+    }
+
+    private function resolveDashboardUserAfterOtp(string $phone, bool $lock = false): User
+    {
+        $query = User::query()->where('phone', $phone);
+        if ($lock) {
+            $query->lockForUpdate();
+        }
+        $user = $query->first();
+
+        if (! $user) {
+            throw ValidationException::withMessages([
+                'phone' => ['This phone number is not registered.'],
+            ]);
+        }
+
+        if (! $user->is_active) {
+            throw ValidationException::withMessages([
+                'phone' => ['This account is disabled.'],
+            ]);
+        }
+
+        if ($user->is_admin) {
+            throw ValidationException::withMessages([
+                'phone' => ['Administrators must sign in with a password.'],
+            ]);
+        }
+
+        if ($user->phone_verified_at === null) {
+            $user->forceFill(['phone_verified_at' => now()])->save();
+        }
+
+        return $user->fresh();
+    }
+
     private function verifyWithStaticOtp(string $phone, string $typeUser): array
     {
         return DB::transaction(function () use ($phone, $typeUser): array {
@@ -208,7 +328,13 @@ final class OtpService
                 ]);
             }
 
-            LoginTypeUser::assertMatches($typeUser, $user);
+            if ($typeUser !== 'dashboard') {
+                LoginTypeUser::assertMatches($typeUser, $user);
+            } elseif ($user->is_admin) {
+                throw ValidationException::withMessages([
+                    'phone' => ['Administrators must sign in with a password.'],
+                ]);
+            }
 
             if ($user->phone_verified_at === null) {
                 $user->forceFill(['phone_verified_at' => now()])->save();

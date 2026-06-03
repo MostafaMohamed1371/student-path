@@ -3,8 +3,11 @@
 namespace Tests\Feature;
 
 use App\Enums\TripType;
+use App\Models\Area;
 use App\Models\Bus;
+use App\Models\District;
 use App\Models\Driver;
+use App\Models\Neighborhood;
 use App\Models\School;
 use App\Models\Student;
 use App\Models\TransportRoute;
@@ -89,20 +92,25 @@ class DashboardRouteTest extends TestCase
         $this->post(route('dashboard.routes.store'), [
             'school_id' => $school->id,
             'trip_type' => TripType::MORNING_PICKUP->value,
-            'driver_id' => $driver->id,
             'start_address' => 'Start depot, Baghdad',
             'start_latitude' => 33.311,
             'start_longitude' => 44.361,
             'status' => 'active',
+            'monthly_subscription_price' => 65000,
         ])->assertRedirect();
 
-        $this->assertDatabaseHas('transport_routes', [
-            'school_id' => $school->id,
-            'driver_id' => $driver->id,
-            'trip_type' => TripType::MORNING_PICKUP->value,
-            'start_address' => 'Start depot, Baghdad',
-        ]);
+        $route = TransportRoute::query()->where('school_id', $school->id)->first();
+        $this->assertNotNull($route);
+        $this->assertNull($route->driver_id);
+        $this->assertSame(65000, (int) $route->monthly_subscription_price);
 
+        $this->post(route('dashboard.routes.assign_driver', $route), [
+            'driver_id' => $driver->id,
+        ])->assertRedirect();
+
+        $driver->refresh();
+        $this->assertSame(65000, $driver->monthly_subscription_price);
+        $this->assertSame('MORNING', $driver->shift_period);
         $this->assertSame(1, TransportRouteStudent::query()->count());
 
         $this->get(route('dashboard.routes.index', ['school_id' => $school->id]))
@@ -370,14 +378,147 @@ class DashboardRouteTest extends TestCase
         $this->post(route('dashboard.routes.store'), [
             'school_id' => $school->id,
             'trip_type' => TripType::MORNING_PICKUP->value,
-            'driver_id' => $driver->id,
             'start_address' => 'Another start',
             'start_latitude' => 33.312,
             'start_longitude' => 44.362,
             'status' => 'active',
-        ])
-            ->assertSessionHasErrors('driver_id');
+        ])->assertRedirect();
 
-        $this->assertSame(1, TransportRoute::query()->count());
+        $secondRoute = TransportRoute::query()->where('start_address', 'Another start')->first();
+        $this->assertNotNull($secondRoute);
+
+        $this->post(route('dashboard.routes.assign_driver', $secondRoute), [
+            'driver_id' => $driver->id,
+        ])->assertSessionHasErrors('driver_id');
+
+        $this->assertSame(2, TransportRoute::query()->count());
+    }
+
+    public function test_assigned_driver_in_route_report_lists_driver_on_route(): void
+    {
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'Assigned School',
+            'province' => 'P',
+            'district' => 'D',
+            'address' => 'A',
+            'status' => 'active',
+        ]);
+
+        $user = User::factory()->create();
+        $driver = Driver::query()->create([
+            'user_id' => $user->id,
+            'school_id' => $school->id,
+            'first_name' => 'Sam',
+            'father_name' => 'F',
+            'grandfather_name' => 'G',
+            'last_name' => 'Driver',
+            'age' => 30,
+            'id_card_number' => 'IDC-AD',
+            'license_number' => 'LIC-AD',
+            'primary_phone' => '7770000500',
+            'emergency_phone' => '7770000501',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+
+        TransportRoute::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'name' => 'Route AD',
+            'trip_type' => TripType::MORNING_PICKUP->value,
+            'shift_period' => 'MORNING',
+            'monthly_subscription_price' => 70000,
+            'start_address' => 'Start AD',
+            'status' => 'active',
+        ]);
+
+        $admin = User::factory()->create(['is_admin' => true]);
+        $this->actingAs($admin);
+
+        $this->get(route('dashboard.assigned_drivers.index'))
+            ->assertOk()
+            ->assertSee(__('dashboard.menu_assigned_driver_in_route'), false)
+            ->assertSee('Sam Driver', false)
+            ->assertSee('Route AD', false)
+            ->assertSee('70,000', false)
+            ->assertSee(__('dashboard.assign_driver'), false);
+
+        $this->get(route('dashboard.routes.index'))
+            ->assertOk()
+            ->assertSee('Route AD', false);
+    }
+
+    public function test_routes_can_be_filtered_by_iraq_location(): void
+    {
+        $governorate = District::query()->create(['name' => 'Baghdad', 'sort_order' => 1]);
+        $district = Area::query()->create(['district_id' => $governorate->id, 'name' => 'Rusafa', 'sort_order' => 0]);
+        $subDistrict = Neighborhood::query()->create([
+            'area_id' => $district->id,
+            'name' => 'Al-Karrada',
+            'sort_order' => 0,
+            'latitude' => 33.3152,
+            'longitude' => 44.3661,
+        ]);
+        $otherArea = Area::query()->create(['district_id' => $governorate->id, 'name' => 'Karkh', 'sort_order' => 1]);
+
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'Location School',
+            'province' => 'P',
+            'district' => 'D',
+            'address' => 'A',
+            'latitude' => 33.31,
+            'longitude' => 44.36,
+            'status' => 'active',
+        ]);
+
+        TransportRoute::query()->create([
+            'school_id' => $school->id,
+            'district_id' => $governorate->id,
+            'area_id' => $district->id,
+            'neighborhood_id' => $subDistrict->id,
+            'name' => 'Route Karrada',
+            'trip_type' => TripType::MORNING_PICKUP->value,
+            'shift_period' => 'MORNING',
+            'start_address' => 'Start K',
+            'start_latitude' => 33.311,
+            'start_longitude' => 44.361,
+            'status' => 'active',
+        ]);
+        TransportRoute::query()->create([
+            'school_id' => $school->id,
+            'district_id' => $governorate->id,
+            'area_id' => $otherArea->id,
+            'name' => 'Route Karkh',
+            'trip_type' => TripType::EVENING_PICKUP->value,
+            'shift_period' => 'EVENING',
+            'start_address' => 'Start Kh',
+            'start_latitude' => 33.312,
+            'start_longitude' => 44.362,
+            'status' => 'active',
+        ]);
+
+        $admin = User::factory()->create(['is_admin' => true]);
+        $this->actingAs($admin);
+
+        $this->get(route('dashboard.routes.index', [
+            'school_id' => $school->id,
+            'district_id' => $governorate->id,
+            'area_id' => $district->id,
+        ]))
+            ->assertOk()
+            ->assertSee('Route Karrada', false)
+            ->assertDontSee('Route Karkh', false);
+
+        $this->get(route('dashboard.routes.index', [
+            'school_id' => $school->id,
+            'district_id' => $governorate->id,
+            'area_id' => $district->id,
+            'neighborhood_id' => $subDistrict->id,
+        ]))
+            ->assertOk()
+            ->assertSee('Route Karrada', false)
+            ->assertDontSee('Route Karkh', false);
     }
 }

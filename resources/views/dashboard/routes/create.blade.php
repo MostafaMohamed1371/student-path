@@ -10,7 +10,7 @@
         <section class="card">
             <form method="post" action="{{ route('dashboard.routes.store') }}" class="form-grid">
                 @csrf
-                @include('dashboard.routes._form', ['schools' => $schools, 'tripTypes' => $tripTypes, 'drivers' => $drivers])
+                @include('dashboard.routes._form', ['schools' => $schools, 'tripTypes' => $tripTypes])
 
                 <div style="grid-column:1 / -1;display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;">
                     <button type="submit" class="btn-primary" style="width:auto;padding:10px 16px;">{{ __('dashboard.create') }}</button>
@@ -20,6 +20,6 @@
         </section>
     @endcomponent
 
-    @include('dashboard.routes._form_options_script', ['formOptionsUrl' => $formOptionsUrl])
+    @include('dashboard.partials.iraq_location_cascade_script', ['iraqLocationPrefix' => 'form'])
     @include('dashboard.routes._start_map_script')
 @endsection

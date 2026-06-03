@@ -9,6 +9,7 @@ use App\Http\Requests\Api\UpdateDriverRequest;
 use App\Http\Resources\DriverResource;
 use App\Models\Driver;
 use App\Models\User;
+use App\Services\Phone\DashboardPhoneUserProvisioner;
 use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -68,7 +69,7 @@ class DriverController extends Controller
         if ($resp = $this->ensureApiCanMutateSchoolRoster($request->user(), (int) $validated['schoolId'])) {
             return $resp;
         }
-        $user = $this->resolveDriverUser($validated, $phoneNormalizer);
+        $user = $this->resolveDriverUser($validated, app(DashboardPhoneUserProvisioner::class));
 
         $driver = Driver::query()->create([
             'user_id' => $user->id,
@@ -125,7 +126,7 @@ class DriverController extends Controller
         }
 
         if (isset($validated['primaryPhone'])) {
-            $user = $this->resolveDriverUser($validated, $phoneNormalizer);
+            $user = $this->resolveDriverUser($validated, app(DashboardPhoneUserProvisioner::class));
             $payload['user_id'] = $user->id;
         }
 
@@ -162,25 +163,26 @@ class DriverController extends Controller
         ]);
     }
 
-    private function resolveDriverUser(array $validated, PhoneNormalizer $phoneNormalizer): User
+    private function resolveDriverUser(array $validated, DashboardPhoneUserProvisioner $provisioner): User
     {
-        $rawPhone = (string) ($validated['primaryPhone'] ?? '');
-        $phone = $phoneNormalizer->normalize($rawPhone);
         $name = trim(
             ($validated['firstName'] ?? '').' '.
             ($validated['fatherName'] ?? '').' '.
             ($validated['lastName'] ?? '')
         );
 
-        return User::query()->firstOrCreate(
-            ['phone' => $phone],
-            [
-                'name' => $name !== '' ? $name : null,
-                'password' => config('dashboard.seed_password'),
-                'is_active' => true,
-                'phone_verified_at' => now(),
-            ]
+        $user = $provisioner->upsertDriver(
+            (string) ($validated['primaryPhone'] ?? ''),
+            $name,
+            ($validated['status'] ?? 'active') === 'active',
+            'primaryPhone',
         );
+
+        if ($user->name === null && $name !== '') {
+            $user->forceFill(['name' => $name])->save();
+        }
+
+        return $user->fresh();
     }
 
     private function ensureApiCanAccessDriver(User $user, Driver $driver): ?JsonResponse

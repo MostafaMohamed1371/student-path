@@ -2,11 +2,15 @@
 
 namespace App\Http\Requests\Web;
 
+use App\Enums\PhoneAccountType;
+use App\Http\Requests\Concerns\ValidatesUniqueDashboardPhone;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class StoreDashboardDriverRequest extends FormRequest
 {
+    use ValidatesUniqueDashboardPhone;
     public function authorize(): bool
     {
         return true;
@@ -14,7 +18,15 @@ class StoreDashboardDriverRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        foreach (['rating_avg', 'rating_count', 'route_description'] as $field) {
+        foreach (['primary_phone', 'emergency_phone'] as $field) {
+            if ($this->has($field)) {
+                $this->merge([
+                    $field => preg_replace('/\D+/', '', (string) $this->input($field)),
+                ]);
+            }
+        }
+
+        foreach (['rating_avg', 'rating_count'] as $field) {
             if ($this->input($field) === '') {
                 $this->merge([$field => null]);
             }
@@ -36,10 +48,7 @@ class StoreDashboardDriverRequest extends FormRequest
             'primary_phone' => ['required', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
             'emergency_phone' => ['required', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
             'residential_address' => ['required', 'string', 'max:255'],
-            'route_description' => ['nullable', 'string', 'max:512'],
             'status' => ['required', 'in:active,inactive'],
-            'monthly_subscription_price' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
-            'shift_period' => ['nullable', 'in:MORNING,EVENING,BOTH'],
             'profile_image' => ['nullable', 'file', 'image', 'max:4096'],
             'id_card_image' => ['nullable', 'file', 'image', 'max:4096'],
             'license_image' => ['nullable', 'file', 'image', 'max:4096'],
@@ -47,5 +56,11 @@ class StoreDashboardDriverRequest extends FormRequest
             'rating_avg' => ['nullable', 'numeric', 'min:0', 'max:5'],
             'rating_count' => ['nullable', 'integer', 'min:0', 'max:999999'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $this->assertUniqueDashboardPhone($validator, 'primary_phone', PhoneAccountType::Driver);
+        $this->assertUniqueDashboardPhone($validator, 'emergency_phone', PhoneAccountType::Driver);
     }
 }

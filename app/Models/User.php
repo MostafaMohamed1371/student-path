@@ -20,6 +20,7 @@ use Laravel\Sanctum\HasApiTokens;
     'guardian_id',
     'image',
     'phone',
+    'phone_account_type',
     'city',
     'licence_number',
     'votes',

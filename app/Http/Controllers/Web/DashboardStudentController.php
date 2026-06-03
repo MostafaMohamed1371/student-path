@@ -10,6 +10,7 @@ use App\Http\Requests\Web\UpdateDashboardStudentRequest;
 use App\Models\Guardian;
 use App\Models\Student;
 use App\Models\User;
+use App\Services\Phone\DashboardPhoneUserProvisioner;
 use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -114,7 +115,7 @@ class DashboardStudentController extends Controller
 
         $student = DB::transaction(function () use ($validated, $phoneNormalizer): Student {
             $student = Student::query()->create($validated);
-            $this->syncStudentUser($student, $phoneNormalizer);
+            $this->syncStudentUser($student, app(DashboardPhoneUserProvisioner::class));
 
             return $student;
         });
@@ -155,7 +156,7 @@ class DashboardStudentController extends Controller
         $validated['profile_photo'] = $this->replaceFile($request->file('profile_photo'), $student->profile_photo, 'profiles');
 
         $student->update($validated);
-        $this->syncStudentUser($student->fresh(), $phoneNormalizer);
+        $this->syncStudentUser($student->fresh(), app(DashboardPhoneUserProvisioner::class));
 
         return redirect()->route('dashboard.students.index')
             ->with('success', __('dashboard.student_updated'));
@@ -192,23 +193,12 @@ class DashboardStudentController extends Controller
         return $file->store($folder, 'public');
     }
 
-    private function syncStudentUser(Student $student, PhoneNormalizer $phoneNormalizer): void
+    private function syncStudentUser(Student $student, DashboardPhoneUserProvisioner $provisioner): void
     {
-        if (! $phoneNormalizer->isValidIraqiMobile((string) $student->student_phone)) {
-            return;
-        }
-
-        $phone = $phoneNormalizer->normalize((string) $student->student_phone);
-
-        User::query()->firstOrCreate(
-            ['phone' => $phone],
-            [
-                'name' => $student->full_name,
-                'school_id' => $student->school_id,
-                'password' => config('dashboard.seed_password'),
-                'is_active' => $student->status === 'active',
-                'phone_verified_at' => now(),
-            ]
+        $provisioner->upsertStudent(
+            $student,
+            (string) $student->student_phone,
+            (string) $student->full_name,
         );
     }
 

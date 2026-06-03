@@ -9,6 +9,7 @@ use App\Http\Requests\Web\StoreDashboardGuardianRequest;
 use App\Http\Requests\Web\UpdateDashboardGuardianRequest;
 use App\Models\Guardian;
 use App\Models\User;
+use App\Services\Phone\DashboardPhoneUserProvisioner;
 use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -59,7 +60,7 @@ class DashboardGuardianController extends Controller
         $this->abortUnlessCanMutateSchoolRosterForSchool((int) $validated['school_id']);
 
         $guardian = Guardian::query()->create($validated);
-        $this->syncGuardianUser($guardian, $phoneNormalizer);
+        $this->syncGuardianUser($guardian, app(DashboardPhoneUserProvisioner::class));
 
         return redirect()->route('dashboard.guardians.index')
             ->with('success', __('dashboard.guardian_created'));
@@ -79,7 +80,7 @@ class DashboardGuardianController extends Controller
         $this->abortUnlessCanMutateSchoolRosterForSchool((int) ($validated['school_id'] ?? $guardian->school_id));
 
         $guardian->update($validated);
-        $this->syncGuardianUser($guardian->fresh(), $phoneNormalizer);
+        $this->syncGuardianUser($guardian->fresh(), app(DashboardPhoneUserProvisioner::class));
 
         return redirect()->route('dashboard.guardians.index')
             ->with('success', __('dashboard.guardian_updated'));
@@ -94,23 +95,12 @@ class DashboardGuardianController extends Controller
             ->with('success', __('dashboard.guardian_deleted'));
     }
 
-    private function syncGuardianUser(Guardian $guardian, PhoneNormalizer $phoneNormalizer): void
+    private function syncGuardianUser(Guardian $guardian, DashboardPhoneUserProvisioner $provisioner): void
     {
-        if (! $phoneNormalizer->isValidIraqiMobile((string) $guardian->phone)) {
-            return;
-        }
-
-        $phone = $phoneNormalizer->normalize((string) $guardian->phone);
-
-        User::query()->firstOrCreate(
-            ['phone' => $phone],
-            [
-                'name' => $guardian->full_name,
-                'school_id' => $guardian->school_id,
-                'password' => config('dashboard.seed_password'),
-                'is_active' => $guardian->status === 'active',
-                'phone_verified_at' => now(),
-            ]
+        $provisioner->upsertGuardian(
+            $guardian,
+            (string) $guardian->phone,
+            (string) $guardian->full_name,
         );
     }
 }

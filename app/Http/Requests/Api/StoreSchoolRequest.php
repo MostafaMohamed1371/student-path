@@ -2,11 +2,15 @@
 
 namespace App\Http\Requests\Api;
 
+use App\Enums\PhoneAccountType;
+use App\Http\Requests\Concerns\ValidatesUniqueDashboardPhone;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class StoreSchoolRequest extends FormRequest
 {
+    use ValidatesUniqueDashboardPhone;
     public function authorize(): bool
     {
         return true;
@@ -31,5 +35,11 @@ class StoreSchoolRequest extends FormRequest
             'notes' => ['nullable', 'string'],
             'attachment' => ['nullable', 'file', 'max:4096'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $this->assertUniqueDashboardPhone($validator, 'adminPhone', PhoneAccountType::School);
+        $this->assertUniqueDashboardPhone($validator, 'authorizedPersonPhone', PhoneAccountType::School);
     }
 }

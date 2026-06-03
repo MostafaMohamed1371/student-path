@@ -10,6 +10,7 @@ use App\Http\Resources\StudentResource;
 use App\Models\Guardian;
 use App\Models\Student;
 use App\Models\User;
+use App\Services\Phone\DashboardPhoneUserProvisioner;
 use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -77,7 +78,7 @@ class StudentController extends Controller
             'longitude' => $validated['longitude'] ?? null,
             'status' => $validated['status'],
         ]);
-        $this->syncStudentUser($student, $phoneNormalizer);
+        $this->syncStudentUser($student, app(DashboardPhoneUserProvisioner::class));
 
         return response()->json([
             'success' => true,
@@ -129,7 +130,7 @@ class StudentController extends Controller
         }
 
         $student->update($payload);
-        $this->syncStudentUser($student->fresh(), $phoneNormalizer);
+        $this->syncStudentUser($student->fresh(), app(DashboardPhoneUserProvisioner::class));
 
         return response()->json([
             'success' => true,
@@ -152,21 +153,12 @@ class StudentController extends Controller
         ]);
     }
 
-    private function syncStudentUser(Student $student, PhoneNormalizer $phoneNormalizer): void
+    private function syncStudentUser(Student $student, DashboardPhoneUserProvisioner $provisioner): void
     {
-        if (! $phoneNormalizer->isValidIraqiMobile((string) $student->student_phone)) {
-            return;
-        }
-
-        User::query()->firstOrCreate(
-            ['phone' => $phoneNormalizer->normalize((string) $student->student_phone)],
-            [
-                'name' => $student->full_name,
-                'school_id' => $student->school_id,
-                'password' => config('dashboard.seed_password'),
-                'is_active' => $student->status === 'active',
-                'phone_verified_at' => now(),
-            ]
+        $provisioner->upsertStudent(
+            $student,
+            (string) $student->student_phone,
+            (string) $student->full_name,
         );
     }
 }

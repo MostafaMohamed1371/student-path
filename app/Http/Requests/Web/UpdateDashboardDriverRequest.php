@@ -2,11 +2,17 @@
 
 namespace App\Http\Requests\Web;
 
+use App\Enums\PhoneAccountType;
+use App\Http\Requests\Concerns\ValidatesUniqueDashboardPhone;
+use App\Models\Driver;
+use App\Services\Phone\PhoneRecordIdentity;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class UpdateDashboardDriverRequest extends FormRequest
 {
+    use ValidatesUniqueDashboardPhone;
     public function authorize(): bool
     {
         return true;
@@ -14,9 +20,14 @@ class UpdateDashboardDriverRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        if ($this->input('route_description') === '') {
-            $this->merge(['route_description' => null]);
+        foreach (['primary_phone', 'emergency_phone'] as $field) {
+            if ($this->has($field)) {
+                $this->merge([
+                    $field => preg_replace('/\D+/', '', (string) $this->input($field)),
+                ]);
+            }
         }
+
     }
 
     /** @return array<string, list<string|ValidationRule>> */
@@ -34,10 +45,7 @@ class UpdateDashboardDriverRequest extends FormRequest
             'primary_phone' => ['required', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
             'emergency_phone' => ['required', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
             'residential_address' => ['required', 'string', 'max:255'],
-            'route_description' => ['nullable', 'string', 'max:512'],
             'status' => ['required', 'in:active,inactive'],
-            'monthly_subscription_price' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
-            'shift_period' => ['nullable', 'in:MORNING,EVENING,BOTH'],
             'profile_image' => ['nullable', 'file', 'image', 'max:4096'],
             'id_card_image' => ['nullable', 'file', 'image', 'max:4096'],
             'license_image' => ['nullable', 'file', 'image', 'max:4096'],
@@ -45,5 +53,25 @@ class UpdateDashboardDriverRequest extends FormRequest
             'rating_avg' => ['nullable', 'numeric', 'min:0', 'max:5'],
             'rating_count' => ['nullable', 'integer', 'min:0', 'max:999999'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        /** @var Driver $driver */
+        $driver = $this->route('driver');
+
+        $exceptPrimary = new PhoneRecordIdentity(
+            driverId: (int) $driver->id,
+            driverUserId: $driver->user_id ? (int) $driver->user_id : null,
+            driverPhoneField: 'primary_phone',
+        );
+        $exceptEmergency = new PhoneRecordIdentity(
+            driverId: (int) $driver->id,
+            driverUserId: $driver->user_id ? (int) $driver->user_id : null,
+            driverPhoneField: 'emergency_phone',
+        );
+
+        $this->assertUniqueDashboardPhone($validator, 'primary_phone', PhoneAccountType::Driver, $exceptPrimary);
+        $this->assertUniqueDashboardPhone($validator, 'emergency_phone', PhoneAccountType::Driver, $exceptEmergency);
     }
 }

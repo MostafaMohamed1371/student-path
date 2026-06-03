@@ -103,7 +103,7 @@ trait ProvidesDashboardSchoolDriverFilters
 
         if ($withUserRoleFilter) {
             $rawRole = strtolower(trim((string) $request->query('user_role', '')));
-            if (in_array($rawRole, ['admin', 'driver', 'guardian', 'student'], true)) {
+            if (in_array($rawRole, ['admin', 'school', 'driver', 'guardian', 'student'], true)) {
                 $filterUserRole = $rawRole;
             }
         }
@@ -283,6 +283,10 @@ trait ProvidesDashboardSchoolDriverFilters
                     'user',
                     fn (Builder $q) => $this->constrainUsersToReportSchool($q, $schoolId),
                 ),
+                'wallet_user' => $query->whereHas(
+                    'wallet.user',
+                    fn (Builder $q) => $this->constrainUsersToReportSchool($q, $schoolId),
+                ),
                 'user_school' => $this->constrainUsersToReportSchool($query, $schoolId),
                 'trip_request' => $query->forDashboardSchool($schoolId),
                 'roster_school' => $query->where('school_id', $schoolId),
@@ -300,6 +304,10 @@ trait ProvidesDashboardSchoolDriverFilters
                 ),
                 'user_driver' => $query->whereHas(
                     'user',
+                    fn (Builder $q) => $q->whereHas('driver', fn (Builder $d) => $d->whereKey($driverId)),
+                ),
+                'wallet_user' => $query->whereHas(
+                    'wallet.user',
                     fn (Builder $q) => $q->whereHas('driver', fn (Builder $d) => $d->whereKey($driverId)),
                 ),
                 'user_driver_direct' => $query->whereHas(
@@ -336,6 +344,10 @@ trait ProvidesDashboardSchoolDriverFilters
                 ),
                 'direct_student' => $query->where('student_id', $studentId),
                 'user_student' => $this->constrainUsersToStudent($query, $studentId),
+                'wallet_user' => $query->whereHas(
+                    'wallet.user',
+                    fn (Builder $q) => $this->constrainUsersToStudent($q, $studentId),
+                ),
                 'route_student' => $query->whereHas(
                     'routeStudents',
                     fn (Builder $q) => $q->where('student_id', $studentId),
@@ -348,6 +360,10 @@ trait ProvidesDashboardSchoolDriverFilters
         if ($guardianId > 0) {
             match ($scope) {
                 'user_guardian' => $this->constrainUsersToGuardian($query, $guardianId),
+                'wallet_user' => $query->whereHas(
+                    'wallet.user',
+                    fn (Builder $q) => $this->constrainUsersToGuardian($q, $guardianId),
+                ),
                 default => null,
             };
         }
@@ -369,6 +385,15 @@ trait ProvidesDashboardSchoolDriverFilters
 
         match ($role) {
             'admin' => $query->where('is_admin', true),
+            'school' => $query->where(function (Builder $q): void {
+                $q->where('phone_account_type', 'school')
+                    ->orWhere(function (Builder $inner): void {
+                        $inner->whereNotNull('school_id')
+                            ->where('is_admin', false)
+                            ->whereDoesntHave('driver')
+                            ->whereNull('guardian_id');
+                    });
+            }),
             'driver' => $query->whereHas('driver'),
             'guardian' => $query->where(function (Builder $q): void {
                 $q->whereNotNull('guardian_id')

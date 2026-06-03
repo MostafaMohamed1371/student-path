@@ -1,7 +1,7 @@
-@if(($showSchoolFilter ?? false) || ($showDriverFilter ?? false) || ($showShiftFilter ?? false) || ($showStudentFilter ?? false) || ($showGuardianFilter ?? false) || ($showUserRoleFilter ?? false) || ($showTripTypeFilter ?? false) || ($showNotificationTypeFilter ?? false) || ($showUnreadFilter ?? false))
+@if(($showSchoolFilter ?? false) || ($showDriverFilter ?? false) || ($showShiftFilter ?? false) || ($showStudentFilter ?? false) || ($showGuardianFilter ?? false) || ($showUserRoleFilter ?? false) || ($showTripTypeFilter ?? false) || ($showNotificationTypeFilter ?? false) || ($showUnreadFilter ?? false) || ($showIraqLocationFilter ?? false))
     <section class="card" style="margin-bottom:16px;">
         <form method="get" action="{{ $filterAction }}" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
-            @foreach(request()->except(['school_id', 'driver_id', 'shift_period', 'student_id', 'guardian_id', 'user_role', 'trip_type', 'notification_type', 'unread_only', 'page']) as $key => $value)
+            @foreach(request()->except(['school_id', 'driver_id', 'shift_period', 'student_id', 'guardian_id', 'user_role', 'trip_type', 'notification_type', 'unread_only', 'district_id', 'area_id', 'neighborhood_id', 'page']) as $key => $value)
                 @if(is_scalar($value))
                     <input type="hidden" name="{{ $key }}" value="{{ $value }}">
                 @endif
@@ -77,6 +77,7 @@
                     <select class="input" name="user_role" style="min-width:180px;">
                         <option value="" @selected(($filterUserRole ?? '') === '')>{{ __('dashboard.report_filter_all_roles') }}</option>
                         <option value="admin" @selected(($filterUserRole ?? '') === 'admin')>{{ __('dashboard.admin') }}</option>
+                        <option value="school" @selected(($filterUserRole ?? '') === 'school')>{{ __('dashboard.phone_owner_school') }}</option>
                         <option value="driver" @selected(($filterUserRole ?? '') === 'driver')>{{ __('dashboard.driver') }}</option>
                         <option value="guardian" @selected(($filterUserRole ?? '') === 'guardian')>{{ __('dashboard.menu_guardians') }}</option>
                         <option value="student" @selected(($filterUserRole ?? '') === 'student')>{{ __('dashboard.menu_students') }}</option>
@@ -111,7 +112,11 @@
                     <span class="field-label" style="margin:0;">{{ __('dashboard.report_filter_unread_only') }}</span>
                 </label>
             @endif
+            @include('dashboard.partials.iraq_location_filter')
             <button type="submit" class="btn-primary" style="width:auto;padding:10px 16px;">{{ __('dashboard.filter') }}</button>
         </form>
     </section>
+    @if($showIraqLocationFilter ?? false)
+        @include('dashboard.partials.iraq_location_cascade_script', ['iraqLocationPrefix' => 'filter'])
+    @endif
 @endif

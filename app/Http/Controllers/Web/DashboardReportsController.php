@@ -93,7 +93,7 @@ class DashboardReportsController extends Controller
         $txQuery = WalletTransaction::query()
             ->with(['wallet.user'])
             ->latest('wallet_transactions.id');
-        $this->applyDashboardReportFilters($txQuery, $filters, 'user_relation');
+        $this->applyDashboardReportFilters($txQuery, $filters, 'wallet_user');
         $transactions = $txQuery->paginate($perPage)->withQueryString();
 
         $qicard = null;

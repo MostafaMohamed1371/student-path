@@ -2,11 +2,17 @@
 
 namespace App\Http\Requests\Api;
 
+use App\Enums\PhoneAccountType;
+use App\Http\Requests\Concerns\ValidatesUniqueDashboardPhone;
+use App\Models\School;
+use App\Services\Phone\PhoneRecordIdentity;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class UpdateSchoolRequest extends FormRequest
 {
+    use ValidatesUniqueDashboardPhone;
     public function authorize(): bool
     {
         return true;
@@ -31,5 +37,30 @@ class UpdateSchoolRequest extends FormRequest
             'notes' => ['sometimes', 'nullable', 'string'],
             'attachment' => ['sometimes', 'nullable', 'file', 'max:4096'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        /** @var School $school */
+        $school = $this->route('school');
+        $schoolId = (int) $school->id;
+
+        if ($this->filled('adminPhone')) {
+            $this->assertUniqueDashboardPhone(
+                $validator,
+                'adminPhone',
+                PhoneAccountType::School,
+                new PhoneRecordIdentity(schoolId: $schoolId, schoolPhoneField: 'admin_phone'),
+            );
+        }
+
+        if ($this->filled('authorizedPersonPhone')) {
+            $this->assertUniqueDashboardPhone(
+                $validator,
+                'authorizedPersonPhone',
+                PhoneAccountType::School,
+                new PhoneRecordIdentity(schoolId: $schoolId, schoolPhoneField: 'authorized_person_phone'),
+            );
+        }
     }
 }

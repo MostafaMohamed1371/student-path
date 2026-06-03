@@ -28,21 +28,25 @@
     </select>
 </label>
 
-<label>
-    <span class="field-label">{{ __('dashboard.trip_field_driver') }}</span>
-    <select class="input" id="route_form_driver_id" name="driver_id" required>
-        <option value="">{{ __('dashboard.route_select_driver_after_filters') }}</option>
-        @foreach(($drivers ?? []) as $d)
-            <option value="{{ $d->id }}" @selected((string) old('driver_id', $routeModel?->driver_id) === (string) $d->id)>
-                {{ trim($d->first_name.' '.$d->last_name) }} @if($d->bus) ({{ $d->bus->number }}) @endif
-            </option>
-        @endforeach
-    </select>
-</label>
+@include('dashboard.partials.iraq_location_fields')
 
 <label>
     <span class="field-label">{{ __('dashboard.route_name') }}</span>
     <input class="input" name="name" value="{{ old('name', $routeModel?->name) }}" placeholder="{{ __('dashboard.route_name_optional') }}">
+</label>
+
+<label>
+    <span class="field-label">{{ __('dashboard.monthly_subscription_price') }}</span>
+    <input
+        class="input"
+        name="monthly_subscription_price"
+        type="number"
+        min="0"
+        step="1"
+        value="{{ old('monthly_subscription_price', $routeModel?->monthly_subscription_price) }}"
+        placeholder="65000"
+    >
+    <p style="margin:6px 0 0;font-size:12px;color:#64748b;">{{ __('dashboard.route_monthly_subscription_price_help') }}</p>
 </label>
 
 <label style="grid-column:1 / -1;">

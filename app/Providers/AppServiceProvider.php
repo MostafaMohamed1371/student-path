@@ -8,8 +8,14 @@ use App\Contracts\Sms\SmsSender;
 use App\Contracts\Trips\TripLocationRepository;
 use App\Services\Trips\CacheTripLocationRepository;
 use App\Services\Trips\FirebaseTripLocationRepository;
+use App\Models\Driver;
+use App\Models\Guardian;
 use App\Models\InAppNotification;
+use App\Models\School;
+use App\Models\Student;
+use App\Models\User;
 use App\Observers\InAppNotificationObserver;
+use App\Observers\ValidatesUniquePhonesObserver;
 use App\Services\Push\FakeFcmTopicSubscriber;
 use App\Services\Push\FakePushNotifier;
 use App\Services\Push\FcmPushNotifier;
@@ -121,6 +127,13 @@ class AppServiceProvider extends ServiceProvider
         Broadcast::routes(['middleware' => ['web', 'auth']]);
 
         InAppNotification::observe(InAppNotificationObserver::class);
+
+        $phoneObserver = ValidatesUniquePhonesObserver::class;
+        School::observe($phoneObserver);
+        Driver::observe($phoneObserver);
+        Student::observe($phoneObserver);
+        Guardian::observe($phoneObserver);
+        User::observe($phoneObserver);
 
         require base_path('routes/channels.php');
     }

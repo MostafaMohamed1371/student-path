@@ -2,11 +2,15 @@
 
 namespace App\Http\Requests\Api;
 
+use App\Enums\PhoneAccountType;
+use App\Http\Requests\Concerns\ValidatesUniqueDashboardPhone;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class StoreGuardianRequest extends FormRequest
 {
+    use ValidatesUniqueDashboardPhone;
     public function authorize(): bool
     {
         return true;
@@ -23,5 +27,11 @@ class StoreGuardianRequest extends FormRequest
             'idCardNumber' => ['nullable', 'string', 'max:64'],
             'status' => ['required', 'in:active,inactive'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $this->assertUniqueDashboardPhone($validator, 'phone', PhoneAccountType::Guardian);
+        $this->assertUniqueDashboardPhone($validator, 'backupPhone', PhoneAccountType::Guardian);
     }
 }

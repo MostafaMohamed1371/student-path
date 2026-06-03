@@ -2,11 +2,15 @@
 
 namespace App\Http\Requests\Api;
 
+use App\Enums\PhoneAccountType;
+use App\Http\Requests\Concerns\ValidatesUniqueDashboardPhone;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class StoreDriverRequest extends FormRequest
 {
+    use ValidatesUniqueDashboardPhone;
     public function authorize(): bool
     {
         return true;
@@ -33,5 +37,11 @@ class StoreDriverRequest extends FormRequest
             'licenseImage' => ['nullable', 'file', 'image', 'max:4096'],
             'nonConvictionCertificate' => ['nullable', 'file', 'max:4096'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $this->assertUniqueDashboardPhone($validator, 'primaryPhone', PhoneAccountType::Driver);
+        $this->assertUniqueDashboardPhone($validator, 'emergencyPhone', PhoneAccountType::Driver);
     }
 }

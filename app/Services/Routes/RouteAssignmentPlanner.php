@@ -268,9 +268,7 @@ final class RouteAssignmentPlanner
                 $assigned++;
             }
 
-            if ($assigned > 0 || $replaceExisting) {
-                $this->syncDriverRouteMeta($driver, $route->fresh() ?? $route);
-            }
+            $this->syncDriverMetaFromRoute($driver, $route->fresh() ?? $route);
 
             $skippedNoCapacity = max(0, count($candidates) - $assigned);
 
@@ -440,7 +438,7 @@ final class RouteAssignmentPlanner
                 'distance_from_school_km' => $distanceKm,
             ]);
 
-            $this->syncDriverRouteMeta($driver, $route);
+            $this->syncDriverMetaFromRoute($driver, $route);
 
             return $row;
         });
@@ -508,11 +506,14 @@ final class RouteAssignmentPlanner
             && ! ((float) $student->latitude === 0.0 && (float) $student->longitude === 0.0);
     }
 
-    private function syncDriverRouteMeta(Driver $driver, TransportRoute $route): void
+    /**
+     * Copy route subscription/shift and line description onto the assigned driver.
+     */
+    public function syncDriverMetaFromRoute(Driver $driver, TransportRoute $route): void
     {
-        $areas = $route->routeStudents()
-            ->with('student')
-            ->get()
+        $route->loadMissing(['routeStudents.student']);
+
+        $areas = $route->routeStudents
             ->map(fn (TransportRouteStudent $row): string => trim((string) ($row->student?->district_area ?? '')))
             ->filter()
             ->unique()
@@ -528,6 +529,10 @@ final class RouteAssignmentPlanner
             $description .= ' ('.implode(', ', $areas).')';
         }
 
-        $driver->forceFill(['route_description' => $description])->save();
+        $driver->forceFill([
+            'route_description' => $description,
+            'shift_period' => $route->shift_period,
+            'monthly_subscription_price' => $route->monthly_subscription_price,
+        ])->save();
     }
 }

@@ -2,9 +2,11 @@
 
 namespace App\Http\Requests\Web;
 
+use App\Enums\PhoneAccountType;
 use App\Http\Requests\Concerns\PreparesIraqPhoneInput;
+use App\Http\Requests\Concerns\ValidatesUniqueDashboardPhone;
 use App\Models\User;
-use App\Services\Phone\PhoneNormalizer;
+use App\Services\Phone\PhoneRecordIdentity;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
@@ -12,6 +14,7 @@ use Illuminate\Validation\Validator;
 class UpdateDashboardUserRequest extends FormRequest
 {
     use PreparesIraqPhoneInput;
+    use ValidatesUniqueDashboardPhone;
 
     public function authorize(): bool
     {
@@ -41,15 +44,16 @@ class UpdateDashboardUserRequest extends FormRequest
 
     public function withValidator(Validator $validator): void
     {
-        $validator->after(function (Validator $validator): void {
-            /** @var User $user */
-            $user = $this->route('user');
-            $phone = app(PhoneNormalizer::class)->normalize((string) $this->input('phone', ''));
+        /** @var User $user */
+        $user = $this->route('user');
+        $type = $this->boolean('is_admin') ? PhoneAccountType::Admin : PhoneAccountType::School;
 
-            if (User::query()->where('phone', $phone)->where('id', '!=', $user->id)->exists()) {
-                $validator->errors()->add('phone', __('validation.unique', ['attribute' => __('dashboard.phone')]));
-            }
-        });
+        $this->assertUniqueDashboardPhone(
+            $validator,
+            'phone',
+            $type,
+            new PhoneRecordIdentity(userId: (int) $user->id),
+        );
     }
 
     protected function passedValidation(): void

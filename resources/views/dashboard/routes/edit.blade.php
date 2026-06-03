@@ -13,7 +13,6 @@
                     'route' => $route,
                     'schools' => $schools,
                     'tripTypes' => $tripTypes,
-                    'drivers' => $drivers,
                 ])
 
                 <div style="grid-column:1 / -1;display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;">
@@ -32,6 +31,6 @@
         </section>
     @endcomponent
 
-    @include('dashboard.routes._form_options_script', ['formOptionsUrl' => $formOptionsUrl])
+    @include('dashboard.partials.iraq_location_cascade_script', ['iraqLocationPrefix' => 'form'])
     @include('dashboard.routes._start_map_script')
 @endsection

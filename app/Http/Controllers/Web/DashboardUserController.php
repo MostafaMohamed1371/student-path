@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
 use App\Http\Controllers\Web\Concerns\ProvidesDashboardSchoolDriverFilters;
+use App\Enums\PhoneAccountType;
 use App\Http\Requests\Web\StoreDashboardUserRequest;
 use App\Http\Requests\Web\UpdateDashboardUserRequest;
 use App\Models\School;
@@ -74,6 +75,9 @@ class DashboardUserController extends Controller
             'school_id' => $validated['school_id'],
             'image' => $imagePath,
             'phone' => $phoneNormalizer->normalize($validated['phone']),
+            'phone_account_type' => ($validated['is_admin'] ?? false)
+                ? PhoneAccountType::Admin->value
+                : PhoneAccountType::School->value,
             'city' => $validated['city'] ?? null,
             'licence_number' => $validated['licence_number'] ?? null,
             'votes' => $validated['votes'],
@@ -105,6 +109,9 @@ class DashboardUserController extends Controller
             'name' => $validated['name'] ?? null,
             'school_id' => $validated['school_id'],
             'phone' => $phoneNormalizer->normalize($validated['phone']),
+            'phone_account_type' => ($validated['is_admin'] ?? false)
+                ? PhoneAccountType::Admin->value
+                : PhoneAccountType::School->value,
             'city' => $validated['city'] ?? null,
             'licence_number' => $validated['licence_number'] ?? null,
             'votes' => $validated['votes'],

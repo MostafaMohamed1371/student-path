@@ -32,8 +32,7 @@
                         <th>{{ __('dashboard.school') }}</th>
                         <th>{{ __('dashboard.trip_field_type') }}</th>
                         <th>{{ __('dashboard.shift_period') }}</th>
-                        <th>{{ __('dashboard.driver') }}</th>
-                        <th>{{ __('dashboard.bus_number') }}</th>
+                        <th>{{ __('dashboard.monthly_subscription_price') }}</th>
                         <th>{{ __('dashboard.route_start_address') }}</th>
                         <th>{{ __('dashboard.route_end_address') }}</th>
                         <th>{{ __('dashboard.route_students_on_route') }}</th>
@@ -64,8 +63,13 @@
                                     —
                                 @endif
                             </td>
-                            <td>{{ trim(($route->driver?->first_name ?? '').' '.($route->driver?->last_name ?? '')) ?: '—' }}</td>
-                            <td>{{ $route->driver?->bus?->number ?? '—' }}</td>
+                            <td>
+                                @if($route->monthly_subscription_price !== null)
+                                    {{ number_format((int) $route->monthly_subscription_price) }}
+                                @else
+                                    —
+                                @endif
+                            </td>
                             <td>{{ $route->start_address ?: '—' }}</td>
                             <td>{{ $route->school?->address ?: '—' }}</td>
                             <td>{{ $route->routeStudents->count() }}</td>
@@ -83,7 +87,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="11">{{ __('dashboard.route_created_list_empty') }}</td>
+                            <td colspan="10">{{ __('dashboard.route_created_list_empty') }}</td>
                         </tr>
                     @endforelse
                     </tbody>

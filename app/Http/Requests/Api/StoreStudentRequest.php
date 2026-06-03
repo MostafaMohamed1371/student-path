@@ -2,11 +2,15 @@
 
 namespace App\Http\Requests\Api;
 
+use App\Enums\PhoneAccountType;
+use App\Http\Requests\Concerns\ValidatesUniqueDashboardPhone;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class StoreStudentRequest extends FormRequest
 {
+    use ValidatesUniqueDashboardPhone;
     public function authorize(): bool
     {
         return true;
@@ -32,5 +36,10 @@ class StoreStudentRequest extends FormRequest
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'status' => ['required', 'in:active,inactive'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $this->assertUniqueDashboardPhone($validator, 'studentPhone', PhoneAccountType::Student);
     }
 }

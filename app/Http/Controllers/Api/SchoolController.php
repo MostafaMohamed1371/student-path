@@ -8,7 +8,7 @@ use App\Http\Requests\Api\StoreSchoolRequest;
 use App\Http\Requests\Api\UpdateSchoolRequest;
 use App\Http\Resources\SchoolResource;
 use App\Models\School;
-use App\Models\User;
+use App\Services\Phone\DashboardPhoneUserProvisioner;
 use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -69,7 +69,7 @@ class SchoolController extends Controller
                 ? $request->file('attachment')->store('schools', 'public')
                 : null,
         ]);
-        $this->syncSchoolAdminUser($school, $phoneNormalizer);
+        $this->syncSchoolAdminUser($school, app(DashboardPhoneUserProvisioner::class), $phoneNormalizer);
 
         return response()->json([
             'success' => true,
@@ -106,7 +106,7 @@ class SchoolController extends Controller
         }
 
         $school->update($payload);
-        $this->syncSchoolAdminUser($school->fresh(), $phoneNormalizer);
+        $this->syncSchoolAdminUser($school->fresh(), app(DashboardPhoneUserProvisioner::class), $phoneNormalizer);
 
         return response()->json([
             'success' => true,
@@ -129,21 +129,16 @@ class SchoolController extends Controller
         ]);
     }
 
-    private function syncSchoolAdminUser(School $school, PhoneNormalizer $phoneNormalizer): void
-    {
+    private function syncSchoolAdminUser(
+        School $school,
+        DashboardPhoneUserProvisioner $provisioner,
+        PhoneNormalizer $phoneNormalizer,
+    ): void {
         if (! $school->admin_phone || ! $phoneNormalizer->isValidIraqiMobile((string) $school->admin_phone)) {
             return;
         }
 
-        User::query()->firstOrCreate(
-            ['phone' => $phoneNormalizer->normalize((string) $school->admin_phone)],
-            [
-                'name' => $school->principal_name ?: $school->name_en ?: $school->name_ar,
-                'school_id' => $school->id,
-                'password' => config('dashboard.seed_password'),
-                'is_active' => $school->status === 'active',
-                'phone_verified_at' => now(),
-            ]
-        );
+        $name = $school->principal_name ?: $school->name_en ?: $school->name_ar;
+        $provisioner->upsertSchoolStaff($school, (string) $school->admin_phone, (string) $name);
     }
 }

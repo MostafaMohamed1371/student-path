@@ -8,6 +8,7 @@ use App\Http\Controllers\Web\DashboardDriverController;
 use App\Http\Controllers\Web\DashboardGeocodeController;
 use App\Http\Controllers\Web\DashboardGuardianController;
 use App\Http\Controllers\Web\DashboardHomeController;
+use App\Http\Controllers\Web\DashboardLocationController;
 use App\Http\Controllers\Web\DashboardLoginController;
 use App\Http\Controllers\Web\DashboardNotificationStaffController;
 use App\Http\Controllers\Web\DashboardProfileController;
@@ -36,7 +37,14 @@ Route::get('/locale/{locale}', function (string $locale) {
 
 Route::middleware('guest')->group(function (): void {
     Route::get('/login', [DashboardLoginController::class, 'show'])->name('login');
-    Route::post('/login', [DashboardLoginController::class, 'authenticate']);
+    Route::post('/login/lookup', [DashboardLoginController::class, 'lookupPhone'])->name('login.lookup');
+    Route::post('/login/send-otp', [DashboardLoginController::class, 'sendOtp'])
+        ->middleware('throttle:otp-send')
+        ->name('login.send_otp');
+    Route::post('/login/verify-otp', [DashboardLoginController::class, 'verifyOtp'])
+        ->middleware('throttle:otp-verify')
+        ->name('login.verify_otp');
+    Route::post('/login', [DashboardLoginController::class, 'authenticate'])->name('login.authenticate');
 });
 
 Route::post('/logout', [DashboardLoginController::class, 'destroy'])->middleware('auth')->name('logout');
@@ -120,6 +128,10 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/dashboard/sos-alerts', [DashboardReportsController::class, 'sosAlerts'])->name('dashboard.sos_alerts');
     Route::get('/dashboard/trip-finalization-reports', [DashboardReportsController::class, 'tripFinalizationReports'])->name('dashboard.trip_finalization_reports');
 
+    Route::get('/dashboard/locations/areas', [DashboardLocationController::class, 'areas'])->name('dashboard.locations.areas');
+    Route::get('/dashboard/locations/neighborhoods', [DashboardLocationController::class, 'neighborhoods'])->name('dashboard.locations.neighborhoods');
+    Route::get('/dashboard/assigned-drivers', [DashboardRouteController::class, 'assignedDrivers'])->name('dashboard.assigned_drivers.index');
+    Route::post('/dashboard/routes/{route}/assign-driver', [DashboardRouteController::class, 'assignDriver'])->name('dashboard.routes.assign_driver');
     Route::get('/dashboard/routes', [DashboardRouteController::class, 'index'])->name('dashboard.routes.index');
     Route::get('/dashboard/routes/create', [DashboardRouteController::class, 'create'])->name('dashboard.routes.create');
     Route::post('/dashboard/routes', [DashboardRouteController::class, 'store'])->name('dashboard.routes.store');

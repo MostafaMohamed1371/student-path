@@ -9,6 +9,7 @@ use App\Http\Requests\Api\UpdateGuardianRequest;
 use App\Http\Resources\GuardianResource;
 use App\Models\Guardian;
 use App\Models\User;
+use App\Services\Phone\DashboardPhoneUserProvisioner;
 use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -59,7 +60,7 @@ class GuardianController extends Controller
             'id_card_number' => $validated['idCardNumber'] ?? null,
             'status' => $validated['status'],
         ])->loadCount('students');
-        $this->syncGuardianUser($guardian, $phoneNormalizer);
+        $this->syncGuardianUser($guardian, app(DashboardPhoneUserProvisioner::class));
 
         return response()->json([
             'success' => true,
@@ -84,7 +85,7 @@ class GuardianController extends Controller
             'id_card_number' => $validated['idCardNumber'] ?? $guardian->id_card_number,
             'status' => $validated['status'] ?? $guardian->status,
         ]);
-        $this->syncGuardianUser($guardian->fresh(), $phoneNormalizer);
+        $this->syncGuardianUser($guardian->fresh(), app(DashboardPhoneUserProvisioner::class));
 
         return response()->json([
             'success' => true,
@@ -107,21 +108,12 @@ class GuardianController extends Controller
         ]);
     }
 
-    private function syncGuardianUser(Guardian $guardian, PhoneNormalizer $phoneNormalizer): void
+    private function syncGuardianUser(Guardian $guardian, DashboardPhoneUserProvisioner $provisioner): void
     {
-        if (! $phoneNormalizer->isValidIraqiMobile((string) $guardian->phone)) {
-            return;
-        }
-
-        User::query()->firstOrCreate(
-            ['phone' => $phoneNormalizer->normalize((string) $guardian->phone)],
-            [
-                'name' => $guardian->full_name,
-                'school_id' => $guardian->school_id,
-                'password' => config('dashboard.seed_password'),
-                'is_active' => $guardian->status === 'active',
-                'phone_verified_at' => now(),
-            ]
+        $provisioner->upsertGuardian(
+            $guardian,
+            (string) $guardian->phone,
+            (string) $guardian->full_name,
         );
     }
 }

@@ -2,8 +2,9 @@
 
 namespace App\Http\Requests\Web;
 
+use App\Enums\PhoneAccountType;
 use App\Http\Requests\Concerns\PreparesIraqPhoneInput;
-use App\Models\User;
+use App\Http\Requests\Concerns\ValidatesUniqueDashboardPhone;
 use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -12,6 +13,7 @@ use Illuminate\Validation\Validator;
 class StoreDashboardUserRequest extends FormRequest
 {
     use PreparesIraqPhoneInput;
+    use ValidatesUniqueDashboardPhone;
 
     public function authorize(): bool
     {
@@ -41,13 +43,8 @@ class StoreDashboardUserRequest extends FormRequest
 
     public function withValidator(Validator $validator): void
     {
-        $validator->after(function (Validator $validator): void {
-            $phone = app(PhoneNormalizer::class)->normalize((string) $this->input('phone', ''));
-
-            if (User::query()->where('phone', $phone)->exists()) {
-                $validator->errors()->add('phone', __('validation.unique', ['attribute' => __('dashboard.phone')]));
-            }
-        });
+        $type = $this->boolean('is_admin') ? PhoneAccountType::Admin : PhoneAccountType::School;
+        $this->assertUniqueDashboardPhone($validator, 'phone', $type);
     }
 
     protected function passedValidation(): void

@@ -2,14 +2,29 @@
 
 namespace App\Http\Requests\Web;
 
+use App\Enums\PhoneAccountType;
+use App\Http\Requests\Concerns\ValidatesUniqueDashboardPhone;
+use App\Models\Student;
 use App\Rules\FullNameWordCount;
+use App\Services\Phone\PhoneRecordIdentity;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class UpdateDashboardStudentRequest extends FormRequest
 {
+    use ValidatesUniqueDashboardPhone;
     public function authorize(): bool
     {
         return true;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('student_phone')) {
+            $this->merge([
+                'student_phone' => preg_replace('/\D+/', '', (string) $this->input('student_phone')),
+            ]);
+        }
     }
 
     public function rules(): array
@@ -32,5 +47,18 @@ class UpdateDashboardStudentRequest extends FormRequest
             'status' => ['required', 'in:active,inactive'],
             'shift_period' => ['nullable', 'in:MORNING,EVENING'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        /** @var Student $student */
+        $student = $this->route('student');
+
+        $this->assertUniqueDashboardPhone(
+            $validator,
+            'student_phone',
+            PhoneAccountType::Student,
+            new PhoneRecordIdentity(studentId: (int) $student->id),
+        );
     }
 }

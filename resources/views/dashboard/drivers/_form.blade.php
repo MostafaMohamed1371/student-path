@@ -98,32 +98,11 @@
         <label class="field-label" for="residential_address">{{ __('dashboard.residential_address') }}</label>
         <input class="input" id="residential_address" name="residential_address" value="{{ old('residential_address', $driver->residential_address ?? '') }}" required />
     </div>
-    <div style="grid-column: 1 / -1;">
-        <label class="field-label" for="route_description">{{ __('dashboard.driver_route_description') }}</label>
-        <textarea class="input" id="route_description" name="route_description" rows="2" placeholder="{{ __('dashboard.driver_route_description_placeholder') }}">{{ old('route_description', $driver->route_description ?? '') }}</textarea>
-        <p style="margin: 6px 0 0; font-size: 12px; color: #64748b;">{{ __('dashboard.driver_route_description_help') }}</p>
-    </div>
     <div>
         <label class="field-label" for="status">{{ __('dashboard.status') }}</label>
         <select class="input" id="status" name="status" required>
             <option value="active" @selected(old('status', $driver->status ?? 'active') === 'active')>{{ __('dashboard.active') }}</option>
             <option value="inactive" @selected(old('status', $driver->status ?? 'active') === 'inactive')>{{ __('dashboard.inactive') }}</option>
-        </select>
-    </div>
-    <div>
-        <label class="field-label" for="monthly_subscription_price">{{ __('dashboard.monthly_subscription_price') }}</label>
-        <input class="input" id="monthly_subscription_price" name="monthly_subscription_price" type="number" min="0" step="1"
-            value="{{ old('monthly_subscription_price', ($driver ?? null) && $driver->monthly_subscription_price !== null ? $driver->monthly_subscription_price : '') }}"
-            placeholder="65000" />
-        <p style="margin:6px 0 0;font-size:12px;color:#64748b;">{{ __('dashboard.monthly_subscription_price_help') }}</p>
-    </div>
-    <div>
-        <label class="field-label" for="shift_period">{{ __('dashboard.shift_period') }}</label>
-        <select class="input" id="shift_period" name="shift_period">
-            <option value="">{{ __('dashboard.shift_period_unspecified') }}</option>
-            <option value="MORNING" @selected(old('shift_period', $driver->shift_period ?? '') === 'MORNING')>{{ __('dashboard.shift_period_morning') }}</option>
-            <option value="EVENING" @selected(old('shift_period', $driver->shift_period ?? '') === 'EVENING')>{{ __('dashboard.shift_period_evening') }}</option>
-            <option value="BOTH" @selected(old('shift_period', $driver->shift_period ?? '') === 'BOTH')>{{ __('dashboard.shift_period_both') }}</option>
         </select>
     </div>
 </div>

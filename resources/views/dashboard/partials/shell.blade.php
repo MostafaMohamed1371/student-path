@@ -14,6 +14,7 @@
             <a href="{{ route('dashboard.trips.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.trips.index') || request()->routeIs('dashboard.trips.create') || request()->routeIs('dashboard.trips.show') || request()->routeIs('dashboard.trips.edit') ? 'is-active' : '' }}">{{ __('dashboard.menu_trips') }}</a>
             <a href="{{ route('dashboard.trips.assign_students') }}" class="sidebar-link {{ request()->routeIs('dashboard.trips.assign_students*') ? 'is-active' : '' }}">{{ __('dashboard.menu_assign_trip_students') }}</a>
             <a href="{{ route('dashboard.routes.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.routes.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_routes') }}</a>
+            <a href="{{ route('dashboard.assigned_drivers.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.assigned_drivers.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_assigned_driver_in_route') }}</a>
             <a href="{{ route('dashboard.trip_requests.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.trip_requests.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_trip_requests') }}</a>
             <a href="{{ route('dashboard.absences.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.absences.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_absences') }}</a>
             <a href="{{ route('dashboard.payments') }}" class="sidebar-link {{ request()->routeIs('dashboard.payments') ? 'is-active' : '' }}">{{ __('dashboard.menu_payments') }}</a>
