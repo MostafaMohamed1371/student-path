@@ -508,8 +508,8 @@ class DashboardRouteTest extends TestCase
             'area_id' => $district->id,
         ]))
             ->assertOk()
-            ->assertSee('Route Karrada', false)
-            ->assertDontSee('Route Karkh', false);
+            ->assertSee('<strong>Route Karrada</strong>', false)
+            ->assertDontSee('<strong>Route Karkh</strong>', false);
 
         $this->get(route('dashboard.routes.index', [
             'school_id' => $school->id,
@@ -518,7 +518,144 @@ class DashboardRouteTest extends TestCase
             'neighborhood_id' => $subDistrict->id,
         ]))
             ->assertOk()
+            ->assertSee('<strong>Route Karrada</strong>', false)
+            ->assertDontSee('<strong>Route Karkh</strong>', false);
+
+        $this->get(route('dashboard.routes.index', [
+            'school_id' => $school->id,
+            'district_id' => $governorate->id,
+        ]))
+            ->assertOk()
             ->assertSee('Route Karrada', false)
-            ->assertDontSee('Route Karkh', false);
+            ->assertSee('Route Karkh', false);
+    }
+
+    public function test_governorate_filter_matches_routes_tagged_at_neighborhood_level(): void
+    {
+        $governorate = District::query()->create(['name' => 'Baghdad', 'sort_order' => 1]);
+        $area = Area::query()->create(['district_id' => $governorate->id, 'name' => 'Rusafa', 'sort_order' => 0]);
+        $subDistrict = Neighborhood::query()->create([
+            'area_id' => $area->id,
+            'name' => 'Al-Karrada',
+            'sort_order' => 0,
+            'latitude' => 33.3152,
+            'longitude' => 44.3661,
+        ]);
+
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'Gov School',
+            'province' => 'P',
+            'district' => 'D',
+            'address' => 'A',
+            'status' => 'active',
+        ]);
+
+        TransportRoute::query()->create([
+            'school_id' => $school->id,
+            'district_id' => $governorate->id,
+            'area_id' => $area->id,
+            'neighborhood_id' => $subDistrict->id,
+            'name' => 'Tagged At Sub District',
+            'trip_type' => TripType::MORNING_PICKUP->value,
+            'shift_period' => 'MORNING',
+            'start_address' => 'Start',
+            'status' => 'active',
+        ]);
+
+        $admin = User::factory()->create(['is_admin' => true]);
+        $this->actingAs($admin);
+
+        $this->get(route('dashboard.routes.index', [
+            'school_id' => $school->id,
+            'district_id' => $governorate->id,
+        ]))
+            ->assertOk()
+            ->assertSee('Tagged At Sub District', false);
+    }
+
+    public function test_governorate_filter_matches_route_with_area_only_tag(): void
+    {
+        $governorate = District::query()->create(['name' => 'Basra', 'sort_order' => 2]);
+        $area = Area::query()->create(['district_id' => $governorate->id, 'name' => 'Ashar', 'sort_order' => 0]);
+
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'Area Tag School',
+            'province' => 'P',
+            'district' => 'D',
+            'address' => 'A',
+            'status' => 'active',
+        ]);
+
+        TransportRoute::query()->create([
+            'school_id' => $school->id,
+            'district_id' => null,
+            'area_id' => $area->id,
+            'neighborhood_id' => null,
+            'name' => 'Route Area Tag Only',
+            'trip_type' => TripType::MORNING_PICKUP->value,
+            'shift_period' => 'MORNING',
+            'start_address' => 'Start',
+            'status' => 'active',
+        ]);
+
+        $admin = User::factory()->create(['is_admin' => true]);
+        $this->actingAs($admin);
+
+        $this->get(route('dashboard.routes.index', [
+            'school_id' => $school->id,
+            'district_id' => $governorate->id,
+        ]))
+            ->assertOk()
+            ->assertSee('Route Area Tag Only', false);
+    }
+
+    public function test_location_filter_matches_untagged_route_by_start_point_near_sub_district(): void
+    {
+        $governorate = District::query()->create(['name' => 'Baghdad', 'sort_order' => 1]);
+        $area = Area::query()->create(['district_id' => $governorate->id, 'name' => 'Rusafa', 'sort_order' => 0]);
+        $subDistrict = Neighborhood::query()->create([
+            'area_id' => $area->id,
+            'name' => 'Al-Karrada',
+            'sort_order' => 0,
+            'latitude' => 33.3152,
+            'longitude' => 44.3661,
+        ]);
+
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'Geo School',
+            'province' => 'P',
+            'district' => 'D',
+            'address' => 'A',
+            'status' => 'active',
+        ]);
+
+        TransportRoute::query()->create([
+            'school_id' => $school->id,
+            'district_id' => null,
+            'area_id' => null,
+            'neighborhood_id' => null,
+            'name' => 'Route Geo Match',
+            'trip_type' => TripType::MORNING_PICKUP->value,
+            'shift_period' => 'MORNING',
+            'start_address' => 'Near Karrada',
+            'start_latitude' => 33.3153,
+            'start_longitude' => 44.3662,
+            'status' => 'active',
+        ]);
+
+        $admin = User::factory()->create(['is_admin' => true]);
+        $this->actingAs($admin);
+
+        $this->get(route('dashboard.routes.index', [
+            'school_id' => $school->id,
+            'district_id' => $governorate->id,
+            'area_id' => $area->id,
+            'neighborhood_id' => $subDistrict->id,
+        ]))
+            ->assertOk()
+            ->assertSee('Route Geo Match', false);
     }
 }

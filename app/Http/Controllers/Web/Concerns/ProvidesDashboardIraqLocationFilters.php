@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\Concerns;
 use App\Models\Area;
 use App\Models\District;
 use App\Models\Neighborhood;
+use App\Services\Routes\RouteIraqLocationFilter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -150,25 +151,12 @@ trait ProvidesDashboardIraqLocationFilters
      */
     protected function applyTransportRouteLocationFilter(Builder $query, array $filters): void
     {
-        $neighborhoodId = (int) ($filters['filterNeighborhoodId'] ?? 0);
-        $areaId = (int) ($filters['filterAreaId'] ?? 0);
-        $districtId = (int) ($filters['filterDistrictId'] ?? 0);
-
-        if ($neighborhoodId > 0) {
-            $query->where('neighborhood_id', $neighborhoodId);
-
-            return;
-        }
-
-        if ($areaId > 0) {
-            $query->where('area_id', $areaId);
-
-            return;
-        }
-
-        if ($districtId > 0) {
-            $query->where('district_id', $districtId);
-        }
+        app(RouteIraqLocationFilter::class)->apply(
+            $query,
+            (int) ($filters['filterDistrictId'] ?? 0),
+            (int) ($filters['filterAreaId'] ?? 0),
+            (int) ($filters['filterNeighborhoodId'] ?? 0),
+        );
     }
 
     /**
