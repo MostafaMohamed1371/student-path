@@ -9,9 +9,12 @@ use App\Http\Requests\Web\StoreDashboardGuardianRequest;
 use App\Http\Requests\Web\UpdateDashboardGuardianRequest;
 use App\Models\Guardian;
 use App\Models\User;
+use App\Services\Guardian\GuardianSchoolProvisioner;
+use App\Services\IdCard\DashboardIdCardRegistry;
 use App\Services\Phone\DashboardPhoneUserProvisioner;
 use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -50,7 +53,69 @@ class DashboardGuardianController extends Controller
             return $this->redirectToSchoolCreateForAdminsOrHomeForStaff('dashboard.create_school_first_guardians');
         }
 
-        return view('dashboard.guardians.create', compact('schools'));
+        return view('dashboard.guardians.create', [
+            'schools' => $schools,
+            'guardianLookupUrl' => route('dashboard.guardians.lookup_by_id_card'),
+        ]);
+    }
+
+    public function lookupByIdCard(
+        Request $request,
+        DashboardIdCardRegistry $idCardRegistry,
+        GuardianSchoolProvisioner $provisioner,
+    ): JsonResponse {
+        $this->abortUnlessCanMutateSchoolRoster();
+
+        $validated = $request->validate([
+            'id_card_number' => ['required', 'string', 'max:64'],
+            'school_id' => ['nullable', 'integer', 'exists:schools,id'],
+        ]);
+
+        $schoolId = (int) ($validated['school_id'] ?? 0);
+        if ($schoolId > 0) {
+            $this->abortUnlessCanMutateSchoolRosterForSchool($schoolId);
+        }
+
+        $normalized = $idCardRegistry->normalize($validated['id_card_number']);
+        if ($normalized === null) {
+            return response()->json(['found' => false]);
+        }
+
+        if ($schoolId > 0) {
+            $atSchool = $provisioner->findForSchoolByIdCard($schoolId, $normalized);
+            if ($atSchool !== null) {
+                return response()->json([
+                    'found' => true,
+                    'already_at_school' => true,
+                    'guardian' => $this->guardianLookupPayload($atSchool),
+                ]);
+            }
+        }
+
+        $source = $provisioner->findAnyByIdCard($normalized);
+        if ($source === null) {
+            return response()->json(['found' => false]);
+        }
+
+        return response()->json([
+            'found' => true,
+            'already_at_school' => false,
+            'guardian' => $this->guardianLookupPayload($source),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function guardianLookupPayload(Guardian $guardian): array
+    {
+        return [
+            'full_name' => (string) $guardian->full_name,
+            'phone' => (string) $guardian->phone,
+            'backup_phone' => (string) ($guardian->backup_phone ?? ''),
+            'id_card_number' => (string) ($guardian->id_card_number ?? ''),
+            'status' => (string) $guardian->status,
+        ];
     }
 
     public function store(StoreDashboardGuardianRequest $request, PhoneNormalizer $phoneNormalizer): RedirectResponse

@@ -89,6 +89,7 @@ Examples that already create in-app notifications:
 - Trip started (`TRIP_STARTED` / `RETURN_TRIP_STARTED`) — `POST /api/trips/{id}/start`
 - Trip ended (`TRIP_COMPLETED` / `RETURN_TRIP_COMPLETED`) — `PUT /api/trips/end-trip` or finalize
 - Bus arrived at student (`TRIP_STUDENT_ARRIVED`) — `PUT /api/update-status` with `new_status: ARRIVED`
+- New pending trip request for assigned driver (`TRIP_REQUEST`) — `POST /api/trip-requests` or dashboard **Add trip request** (only when a new pending row is created, not on duplicate submit)
 
 Payload:
 

@@ -3,14 +3,18 @@
 namespace App\Http\Requests\Web;
 
 use App\Enums\PhoneAccountType;
+use App\Http\Requests\Concerns\ValidatesUniqueDashboardIdCard;
 use App\Http\Requests\Concerns\ValidatesUniqueDashboardPhone;
 use App\Models\Guardian;
+use App\Services\IdCard\IdCardRecordIdentity;
 use App\Services\Phone\PhoneRecordIdentity;
+use App\Support\IdCardNumber;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
 class UpdateDashboardGuardianRequest extends FormRequest
 {
+    use ValidatesUniqueDashboardIdCard;
     use ValidatesUniqueDashboardPhone;
     public function authorize(): bool
     {
@@ -25,6 +29,12 @@ class UpdateDashboardGuardianRequest extends FormRequest
                     $field => preg_replace('/\D+/', '', (string) $this->input($field)),
                 ]);
             }
+        }
+
+        if ($this->has('id_card_number')) {
+            $this->merge([
+                'id_card_number' => IdCardNumber::normalize($this->input('id_card_number')),
+            ]);
         }
     }
 
@@ -45,17 +55,38 @@ class UpdateDashboardGuardianRequest extends FormRequest
         /** @var Guardian $guardian */
         $guardian = $this->route('guardian');
 
+        $schoolId = (int) $this->input('school_id', $guardian->school_id);
+        $idCard = IdCardNumber::normalize($this->input('id_card_number'));
+
         $this->assertUniqueDashboardPhone(
             $validator,
             'phone',
             PhoneAccountType::Guardian,
-            new PhoneRecordIdentity(guardianId: (int) $guardian->id, guardianPhoneField: 'phone'),
+            new PhoneRecordIdentity(
+                guardianId: (int) $guardian->id,
+                guardianPhoneField: 'phone',
+                guardianSchoolId: $schoolId,
+                guardianIdCardNumber: $idCard,
+            ),
         );
         $this->assertUniqueDashboardPhone(
             $validator,
             'backup_phone',
             PhoneAccountType::Guardian,
-            new PhoneRecordIdentity(guardianId: (int) $guardian->id, guardianPhoneField: 'backup_phone'),
+            new PhoneRecordIdentity(
+                guardianId: (int) $guardian->id,
+                guardianPhoneField: 'backup_phone',
+                guardianSchoolId: $schoolId,
+                guardianIdCardNumber: $idCard,
+            ),
+        );
+        $this->assertUniqueDashboardIdCard(
+            $validator,
+            'id_card_number',
+            new IdCardRecordIdentity(
+                guardianId: (int) $guardian->id,
+                guardianSchoolId: $schoolId,
+            ),
         );
     }
 }

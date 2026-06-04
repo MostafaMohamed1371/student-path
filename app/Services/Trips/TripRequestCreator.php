@@ -45,6 +45,8 @@ final class TripRequestCreator
                 ...$attributes,
             ]);
 
+            app(TripRequestNotificationService::class)->notifyDriverOfNewPendingRequest($row);
+
             return [$row, true];
         });
     }

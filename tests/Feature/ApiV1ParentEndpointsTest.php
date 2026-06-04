@@ -560,6 +560,17 @@ class ApiV1ParentEndpointsTest extends TestCase
         $this->assertGreaterThan(0, (float) $dKm);
 
         $req = TripRequest::query()->firstOrFail();
+        $this->assertDatabaseHas('in_app_notifications', [
+            'user_id' => $driverUser->id,
+        ]);
+        $driverNotification = InAppNotification::query()
+            ->where('user_id', $driverUser->id)
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($driverNotification);
+        $this->assertSame('TRIP_REQUEST', $driverNotification->data['type'] ?? null);
+        $this->assertSame($req->id, $driverNotification->data['trip_request_id'] ?? null);
+
         $this->getJson('/api/trip-requests/'.$req->id)
             ->assertOk()
             ->assertJsonPath('data.id', $req->id)
@@ -603,8 +614,9 @@ class ApiV1ParentEndpointsTest extends TestCase
         $user = User::factory()->create(['guardian_id' => $guardian->id, 'school_id' => $school->id]);
         Sanctum::actingAs($user);
 
+        $driverUser = User::factory()->create();
         $driver = Driver::query()->create([
-            'user_id' => User::factory()->create()->id,
+            'user_id' => $driverUser->id,
             'school_id' => $school->id,
             'first_name' => 'Dedup',
             'father_name' => 'Driver',
@@ -644,11 +656,19 @@ class ApiV1ParentEndpointsTest extends TestCase
                 ->where('status', 'pending')
                 ->count(),
         );
+        $this->assertSame(
+            1,
+            InAppNotification::query()->where('user_id', $driverUser->id)->count(),
+        );
 
         $this->postJson('/api/trip-requests/'.$firstId.'/cancel')->assertOk();
 
         $third = $this->postJson('/api/trip-requests', $payload)->assertStatus(201);
         $this->assertNotSame($firstId, (int) $third->json('data.id'));
+        $this->assertSame(
+            2,
+            InAppNotification::query()->where('user_id', $driverUser->id)->count(),
+        );
     }
 
     public function test_trip_request_cancel_returns_422_when_not_pending(): void

@@ -15,4 +15,8 @@
             </form>
         </section>
     @endcomponent
+    @include('dashboard.guardians._id_card_autofill_script', [
+        'guardianLookupUrl' => $guardianLookupUrl ?? '',
+        'guardian' => null,
+    ])
 @endsection

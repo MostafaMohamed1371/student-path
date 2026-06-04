@@ -39,6 +39,7 @@ class WebDashboardReportsTest extends TestCase
         $this->get(route('dashboard.absences.index'))->assertRedirect(route('login'));
         $this->get(route('dashboard.support_complaints.index'))->assertRedirect(route('login'));
         $this->get(route('dashboard.trip_requests.show', 1))->assertRedirect(route('login'));
+        $this->get(route('dashboard.trip_requests.create'))->assertRedirect(route('login'));
         $this->get(route('dashboard.absences.create'))->assertRedirect(route('login'));
         $this->get(route('dashboard.support_complaints.create'))->assertRedirect(route('login'));
     }
@@ -283,6 +284,189 @@ class WebDashboardReportsTest extends TestCase
         $this->assertNotNull($fresh->trip_history_id);
         $this->assertDatabaseHas('trip_histories', ['id' => $fresh->trip_history_id]);
         $this->assertSame(1, TripHistory::query()->whereKey($fresh->trip_history_id)->value('students_count'));
+    }
+
+    public function test_admin_linked_to_driver_can_create_trip_request_from_dashboard(): void
+    {
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'School Admin Create TR',
+            'province' => 'P',
+            'district' => '1',
+            'address' => 'A',
+            'status' => 'active',
+        ]);
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'G Admin Create',
+            'phone' => '7300000102',
+            'status' => 'active',
+        ]);
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'Student Admin Create TR',
+            'gender' => 'male',
+            'grade' => '1',
+            'student_phone' => '7400000102',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'status' => 'active',
+        ]);
+        $parent = User::factory()->create([
+            'guardian_id' => $guardian->id,
+            'school_id' => $school->id,
+            'phone_account_type' => 'guardian',
+        ]);
+        $admin = User::factory()->create(['is_admin' => true]);
+        Driver::query()->create([
+            'user_id' => $admin->id,
+            'school_id' => $school->id,
+            'first_name' => 'Admin',
+            'father_name' => 'Driver',
+            'grandfather_name' => 'X',
+            'last_name' => 'Create',
+            'age' => 40,
+            'id_card_number' => 'IDC-ADM-CR',
+            'license_number' => 'LIC-ADM-CR',
+            'primary_phone' => '7500000102',
+            'emergency_phone' => '7500000103',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+
+        $trip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => Driver::query()->where('school_id', $school->id)->value('id'),
+            'trip_type' => 'MORNING_PICKUP',
+            'bus_number' => 'B-ADM',
+            'route_title' => 'Route',
+            'location' => 'L',
+            'students_count' => 0,
+            'distance_km' => 0,
+            'start_time' => now(),
+            'status' => 'ACTIVE',
+            'students_preview' => [],
+        ]);
+
+        $this->actingAs($admin);
+
+        $this->get(route('dashboard.trip_requests.create'))->assertOk();
+
+        $this->post(route('dashboard.trip_requests.store'), [
+            'school_id' => $school->id,
+            'user_id' => $parent->id,
+            'student_id' => $student->id,
+            'trip_history_id' => $trip->id,
+            'notes' => 'Admin with driver row',
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('trip_requests', [
+            'user_id' => $parent->id,
+            'student_id' => $student->id,
+            'notes' => 'Admin with driver row',
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_staff_can_create_trip_request_from_dashboard(): void
+    {
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'School Create TR',
+            'province' => 'P',
+            'district' => '1',
+            'address' => 'A',
+            'status' => 'active',
+        ]);
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'G Create',
+            'phone' => '7300000100',
+            'status' => 'active',
+        ]);
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'Student Create TR',
+            'gender' => 'male',
+            'grade' => '1',
+            'student_phone' => '7400000100',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'status' => 'active',
+        ]);
+        $parent = User::factory()->create([
+            'guardian_id' => $guardian->id,
+            'school_id' => $school->id,
+            'phone_account_type' => 'guardian',
+        ]);
+        $driverUser = User::factory()->create(['phone' => '9647500000100']);
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'D',
+            'father_name' => 'R',
+            'grandfather_name' => 'X',
+            'last_name' => 'Create',
+            'age' => 30,
+            'id_card_number' => 'DASH-TR-DRV',
+            'license_number' => 'LIC-TR',
+            'primary_phone' => '7500000100',
+            'emergency_phone' => '7500000101',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+
+        $staff = User::factory()->create(['is_admin' => false, 'school_id' => $school->id]);
+        $trip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => Driver::query()->where('school_id', $school->id)->value('id'),
+            'trip_type' => 'MORNING_PICKUP',
+            'bus_number' => 'B-STAFF',
+            'route_title' => 'Route',
+            'location' => 'L',
+            'students_count' => 0,
+            'distance_km' => 0,
+            'start_time' => now(),
+            'status' => 'ACTIVE',
+            'students_preview' => [],
+        ]);
+
+        $this->actingAs($staff);
+
+        $this->get(route('dashboard.trip_requests.create'))->assertOk();
+
+        $this->post(route('dashboard.trip_requests.store'), [
+            'school_id' => $school->id,
+            'user_id' => $parent->id,
+            'student_id' => $student->id,
+            'trip_history_id' => $trip->id,
+            'notes' => 'Dashboard created request',
+        ])->assertRedirect();
+
+        $req = TripRequest::query()->firstOrFail();
+        $this->assertSame($parent->id, $req->user_id);
+        $this->assertSame($student->id, $req->student_id);
+        $this->assertSame('pending', $req->status);
+        $this->assertSame('Dashboard created request', $req->notes);
+        $this->assertNotNull($req->driver_id);
+        $this->assertDatabaseHas('in_app_notifications', [
+            'user_id' => $driverUser->id,
+        ]);
+        $notification = InAppNotification::query()
+            ->where('user_id', $driverUser->id)
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($notification);
+        $this->assertSame('TRIP_REQUEST', $notification->data['type'] ?? null);
+        $this->assertSame($req->id, $notification->data['trip_request_id'] ?? null);
     }
 
     public function test_dashboard_student_create_does_not_auto_create_trip_request(): void

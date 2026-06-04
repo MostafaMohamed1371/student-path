@@ -3,15 +3,19 @@
 namespace App\Http\Requests\Web;
 
 use App\Enums\PhoneAccountType;
+use App\Http\Requests\Concerns\ValidatesUniqueDashboardIdCard;
 use App\Http\Requests\Concerns\ValidatesUniqueDashboardPhone;
 use App\Models\Driver;
+use App\Services\IdCard\IdCardRecordIdentity;
 use App\Services\Phone\PhoneRecordIdentity;
+use App\Support\IdCardNumber;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
 class UpdateDashboardDriverRequest extends FormRequest
 {
+    use ValidatesUniqueDashboardIdCard;
     use ValidatesUniqueDashboardPhone;
     public function authorize(): bool
     {
@@ -28,6 +32,11 @@ class UpdateDashboardDriverRequest extends FormRequest
             }
         }
 
+        if ($this->has('id_card_number')) {
+            $this->merge([
+                'id_card_number' => IdCardNumber::normalize($this->input('id_card_number')),
+            ]);
+        }
     }
 
     /** @return array<string, list<string|ValidationRule>> */
@@ -73,5 +82,10 @@ class UpdateDashboardDriverRequest extends FormRequest
 
         $this->assertUniqueDashboardPhone($validator, 'primary_phone', PhoneAccountType::Driver, $exceptPrimary);
         $this->assertUniqueDashboardPhone($validator, 'emergency_phone', PhoneAccountType::Driver, $exceptEmergency);
+        $this->assertUniqueDashboardIdCard(
+            $validator,
+            'id_card_number',
+            new IdCardRecordIdentity(driverId: (int) $driver->id),
+        );
     }
 }

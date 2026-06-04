@@ -16,6 +16,8 @@ final readonly class PhoneRecordIdentity
         public ?int $studentId = null,
         public ?int $guardianId = null,
         public ?string $guardianPhoneField = null,
+        public ?int $guardianSchoolId = null,
+        public ?string $guardianIdCardNumber = null,
         public ?int $userId = null,
     ) {}
 }

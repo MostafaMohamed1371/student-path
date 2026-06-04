@@ -105,7 +105,8 @@
             font-weight: 600;
         }
 
-        .input {
+        .input,
+        .field-like {
             width: 100%;
             border: 1px solid #cbd5e1;
             border-radius: 10px;
@@ -113,6 +114,13 @@
             padding: 12px;
             font-size: 16px;
             outline: none;
+            box-sizing: border-box;
+        }
+
+        select.field-like:disabled {
+            background: #f8fafc;
+            color: #64748b;
+            cursor: not-allowed;
         }
 
         .phone-row .input {
@@ -435,10 +443,49 @@
             font-size: 13px;
         }
 
+        .form-section {
+            margin-top: 20px;
+            padding-top: 4px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .form-section:first-of-type {
+            margin-top: 0;
+            padding-top: 0;
+            border-top: 0;
+        }
+
+        .form-section-title {
+            margin: 0 0 12px;
+            font-size: 18px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
         .form-grid {
             display: grid;
             gap: 16px;
             grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .form-span-full {
+            grid-column: 1 / -1;
+        }
+
+        .field-help {
+            margin: 4px 0 0;
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .form-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid #e2e8f0;
         }
 
         .form-grid label {
@@ -509,8 +556,8 @@
                 padding: 12px;
             }
 
-            .form-grid .btn-primary,
-            .form-grid .btn-muted {
+            .form-actions .btn-primary,
+            .form-actions .btn-muted {
                 width: 100%;
                 text-align: center;
             }

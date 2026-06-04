@@ -104,6 +104,18 @@ final class DashboardPhoneUserProvisioner
         }
 
         $phone = $this->phoneNormalizer->normalize($nationalPhone);
+        $existing = User::query()->where('phone', $phone)->first();
+
+        if ($existing !== null) {
+            $type = $this->registry->accountTypeForUser($existing);
+            if ($type !== PhoneAccountType::Student) {
+                throw ValidationException::withMessages([
+                    'student_phone' => [
+                        __('dashboard.phone_already_used', ['owner' => $type->label()]),
+                    ],
+                ]);
+            }
+        }
 
         return User::query()->updateOrCreate(
             ['phone' => $phone],

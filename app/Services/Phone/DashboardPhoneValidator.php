@@ -8,6 +8,7 @@ use App\Models\Guardian;
 use App\Models\School;
 use App\Models\Student;
 use App\Models\User;
+use App\Support\IdCardNumber;
 
 /**
  * Validates dashboard phone fields on create/update (used by form requests and model observers).
@@ -94,12 +95,19 @@ final class DashboardPhoneValidator
     public function validateGuardian(Guardian $guardian): void
     {
         $guardianId = $guardian->exists ? (int) $guardian->getKey() : null;
+        $schoolId = (int) $guardian->school_id;
+        $idCard = IdCardNumber::normalize($guardian->id_card_number);
 
         if ($this->shouldCheck($guardian, 'phone')) {
             $this->registry->assertAvailable(
                 (string) $guardian->phone,
                 PhoneAccountType::Guardian,
-                new PhoneRecordIdentity(guardianId: $guardianId, guardianPhoneField: 'phone'),
+                new PhoneRecordIdentity(
+                    guardianId: $guardianId,
+                    guardianPhoneField: 'phone',
+                    guardianSchoolId: $schoolId,
+                    guardianIdCardNumber: $idCard,
+                ),
                 'phone',
             );
         }
@@ -108,7 +116,12 @@ final class DashboardPhoneValidator
             $this->registry->assertAvailable(
                 (string) $guardian->backup_phone,
                 PhoneAccountType::Guardian,
-                new PhoneRecordIdentity(guardianId: $guardianId, guardianPhoneField: 'backup_phone'),
+                new PhoneRecordIdentity(
+                    guardianId: $guardianId,
+                    guardianPhoneField: 'backup_phone',
+                    guardianSchoolId: $schoolId,
+                    guardianIdCardNumber: $idCard,
+                ),
                 'backup_phone',
             );
         }

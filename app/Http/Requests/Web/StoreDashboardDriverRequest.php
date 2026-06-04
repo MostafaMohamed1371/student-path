@@ -3,13 +3,16 @@
 namespace App\Http\Requests\Web;
 
 use App\Enums\PhoneAccountType;
+use App\Http\Requests\Concerns\ValidatesUniqueDashboardIdCard;
 use App\Http\Requests\Concerns\ValidatesUniqueDashboardPhone;
+use App\Support\IdCardNumber;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
 class StoreDashboardDriverRequest extends FormRequest
 {
+    use ValidatesUniqueDashboardIdCard;
     use ValidatesUniqueDashboardPhone;
     public function authorize(): bool
     {
@@ -30,6 +33,12 @@ class StoreDashboardDriverRequest extends FormRequest
             if ($this->input($field) === '') {
                 $this->merge([$field => null]);
             }
+        }
+
+        if ($this->has('id_card_number')) {
+            $this->merge([
+                'id_card_number' => IdCardNumber::normalize($this->input('id_card_number')),
+            ]);
         }
     }
 
@@ -62,5 +71,6 @@ class StoreDashboardDriverRequest extends FormRequest
     {
         $this->assertUniqueDashboardPhone($validator, 'primary_phone', PhoneAccountType::Driver);
         $this->assertUniqueDashboardPhone($validator, 'emergency_phone', PhoneAccountType::Driver);
+        $this->assertUniqueDashboardIdCard($validator, 'id_card_number');
     }
 }

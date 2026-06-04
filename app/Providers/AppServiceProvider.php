@@ -15,6 +15,7 @@ use App\Models\School;
 use App\Models\Student;
 use App\Models\User;
 use App\Observers\InAppNotificationObserver;
+use App\Observers\ValidatesUniqueIdCardsObserver;
 use App\Observers\ValidatesUniquePhonesObserver;
 use App\Services\Push\FakeFcmTopicSubscriber;
 use App\Services\Push\FakePushNotifier;
@@ -134,6 +135,10 @@ class AppServiceProvider extends ServiceProvider
         Student::observe($phoneObserver);
         Guardian::observe($phoneObserver);
         User::observe($phoneObserver);
+
+        $idCardObserver = ValidatesUniqueIdCardsObserver::class;
+        Driver::observe($idCardObserver);
+        Guardian::observe($idCardObserver);
 
         require base_path('routes/channels.php');
     }

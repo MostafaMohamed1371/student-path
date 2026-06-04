@@ -7,11 +7,13 @@
     <div class="alert" style="margin-top: 0; margin-bottom: 16px;">{{ $errors->first() }}</div>
 @endif
 
+@php($isCreate = empty($guardian))
+
 <div class="form-grid">
     <div>
         <label class="field-label" for="school_id">{{ __('dashboard.school') }}</label>
         @if(auth()->user()?->is_admin)
-            <select class="input" id="school_id" name="school_id" required>
+            <select class="input" id="guardian_form_school_id" name="school_id" required>
                 <option value="">{{ __('dashboard.select_school') }}</option>
                 @foreach(($schools ?? collect()) as $school)
                     <option value="{{ $school->id }}" @selected((string) old('school_id', $guardian->school_id ?? '') === (string) $school->id)>
@@ -22,38 +24,48 @@
         @else
             @php($fixedSchoolId = (string) old('school_id', $guardian->school_id ?? auth()->user()?->scopingSchoolId()))
             @php($fixedSchool = ($schools ?? collect())->firstWhere('id', (int) $fixedSchoolId))
-            <input type="hidden" name="school_id" value="{{ $fixedSchoolId }}">
+            <input type="hidden" id="guardian_form_school_id_hidden" name="school_id" value="{{ $fixedSchoolId }}">
             <input class="input" value="{{ $fixedSchool?->name_en ?: '—' }}" disabled />
         @endif
     </div>
-    <div></div>
+    <div>
+        <label class="field-label" for="guardian_form_id_card_number">{{ __('dashboard.id_card_number') }}</label>
+        <input
+            class="input"
+            id="guardian_form_id_card_number"
+            name="id_card_number"
+            value="{{ old('id_card_number', $guardian->id_card_number ?? '') }}"
+            autocomplete="off"
+            maxlength="64"
+        />
+        @if($isCreate)
+            <p class="field-help">{{ __('dashboard.guardian_form_id_card_help') }}</p>
+            <p id="guardian_form_id_card_status" class="field-help" style="display:none;" role="status"></p>
+        @endif
+    </div>
 
     <div>
-        <label class="field-label" for="full_name">{{ __('dashboard.guardian_name') }}</label>
-        <input class="input" id="full_name" name="full_name" value="{{ old('full_name', $guardian->full_name ?? '') }}" required />
+        <label class="field-label" for="guardian_form_full_name">{{ __('dashboard.guardian_name') }}</label>
+        <input class="input" id="guardian_form_full_name" name="full_name" value="{{ old('full_name', $guardian->full_name ?? '') }}" required />
     </div>
     <div>
-        <label class="field-label" for="id_card_number">{{ __('dashboard.id_card_number') }}</label>
-        <input class="input" id="id_card_number" name="id_card_number" value="{{ old('id_card_number', $guardian->id_card_number ?? '') }}" />
+        <label class="field-label" for="guardian_form_phone">{{ __('dashboard.phone') }}</label>
+        <input class="input" id="guardian_form_phone" name="phone" value="{{ old('phone', $guardian->phone ?? '') }}" required />
     </div>
     <div>
-        <label class="field-label" for="phone">{{ __('dashboard.phone') }}</label>
-        <input class="input" id="phone" name="phone" value="{{ old('phone', $guardian->phone ?? '') }}" required />
+        <label class="field-label" for="guardian_form_backup_phone">{{ __('dashboard.guardian_backup_phone') }}</label>
+        <input class="input" id="guardian_form_backup_phone" name="backup_phone" value="{{ old('backup_phone', $guardian->backup_phone ?? '') }}" />
     </div>
     <div>
-        <label class="field-label" for="backup_phone">{{ __('dashboard.guardian_backup_phone') }}</label>
-        <input class="input" id="backup_phone" name="backup_phone" value="{{ old('backup_phone', $guardian->backup_phone ?? '') }}" />
-    </div>
-    <div>
-        <label class="field-label" for="status">{{ __('dashboard.status') }}</label>
-        <select class="input" id="status" name="status" required>
+        <label class="field-label" for="guardian_form_status">{{ __('dashboard.status') }}</label>
+        <select class="input" id="guardian_form_status" name="status" required>
             <option value="active" @selected(old('status', $guardian->status ?? 'active') === 'active')>{{ __('dashboard.active') }}</option>
             <option value="inactive" @selected(old('status', $guardian->status ?? 'active') === 'inactive')>{{ __('dashboard.inactive') }}</option>
         </select>
     </div>
 </div>
 
-<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
+<div class="form-actions">
     <a class="btn-muted" href="{{ route('dashboard.guardians.index') }}">{{ __('dashboard.cancel') }}</a>
     <button class="btn-primary" type="submit" style="width:auto;padding-inline:16px;">{{ $submitLabel ?? __('dashboard.save') }}</button>
 </div>

@@ -4,9 +4,15 @@
 
 @section('content')
     @php($title = __('dashboard.menu_trip_requests'))
-    @php($canManageTripRequests = auth()->user()?->canMutateSchoolRoster() ?? false)
+    @php($canManageTripRequests = $canManageTripRequests ?? (auth()->user()?->canMutateSchoolRoster() ?? false))
     @component('dashboard.partials.shell', ['title' => $title])
         <p style="color: var(--text-muted); margin: 0 0 20px;">{{ __('dashboard.trip_requests_page_intro') }}</p>
+
+        @if($canManageTripRequests)
+            <p style="margin: 0 0 16px;">
+                <a href="{{ route('dashboard.trip_requests.create') }}" class="btn-primary" style="width:auto;padding:10px 14px;text-decoration:none;">{{ __('dashboard.add_trip_request') }}</a>
+            </p>
+        @endif
 
         @include('dashboard.partials.school_driver_filter')
 

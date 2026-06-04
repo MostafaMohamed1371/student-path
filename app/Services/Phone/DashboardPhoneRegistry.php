@@ -8,6 +8,7 @@ use App\Models\Guardian;
 use App\Models\School;
 use App\Models\Student;
 use App\Models\User;
+use App\Support\IdCardNumber;
 use Illuminate\Validation\ValidationException;
 
 final class DashboardPhoneRegistry
@@ -165,6 +166,7 @@ final class DashboardPhoneRegistry
             if ($except !== null && (
                 $occupancy->isSameRecordAs($except)
                 || $this->isCompanionUserForExcept($occupancy, $except, $intendedType)
+                || $this->isGuardianPhoneAllowedAtAnotherSchool($occupancy, $except, $intendedType)
             )) {
                 continue;
             }
@@ -258,6 +260,58 @@ final class DashboardPhoneRegistry
             return (int) $user->guardian_id === $except->guardianId;
         }
 
+        if ($intendedType === PhoneAccountType::Guardian
+            && $except->guardianSchoolId !== null
+            && $except->guardianIdCardNumber !== null
+            && $user->phone_account_type === PhoneAccountType::Guardian->value) {
+            $linked = $this->guardianLinkedToUser($user);
+
+            return $linked !== null
+                && IdCardNumber::normalize($linked->id_card_number) === $except->guardianIdCardNumber
+                && (int) $linked->school_id !== $except->guardianSchoolId;
+        }
+
         return false;
+    }
+
+    private function isGuardianPhoneAllowedAtAnotherSchool(
+        PhoneOccupancy $occupancy,
+        PhoneRecordIdentity $except,
+        PhoneAccountType $intendedType,
+    ): bool {
+        if ($intendedType !== PhoneAccountType::Guardian
+            || $except->guardianSchoolId === null
+            || $except->guardianIdCardNumber === null) {
+            return false;
+        }
+
+        if ($occupancy->entity === 'guardian' && $occupancy->accountType === PhoneAccountType::Guardian) {
+            $other = Guardian::query()->find($occupancy->entityId);
+            if ($other === null) {
+                return false;
+            }
+
+            return (int) $other->school_id !== $except->guardianSchoolId
+                && IdCardNumber::normalize($other->id_card_number) === $except->guardianIdCardNumber;
+        }
+
+        return false;
+    }
+
+    private function guardianLinkedToUser(User $user): ?Guardian
+    {
+        if ($user->guardian_id !== null) {
+            return Guardian::query()->find((int) $user->guardian_id);
+        }
+
+        $national = $this->nationalDigits((string) $user->phone);
+
+        return Guardian::query()
+            ->where(function ($query) use ($user, $national): void {
+                $query->where('phone', $national)
+                    ->orWhere('phone', $user->phone);
+            })
+            ->orderBy('id')
+            ->first();
     }
 }

@@ -7,19 +7,25 @@ use App\Http\Controllers\Web\Concerns\ConstrainsDashboardUserScope;
 use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
 use App\Http\Controllers\Web\Concerns\ProvidesDashboardSchoolDriverFilters;
 use App\Http\Controllers\Web\Concerns\ScopesDashboardTripRequests;
+use App\Http\Requests\Web\StoreDashboardTripRequestRequest;
 use App\Http\Requests\Web\UpdateDashboardTripRequestRequest;
 use App\Http\Requests\Web\UpdateDashboardTripRequestStatusRequest;
 use App\Models\Driver;
+use App\Models\Guardian;
 use App\Models\Student;
 use App\Models\TripHistory;
 use App\Models\TripRequest;
 use App\Models\User;
 use App\Services\Trips\TripRequestAcceptanceService;
+use App\Services\Trips\TripRequestCreator;
+use App\Services\Trips\TripRequestSubmissionPlanner;
 use App\Services\Trips\DriverShiftResolver;
 use App\Support\ParentContext;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class DashboardTripRequestController extends Controller
@@ -49,7 +55,131 @@ class DashboardTripRequestController extends Controller
             'showSchoolFilter' => ! $isDriverUser && $filters['showSchoolFilter'],
             'showDriverFilter' => ! $isDriverUser && $filters['showDriverFilter'],
             'showSchoolColumn' => (bool) auth()->user()?->is_admin,
+            'canManageTripRequests' => (bool) auth()->user()?->canMutateSchoolRoster() && ! $isDriverUser,
         ]));
+    }
+
+    public function create(): View
+    {
+        $this->abortUnlessCanManageTripRequestsInDashboard();
+
+        return view('dashboard.trip-requests.create', [
+            'schools' => $this->schoolsForRosterForm(),
+            'formOptionsUrl' => route('dashboard.trip_requests.form_options'),
+            'formStudentsUrl' => route('dashboard.trip_requests.form_students'),
+        ]);
+    }
+
+    public function formOptions(Request $request): JsonResponse
+    {
+        $this->abortUnlessCanManageTripRequestsInDashboard();
+
+        $validated = $request->validate([
+            'school_id' => ['required', 'integer', 'exists:schools,id'],
+        ]);
+
+        $schoolId = (int) $validated['school_id'];
+        $this->abortUnlessCanMutateSchoolRosterForSchool($schoolId);
+
+        $trips = TripHistory::query()
+            ->where('school_id', $schoolId)
+            ->orderByDesc('start_time')
+            ->limit(200)
+            ->get()
+            ->map(fn (TripHistory $t): array => [
+                'id' => (int) $t->id,
+                'label' => '#'.$t->id.' — '.($t->route_title ?: $t->bus_number).' ('.$t->trip_type.')',
+            ])
+            ->values()
+            ->all();
+
+        return response()->json([
+            'parents' => $this->parentOptionsForSchool($schoolId),
+            'trips' => $trips,
+        ]);
+    }
+
+    public function formStudents(Request $request): JsonResponse
+    {
+        $this->abortUnlessCanManageTripRequestsInDashboard();
+
+        $validated = $request->validate([
+            'school_id' => ['required', 'integer', 'exists:schools,id'],
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+        ]);
+
+        $schoolId = (int) $validated['school_id'];
+        $userId = (int) $validated['user_id'];
+        $this->abortUnlessCanMutateSchoolRosterForSchool($schoolId);
+        abort_unless($this->userIdVisibleInDashboardScope($userId), 403);
+
+        $user = User::query()->findOrFail($userId);
+
+        $students = ParentContext::studentsFor($user)
+            ->filter(fn (Student $student): bool => (int) $student->school_id === $schoolId)
+            ->map(fn (Student $student): array => [
+                'id' => (int) $student->id,
+                'label' => $student->full_name.' (#'.$student->id.')',
+            ])
+            ->values()
+            ->all();
+
+        return response()->json(['students' => $students]);
+    }
+
+    public function store(StoreDashboardTripRequestRequest $request): RedirectResponse
+    {
+        $this->abortUnlessCanManageTripRequestsInDashboard();
+
+        $validated = $this->enforceRosterSchoolIdForStaff($request->validated());
+        $schoolId = (int) $validated['school_id'];
+        $this->abortUnlessCanMutateSchoolRosterForSchool($schoolId);
+
+        $user = User::query()->findOrFail((int) $validated['user_id']);
+        abort_unless($this->userIdVisibleInDashboardScope((int) $user->id), 403);
+        abort_unless($this->userIsParentAtSchool($user, $schoolId), 403);
+
+        $student = Student::query()
+            ->where('school_id', $schoolId)
+            ->whereKey((int) $validated['student_id'])
+            ->firstOrFail();
+        ParentContext::ensureUserLinkedToStudent($user, $student);
+        abort_unless(ParentContext::ownsStudent($user, $student->id), 403);
+
+        $trip = TripHistory::query()
+            ->where('school_id', $schoolId)
+            ->whereKey((int) $validated['trip_history_id'])
+            ->firstOrFail();
+
+        try {
+            $plan = app(TripRequestSubmissionPlanner::class)->plan(
+                $user,
+                $student,
+                $trip,
+            );
+        } catch (ValidationException $e) {
+            return redirect()->back()->withInput()->withErrors($e->errors());
+        }
+
+        [$row, $created] = app(TripRequestCreator::class)->createOrReturnExistingPending(
+            $user,
+            $student,
+            $plan->driverId,
+            [
+                'trip_history_id' => $plan->tripHistoryId,
+                'status' => 'pending',
+                'notes' => $validated['notes'] ?? null,
+                ...$plan->snapshot,
+            ],
+        );
+
+        $message = $created
+            ? __('dashboard.trip_request_created')
+            : __('dashboard.trip_request_already_pending');
+
+        return redirect()
+            ->route('dashboard.trip_requests.show', $row)
+            ->with('success', $message);
     }
 
     public function show(TripRequest $trip_request): View
@@ -62,7 +192,7 @@ class DashboardTripRequestController extends Controller
 
     public function edit(TripRequest $trip_request): View
     {
-        abort_if($this->currentDriver() instanceof Driver, 403);
+        $this->abortUnlessCanManageTripRequestsInDashboard();
         abort_unless($this->tripRequestVisible($trip_request), 404);
         $trip_request->load(['user.guardian', 'student.guardian', 'student.school', 'driver', 'tripHistory']);
         $students = $this->studentsForUser($trip_request->user)->get();
@@ -73,7 +203,7 @@ class DashboardTripRequestController extends Controller
 
     public function update(UpdateDashboardTripRequestRequest $request, TripRequest $trip_request): RedirectResponse
     {
-        abort_if($this->currentDriver() instanceof Driver, 403);
+        $this->abortUnlessCanManageTripRequestsInDashboard();
         abort_unless($this->tripRequestVisible($trip_request), 404);
 
         if ($trip_request->status !== 'pending') {
@@ -148,7 +278,7 @@ class DashboardTripRequestController extends Controller
 
     public function destroy(TripRequest $trip_request): RedirectResponse
     {
-        abort_if($this->currentDriver() instanceof Driver, 403);
+        $this->abortUnlessCanManageTripRequestsInDashboard();
         abort_unless($this->tripRequestVisible($trip_request), 404);
 
         if ($trip_request->status !== 'pending') {
@@ -195,6 +325,67 @@ class DashboardTripRequestController extends Controller
             }
             $tripRequest->user->loadMissing('guardian');
             if ($tripRequest->user->guardian !== null && (int) $tripRequest->user->guardian->school_id === (int) $sid) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return list<array{id: int, label: string}>
+     */
+    private function parentOptionsForSchool(int $schoolId): array
+    {
+        $options = [];
+        $seenUserIds = [];
+
+        $guardians = Guardian::query()
+            ->where('school_id', $schoolId)
+            ->orderBy('full_name')
+            ->get();
+
+        foreach ($guardians as $guardian) {
+            $phoneNational = preg_replace('/\D+/', '', (string) $guardian->phone) ?? '';
+            $phoneE164 = $phoneNational !== '' ? '964'.$phoneNational : '';
+
+            $users = User::query()
+                ->where(function (Builder $q) use ($guardian, $phoneNational, $phoneE164): void {
+                    $q->where('guardian_id', $guardian->id);
+                    if ($phoneNational !== '') {
+                        $q->orWhere('phone', $phoneNational)
+                            ->orWhere('phone', $phoneE164);
+                    }
+                })
+                ->orderBy('id')
+                ->get();
+
+            foreach ($users as $user) {
+                if (isset($seenUserIds[(int) $user->id])) {
+                    continue;
+                }
+                if (! auth()->user()?->is_admin && ! $this->userIdVisibleInDashboardScope((int) $user->id)) {
+                    continue;
+                }
+
+                $seenUserIds[(int) $user->id] = true;
+                $displayName = trim((string) ($user->name ?: $guardian->full_name));
+                $options[] = [
+                    'id' => (int) $user->id,
+                    'label' => $displayName.' — '.(string) $user->phone.' (#'.$user->id.')',
+                ];
+            }
+        }
+
+        usort($options, fn (array $a, array $b): int => strcasecmp($a['label'], $b['label']));
+
+        return $options;
+    }
+
+    private function userIsParentAtSchool(User $user, int $schoolId): bool
+    {
+        foreach ($this->parentOptionsForSchool($schoolId) as $option) {
+            if ((int) $option['id'] === (int) $user->id) {
                 return true;
             }
         }
@@ -286,5 +477,17 @@ class DashboardTripRequestController extends Controller
         }
 
         return Driver::query()->where('user_id', $authId)->first();
+    }
+
+    /**
+     * Drivers use trip requests read-only (accept/reject). Admins may also have a driver row.
+     */
+    private function abortUnlessCanManageTripRequestsInDashboard(): void
+    {
+        abort_unless(auth()->user()?->canMutateSchoolRoster(), 403);
+        abort_if(
+            ! (bool) auth()->user()?->is_admin && $this->currentDriver() instanceof Driver,
+            403,
+        );
     }
 }

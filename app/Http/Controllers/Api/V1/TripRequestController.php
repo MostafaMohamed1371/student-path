@@ -12,12 +12,12 @@ use App\Models\TripRequest;
 use App\Models\User;
 use App\Services\TransportLines\TransportDriverCardBuilder;
 use App\Services\Trips\TripRequestAcceptanceService;
-use App\Services\Trips\DriverShiftResolver;
 use App\Services\Trips\TripRequestCreator;
-use App\Services\Trips\TripRequestOrderSnapshot;
+use App\Services\Trips\TripRequestSubmissionPlanner;
 use App\Support\ParentContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Collection;
 
 class TripRequestController extends Controller
@@ -28,6 +28,7 @@ class TripRequestController extends Controller
         private readonly TransportDriverCardBuilder $transportDriverCardBuilder,
         private readonly TripRequestAcceptanceService $tripRequestAcceptanceService,
         private readonly TripRequestCreator $tripRequestCreator,
+        private readonly TripRequestSubmissionPlanner $submissionPlanner,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -88,83 +89,42 @@ class TripRequestController extends Controller
             return $this->parentError('forbidden', null, 403);
         }
 
-        if (! empty($validated['trip_history_id'])) {
-            $trip = TripHistory::query()->find((int) $validated['trip_history_id']);
-            $allowedSchools = ParentContext::studentsFor($request->user())->pluck('school_id')->unique()->filter();
-            if ($trip && $allowedSchools->isNotEmpty() && ! $allowedSchools->contains($trip->school_id)) {
-                return $this->parentError('Trip is not in scope for your students.', ['trip' => ['Out of scope']], 422);
-            }
-        }
-
         $student = Student::query()->with('guardian')->findOrFail((int) $validated['student_id']);
-        ParentContext::ensureUserLinkedToStudent($request->user(), $student);
-        $targetShift = app(DriverShiftResolver::class)->fromPresentType($validated['present_type'] ?? null);
-        if ($targetShift === null && ! empty($validated['trip_history_id'])) {
-            $selectedTrip = TripHistory::query()->find((int) $validated['trip_history_id']);
-            $targetShift = app(DriverShiftResolver::class)->fromTripType($selectedTrip?->trip_type);
+        $trip = ! empty($validated['trip_history_id'])
+            ? TripHistory::query()->find((int) $validated['trip_history_id'])
+            : null;
+
+        try {
+            $plan = $this->submissionPlanner->plan(
+                $request->user(),
+                $student,
+                $trip,
+                ! empty($validated['driver_id']) ? (int) $validated['driver_id'] : null,
+                $validated['present_type'] ?? null,
+                [
+                    'present_type' => $validated['present_type'] ?? null,
+                    'moving_point' => $validated['moving_point'] ?? null,
+                    'stop_point' => $validated['stop_point'] ?? null,
+                    'subscribe_price' => isset($validated['subscribe_price']) ? (float) $validated['subscribe_price'] : null,
+                ],
+            );
+        } catch (ValidationException $e) {
+            return $this->parentError(
+                collect($e->errors())->flatten()->first() ?: 'Validation failed.',
+                $e->errors(),
+                422,
+            );
         }
-
-        $driverId = null;
-        if (! empty($validated['driver_id'])) {
-            $chosen = Driver::query()->findOrFail((int) $validated['driver_id']);
-            if ($chosen->status !== 'active') {
-                return $this->parentError('Selected driver is not available.', ['driver_id' => ['inactive']], 422);
-            }
-            if ((int) $chosen->school_id !== (int) $student->school_id) {
-                return $this->parentError(
-                    'Driver does not belong to this student\'s school.',
-                    ['driver_id' => ['school_mismatch']],
-                    422
-                );
-            }
-            if ($targetShift !== null
-                && $chosen->shift_period !== null
-                && $chosen->shift_period !== 'BOTH'
-                && $chosen->shift_period !== $targetShift) {
-                return $this->parentError(
-                    'Selected driver shift does not match the requested trip period.',
-                    ['driver_id' => ['shift_mismatch']],
-                    422
-                );
-            }
-            $driverId = $chosen->id;
-        } else {
-            $driverQuery = Driver::query()
-                ->where('school_id', $student->school_id)
-                ->where('status', 'active')
-                ->orderBy('id');
-
-            if ($targetShift !== null) {
-                $driverId = (clone $driverQuery)
-                    ->where(function ($q) use ($targetShift): void {
-                        $q->where('shift_period', $targetShift)->orWhere('shift_period', 'BOTH');
-                    })
-                    ->value('id');
-                if ($driverId === null) {
-                    $driverId = $driverQuery->value('id');
-                }
-            } else {
-                $driverId = $driverQuery->value('id');
-            }
-        }
-
-        $assignedDriver = $driverId !== null ? Driver::query()->find((int) $driverId) : null;
-        $snapshot = TripRequestOrderSnapshot::build($student, $assignedDriver, [
-            'present_type' => $validated['present_type'] ?? null,
-            'moving_point' => $validated['moving_point'] ?? null,
-            'stop_point' => $validated['stop_point'] ?? null,
-            'subscribe_price' => isset($validated['subscribe_price']) ? (float) $validated['subscribe_price'] : null,
-        ]);
 
         [$row, $created] = $this->tripRequestCreator->createOrReturnExistingPending(
             $request->user(),
             $student,
-            $driverId !== null ? (int) $driverId : null,
+            $plan->driverId,
             [
-                'trip_history_id' => $validated['trip_history_id'] ?? null,
+                'trip_history_id' => $plan->tripHistoryId,
                 'status' => 'pending',
                 'notes' => $validated['notes'] ?? null,
-                ...$snapshot,
+                ...$plan->snapshot,
             ],
         );
 

@@ -10,8 +10,11 @@ use App\Http\Requests\Web\UpdateDashboardStudentRequest;
 use App\Models\Guardian;
 use App\Models\Student;
 use App\Models\User;
+use App\Services\Guardian\GuardianSchoolProvisioner;
+use App\Services\IdCard\DashboardIdCardRegistry;
 use App\Services\Phone\DashboardPhoneUserProvisioner;
 use App\Services\Phone\PhoneNormalizer;
+use App\Support\IdCardNumber;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -71,6 +74,75 @@ class DashboardStudentController extends Controller
             'schools' => $schools,
             'guardians' => $guardians,
             'formGuardiansUrl' => route('dashboard.students.form_guardians'),
+            'guardianLookupUrl' => route('dashboard.students.lookup_guardian'),
+        ]);
+    }
+
+    public function lookupGuardian(
+        Request $request,
+        DashboardIdCardRegistry $idCardRegistry,
+        GuardianSchoolProvisioner $provisioner,
+    ): JsonResponse {
+        $this->abortUnlessCanMutateSchoolRoster();
+
+        $validated = $request->validate([
+            'id_card_number' => ['required', 'string', 'max:64'],
+            'school_id' => ['required', 'integer', 'exists:schools,id'],
+            'ensure_for_school' => ['sometimes', 'boolean'],
+        ]);
+
+        $schoolId = (int) $validated['school_id'];
+        $this->abortUnlessCanMutateSchoolRosterForSchool($schoolId);
+        $ensureForSchool = $request->boolean('ensure_for_school');
+
+        $normalized = $idCardRegistry->normalize($validated['id_card_number']);
+        if ($normalized === null) {
+            return response()->json(['found' => false]);
+        }
+
+        $guardianAtSchool = $provisioner->findForSchoolByIdCard($schoolId, $normalized);
+        if ($guardianAtSchool !== null) {
+            return $this->guardianLookupJson($guardianAtSchool, $schoolId, false);
+        }
+
+        $source = $provisioner->findAnyByIdCard($normalized);
+        if ($source === null) {
+            return response()->json(['found' => false]);
+        }
+
+        if (! $ensureForSchool) {
+            return response()->json([
+                'found' => true,
+                'can_provision_for_school' => true,
+                'guardian' => [
+                    'id' => (int) $source->id,
+                    'school_id' => (int) $source->school_id,
+                    'school_matches' => false,
+                    'full_name' => (string) $source->full_name,
+                    'phone' => (string) $source->phone,
+                    'id_card_number' => (string) $source->id_card_number,
+                ],
+            ]);
+        }
+
+        $guardian = $provisioner->ensureForSchool($schoolId, $source);
+
+        return $this->guardianLookupJson($guardian, $schoolId, (int) $guardian->id !== (int) $source->id);
+    }
+
+    private function guardianLookupJson(Guardian $guardian, int $schoolId, bool $provisioned): JsonResponse
+    {
+        return response()->json([
+            'found' => true,
+            'provisioned_for_school' => $provisioned,
+            'guardian' => [
+                'id' => (int) $guardian->id,
+                'school_id' => (int) $guardian->school_id,
+                'school_matches' => (int) $guardian->school_id === $schoolId,
+                'full_name' => (string) $guardian->full_name,
+                'phone' => (string) $guardian->phone,
+                'id_card_number' => (string) $guardian->id_card_number,
+            ],
         ]);
     }
 
@@ -93,6 +165,7 @@ class DashboardStudentController extends Controller
                 ->map(fn (Guardian $g): array => [
                     'id' => (int) $g->id,
                     'label' => trim((string) $g->full_name).' ('.(string) $g->phone.')',
+                    'id_card_number' => IdCardNumber::normalize($g->id_card_number) ?? '',
                 ])
                 ->values()
                 ->all(),
@@ -139,6 +212,7 @@ class DashboardStudentController extends Controller
             'schools' => $schools,
             'guardians' => $guardians,
             'formGuardiansUrl' => route('dashboard.students.form_guardians'),
+            'guardianLookupUrl' => route('dashboard.students.lookup_guardian'),
         ]);
     }
 

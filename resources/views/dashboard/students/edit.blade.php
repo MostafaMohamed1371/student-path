@@ -15,5 +15,8 @@
             </form>
         </section>
     @endcomponent
-    @include('dashboard.students._guardian_filter_script', ['formGuardiansUrl' => $formGuardiansUrl ?? ''])
+    @include('dashboard.students._guardian_filter_script', [
+        'formGuardiansUrl' => $formGuardiansUrl ?? '',
+        'guardianLookupUrl' => $guardianLookupUrl ?? '',
+    ])
 @endsection

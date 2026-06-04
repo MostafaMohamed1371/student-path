@@ -83,6 +83,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/dashboard/students', [DashboardStudentController::class, 'index'])->name('dashboard.students.index');
     Route::get('/dashboard/students/create', [DashboardStudentController::class, 'create'])->name('dashboard.students.create');
     Route::get('/dashboard/students/form-guardians', [DashboardStudentController::class, 'formGuardians'])->name('dashboard.students.form_guardians');
+    Route::get('/dashboard/students/lookup-guardian', [DashboardStudentController::class, 'lookupGuardian'])->name('dashboard.students.lookup_guardian');
     Route::post('/dashboard/students', [DashboardStudentController::class, 'store'])->name('dashboard.students.store');
     Route::get('/dashboard/students/{student}/edit', [DashboardStudentController::class, 'edit'])->name('dashboard.students.edit');
     Route::put('/dashboard/students/{student}', [DashboardStudentController::class, 'update'])->name('dashboard.students.update');
@@ -90,6 +91,7 @@ Route::middleware('auth')->group(function (): void {
 
     Route::get('/dashboard/guardians', [DashboardGuardianController::class, 'index'])->name('dashboard.guardians.index');
     Route::get('/dashboard/guardians/create', [DashboardGuardianController::class, 'create'])->name('dashboard.guardians.create');
+    Route::get('/dashboard/guardians/lookup-by-id-card', [DashboardGuardianController::class, 'lookupByIdCard'])->name('dashboard.guardians.lookup_by_id_card');
     Route::post('/dashboard/guardians', [DashboardGuardianController::class, 'store'])->name('dashboard.guardians.store');
     Route::get('/dashboard/guardians/{guardian}/edit', [DashboardGuardianController::class, 'edit'])->name('dashboard.guardians.edit');
     Route::put('/dashboard/guardians/{guardian}', [DashboardGuardianController::class, 'update'])->name('dashboard.guardians.update');
@@ -145,6 +147,10 @@ Route::middleware('auth')->group(function (): void {
     Route::delete('/dashboard/routes/students/{routeStudent}', [DashboardRouteController::class, 'removeStudent'])->name('dashboard.routes.remove_student');
 
     Route::get('/dashboard/trip-requests', [DashboardTripRequestController::class, 'index'])->name('dashboard.trip_requests.index');
+    Route::get('/dashboard/trip-requests/create', [DashboardTripRequestController::class, 'create'])->name('dashboard.trip_requests.create');
+    Route::get('/dashboard/trip-requests/form-options', [DashboardTripRequestController::class, 'formOptions'])->name('dashboard.trip_requests.form_options');
+    Route::get('/dashboard/trip-requests/form-students', [DashboardTripRequestController::class, 'formStudents'])->name('dashboard.trip_requests.form_students');
+    Route::post('/dashboard/trip-requests', [DashboardTripRequestController::class, 'store'])->name('dashboard.trip_requests.store');
     Route::get('/dashboard/trip-requests/{trip_request}', [DashboardTripRequestController::class, 'show'])->name('dashboard.trip_requests.show');
     Route::get('/dashboard/trip-requests/{trip_request}/edit', [DashboardTripRequestController::class, 'edit'])->name('dashboard.trip_requests.edit');
     Route::put('/dashboard/trip-requests/{trip_request}/status', [DashboardTripRequestController::class, 'updateStatus'])->name('dashboard.trip_requests.update_status');

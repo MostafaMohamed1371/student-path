@@ -3,13 +3,18 @@
 namespace App\Http\Requests\Web;
 
 use App\Enums\PhoneAccountType;
+use App\Http\Requests\Concerns\SyncsAgeFromDateOfBirth;
+use App\Http\Requests\Concerns\ValidatesStudentGuardianIdCardLookup;
 use App\Http\Requests\Concerns\ValidatesUniqueDashboardPhone;
+use App\Support\IdCardNumber;
 use App\Rules\FullNameWordCount;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
 class StoreDashboardStudentRequest extends FormRequest
 {
+    use SyncsAgeFromDateOfBirth;
+    use ValidatesStudentGuardianIdCardLookup;
     use ValidatesUniqueDashboardPhone;
     public function authorize(): bool
     {
@@ -21,6 +26,14 @@ class StoreDashboardStudentRequest extends FormRequest
         if ($this->has('student_phone')) {
             $this->merge([
                 'student_phone' => preg_replace('/\D+/', '', (string) $this->input('student_phone')),
+            ]);
+        }
+
+        $this->syncAgeFromDateOfBirth();
+
+        if ($this->has('guardian_id_card_number')) {
+            $this->merge([
+                'guardian_id_card_number' => IdCardNumber::normalize($this->input('guardian_id_card_number')),
             ]);
         }
     }
@@ -37,6 +50,7 @@ class StoreDashboardStudentRequest extends FormRequest
             'grade' => ['required', 'string', 'max:100'],
             'student_phone' => ['required', 'regex:/^[1-9][0-9]{9}$/'],
             'guardian_id' => ['required', 'integer', 'exists:guardians,id'],
+            'guardian_id_card_number' => ['nullable', 'string', 'max:64'],
             'relationship' => ['required', 'string', 'max:100'],
             'district_area' => ['required', 'string', 'max:255'],
             'nearest_landmark' => ['required', 'string', 'max:255'],
@@ -50,5 +64,6 @@ class StoreDashboardStudentRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $this->assertUniqueDashboardPhone($validator, 'student_phone', PhoneAccountType::Student);
+        $this->assertStudentGuardianIdCardLookup($validator);
     }
 }
