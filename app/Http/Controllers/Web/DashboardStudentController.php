@@ -10,11 +10,13 @@ use App\Http\Requests\Web\UpdateDashboardStudentRequest;
 use App\Models\Guardian;
 use App\Models\Student;
 use App\Models\User;
+use App\Services\Guardian\GuardianHomeLocationSync;
 use App\Services\Guardian\GuardianSchoolProvisioner;
 use App\Services\IdCard\DashboardIdCardRegistry;
 use App\Services\Phone\DashboardPhoneUserProvisioner;
 use App\Services\Phone\PhoneNormalizer;
 use App\Support\IdCardNumber;
+use App\Support\StudentNameComposer;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -100,9 +102,11 @@ class DashboardStudentController extends Controller
             return response()->json(['found' => false]);
         }
 
+        $homeLocationSync = app(GuardianHomeLocationSync::class);
+
         $guardianAtSchool = $provisioner->findForSchoolByIdCard($schoolId, $normalized);
         if ($guardianAtSchool !== null) {
-            return $this->guardianLookupJson($guardianAtSchool, $schoolId, false);
+            return $this->guardianLookupJson($guardianAtSchool, $schoolId, false, $homeLocationSync);
         }
 
         $source = $provisioner->findAnyByIdCard($normalized);
@@ -114,36 +118,52 @@ class DashboardStudentController extends Controller
             return response()->json([
                 'found' => true,
                 'can_provision_for_school' => true,
-                'guardian' => [
-                    'id' => (int) $source->id,
-                    'school_id' => (int) $source->school_id,
-                    'school_matches' => false,
-                    'full_name' => (string) $source->full_name,
-                    'phone' => (string) $source->phone,
-                    'id_card_number' => (string) $source->id_card_number,
-                ],
+                'guardian' => $this->guardianLookupPayload($source, $schoolId, $homeLocationSync),
             ]);
         }
 
         $guardian = $provisioner->ensureForSchool($schoolId, $source);
 
-        return $this->guardianLookupJson($guardian, $schoolId, (int) $guardian->id !== (int) $source->id);
+        return $this->guardianLookupJson(
+            $guardian,
+            $schoolId,
+            (int) $guardian->id !== (int) $source->id,
+            $homeLocationSync,
+        );
     }
 
-    private function guardianLookupJson(Guardian $guardian, int $schoolId, bool $provisioned): JsonResponse
-    {
+    private function guardianLookupJson(
+        Guardian $guardian,
+        int $schoolId,
+        bool $provisioned,
+        GuardianHomeLocationSync $homeLocationSync,
+    ): JsonResponse {
         return response()->json([
             'found' => true,
             'provisioned_for_school' => $provisioned,
-            'guardian' => [
-                'id' => (int) $guardian->id,
-                'school_id' => (int) $guardian->school_id,
-                'school_matches' => (int) $guardian->school_id === $schoolId,
-                'full_name' => (string) $guardian->full_name,
-                'phone' => (string) $guardian->phone,
-                'id_card_number' => (string) $guardian->id_card_number,
-            ],
+            'guardian' => $this->guardianLookupPayload($guardian, $schoolId, $homeLocationSync),
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function guardianLookupPayload(
+        Guardian $guardian,
+        int $schoolId,
+        GuardianHomeLocationSync $homeLocationSync,
+    ): array {
+        return [
+            'id' => (int) $guardian->id,
+            'school_id' => (int) $guardian->school_id,
+            'school_matches' => (int) $guardian->school_id === $schoolId,
+            'full_name' => (string) $guardian->full_name,
+            'phone' => (string) $guardian->phone,
+            'id_card_number' => (string) $guardian->id_card_number,
+            'parent_name' => (string) $guardian->full_name,
+            'family_name_suffix' => StudentNameComposer::familySuffixFromGuardianName((string) $guardian->full_name),
+            ...$homeLocationSync->homeLocationFieldsForGuardian($guardian),
+        ];
     }
 
     public function formGuardians(Request $request): JsonResponse
@@ -166,6 +186,8 @@ class DashboardStudentController extends Controller
                     'id' => (int) $g->id,
                     'label' => trim((string) $g->full_name).' ('.(string) $g->phone.')',
                     'id_card_number' => IdCardNumber::normalize($g->id_card_number) ?? '',
+                    'parent_name' => (string) $g->full_name,
+                    'family_name_suffix' => StudentNameComposer::familySuffixFromGuardianName((string) $g->full_name),
                 ])
                 ->values()
                 ->all(),

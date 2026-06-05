@@ -490,7 +490,7 @@ class WebDashboardReportsTest extends TestCase
 
         $this->post(route('dashboard.students.store'), [
             'school_id' => $school->id,
-            'full_name' => 'Student D',
+            'full_name' => 'Student D Create',
             'gender' => 'male',
             'grade' => '1',
             'student_phone' => '7900000069',
@@ -501,7 +501,7 @@ class WebDashboardReportsTest extends TestCase
             'status' => 'active',
         ])->assertRedirect(route('dashboard.students.index'));
 
-        $studentId = Student::query()->where('full_name', 'Student D')->value('id');
+        $studentId = Student::query()->where('full_name', 'Student D Create')->value('id');
         $this->assertNotNull($studentId);
         $this->assertDatabaseMissing('trip_requests', [
             'student_id' => $studentId,

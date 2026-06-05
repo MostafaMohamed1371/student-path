@@ -54,6 +54,7 @@ class UpdateStudentRequest extends FormRequest
             'studentPhone',
             PhoneAccountType::Student,
             new PhoneRecordIdentity(studentId: (int) $student->id),
+            $student->student_phone,
         );
     }
 }

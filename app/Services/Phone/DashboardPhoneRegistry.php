@@ -134,18 +134,28 @@ final class DashboardPhoneRegistry
         return $occupancies;
     }
 
+    public function phonesMatch(mixed $left, mixed $right): bool
+    {
+        $leftNational = $this->nationalDigits((string) $left);
+        $rightNational = $this->nationalDigits((string) $right);
+        if ($leftNational === '' || $rightNational === '') {
+            return false;
+        }
+
+        if ($leftNational === $rightNational) {
+            return true;
+        }
+
+        return $this->canonical($leftNational) === $this->canonical($rightNational);
+    }
+
     private function matchesStoredPhone(mixed $stored, string $national, string $canonical): bool
     {
         if (! is_string($stored) || trim($stored) === '') {
             return false;
         }
 
-        $digits = $this->nationalDigits($stored);
-
-        return $digits === $national
-            || $stored === $national
-            || $stored === $canonical
-            || $digits === $this->nationalDigits($canonical);
+        return $this->phonesMatch($stored, $national);
     }
 
     /**
@@ -251,13 +261,28 @@ final class DashboardPhoneRegistry
                 return false;
             }
 
-            return $user->phone === $this->canonical((string) $student->student_phone)
+            $isLinkedStudentUser = (int) $user->guardian_id === 0
                 && ($user->phone_account_type === null
                     || $user->phone_account_type === PhoneAccountType::Student->value);
+
+            return $isLinkedStudentUser
+                && $this->phonesMatch($user->phone, (string) $student->student_phone);
         }
 
         if ($intendedType === PhoneAccountType::Guardian && $except->guardianId !== null) {
-            return (int) $user->guardian_id === $except->guardianId;
+            if ((int) $user->guardian_id === $except->guardianId) {
+                return true;
+            }
+
+            $guardian = Guardian::query()->find($except->guardianId);
+
+            return $guardian !== null
+                && $user->phone_account_type === PhoneAccountType::Guardian->value
+                && $this->phonesMatch($user->phone, (string) $guardian->phone);
+        }
+
+        if ($except->userId !== null && (int) $user->id === $except->userId) {
+            return true;
         }
 
         if ($intendedType === PhoneAccountType::Guardian

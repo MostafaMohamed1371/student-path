@@ -43,6 +43,7 @@ class UpdateGuardianRequest extends FormRequest
                 'phone',
                 PhoneAccountType::Guardian,
                 new PhoneRecordIdentity(guardianId: $guardianId, guardianPhoneField: 'phone'),
+                $guardian->phone,
             );
         }
 
@@ -52,6 +53,7 @@ class UpdateGuardianRequest extends FormRequest
                 'backupPhone',
                 PhoneAccountType::Guardian,
                 new PhoneRecordIdentity(guardianId: $guardianId, guardianPhoneField: 'backup_phone'),
+                $guardian->backup_phone,
             );
         }
     }

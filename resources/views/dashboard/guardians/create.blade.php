@@ -11,6 +11,9 @@
                 @include('dashboard.guardians._form', [
                     'method' => 'post',
                     'submitLabel' => __('dashboard.save_guardian'),
+                    'guardian' => null,
+                    'schools' => $schools,
+                    'homeLocation' => $homeLocation ?? null,
                 ])
             </form>
         </section>
@@ -19,4 +22,5 @@
         'guardianLookupUrl' => $guardianLookupUrl ?? '',
         'guardian' => null,
     ])
+    @include('dashboard.guardians._home_location_map_script')
 @endsection

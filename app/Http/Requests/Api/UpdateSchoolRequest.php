@@ -51,6 +51,7 @@ class UpdateSchoolRequest extends FormRequest
                 'adminPhone',
                 PhoneAccountType::School,
                 new PhoneRecordIdentity(schoolId: $schoolId, schoolPhoneField: 'admin_phone'),
+                $school->admin_phone,
             );
         }
 
@@ -60,6 +61,7 @@ class UpdateSchoolRequest extends FormRequest
                 'authorizedPersonPhone',
                 PhoneAccountType::School,
                 new PhoneRecordIdentity(schoolId: $schoolId, schoolPhoneField: 'authorized_person_phone'),
+                $school->authorized_person_phone,
             );
         }
     }

@@ -121,16 +121,30 @@
     </div>
 </section>
 
+@php
+    $studentHomeAddress = old('home_address');
+    if ($studentHomeAddress === null) {
+        $studentHomeAddress = old(
+            'nearest_landmark',
+            $student->nearest_landmark ?? $student->district_area ?? '',
+        );
+    }
+@endphp
+
 <section class="form-section">
     <h3 class="form-section-title">{{ __('dashboard.address_information') }}</h3>
     <div class="form-grid">
-        <div>
-            <label class="field-label" for="district_area">{{ __('dashboard.district_area') }}</label>
-            <input class="input" id="district_area" name="district_area" value="{{ old('district_area', $student->district_area ?? '') }}" required />
-        </div>
-        <div>
-            <label class="field-label" for="nearest_landmark">{{ __('dashboard.nearest_landmark') }}</label>
-            <input class="input" id="nearest_landmark" name="nearest_landmark" value="{{ old('nearest_landmark', $student->nearest_landmark ?? '') }}" required />
+        <div class="form-span-full">
+            <label class="field-label" for="home_address">{{ __('dashboard.guardian_home_address') }}</label>
+            <input
+                class="input"
+                id="home_address"
+                name="home_address"
+                value="{{ $studentHomeAddress }}"
+                required
+            />
+            <input type="hidden" id="district_area" name="district_area" value="{{ old('district_area', $student->district_area ?? '') }}" />
+            <input type="hidden" id="nearest_landmark" name="nearest_landmark" value="{{ old('nearest_landmark', $student->nearest_landmark ?? '') }}" />
         </div>
     </div>
 </section>

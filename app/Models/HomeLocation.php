@@ -12,6 +12,8 @@ class HomeLocation extends Model
         'latitude',
         'longitude',
         'formatted_address',
+        'district_area',
+        'nearest_landmark',
         'place_id',
     ];
 

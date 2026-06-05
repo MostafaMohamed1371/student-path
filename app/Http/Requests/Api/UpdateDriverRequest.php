@@ -62,6 +62,7 @@ class UpdateDriverRequest extends FormRequest
                     driverUserId: $driverUserId,
                     driverPhoneField: 'primary_phone',
                 ),
+                $driver->primary_phone,
             );
         }
 
@@ -75,6 +76,7 @@ class UpdateDriverRequest extends FormRequest
                     driverUserId: $driverUserId,
                     driverPhoneField: 'emergency_phone',
                 ),
+                $driver->emergency_phone,
             );
         }
     }

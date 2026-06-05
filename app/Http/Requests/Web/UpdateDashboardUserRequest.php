@@ -52,7 +52,11 @@ class UpdateDashboardUserRequest extends FormRequest
             $validator,
             'phone',
             $type,
-            new PhoneRecordIdentity(userId: (int) $user->id),
+            new PhoneRecordIdentity(
+                userId: (int) $user->id,
+                schoolId: $user->school_id ? (int) $user->school_id : null,
+            ),
+            $user->phone,
         );
     }
 

@@ -8,6 +8,7 @@
 @endif
 
 @php($isCreate = empty($guardian))
+@php($homeLocation = $homeLocation ?? null)
 
 <div class="form-grid">
     <div>
@@ -64,6 +65,66 @@
         </select>
     </div>
 </div>
+
+<section class="form-section" style="margin-top: 20px;">
+    <h3 class="form-section-title">{{ __('dashboard.guardian_parent_home_location') }}</h3>
+    <p class="field-help" style="margin: 0 0 12px;">{{ __('dashboard.guardian_parent_home_location_help') }}</p>
+    <div id="guardian-home-map" style="height: 260px; border: 1px solid #cbd5e1; border-radius: 10px; margin-bottom: 16px;"></div>
+    <div class="form-grid">
+        <div>
+            <label class="field-label" for="guardian_home_latitude">{{ __('dashboard.latitude') }}</label>
+            <input
+                class="input"
+                id="guardian_home_latitude"
+                name="home_latitude"
+                type="number"
+                step="0.0000001"
+                min="-90"
+                max="90"
+                value="{{ old('home_latitude', $homeLocation?->latitude ?? '') }}"
+            />
+        </div>
+        <div>
+            <label class="field-label" for="guardian_home_longitude">{{ __('dashboard.longitude') }}</label>
+            <input
+                class="input"
+                id="guardian_home_longitude"
+                name="home_longitude"
+                type="number"
+                step="0.0000001"
+                min="-180"
+                max="180"
+                value="{{ old('home_longitude', $homeLocation?->longitude ?? '') }}"
+            />
+        </div>
+        <div>
+            <label class="field-label" for="guardian_home_district_area">{{ __('dashboard.district_area') }}</label>
+            <input
+                class="input"
+                id="guardian_home_district_area"
+                name="home_district_area"
+                value="{{ old('home_district_area', optional($homeLocation)->district_area) }}"
+                maxlength="255"
+            />
+        </div>
+        <div>
+            <label class="field-label" for="guardian_home_nearest_landmark">{{ __('dashboard.nearest_landmark') }}</label>
+            <input
+                class="input"
+                id="guardian_home_nearest_landmark"
+                name="home_nearest_landmark"
+                value="{{ old('home_nearest_landmark', optional($homeLocation)->nearest_landmark ?: optional($homeLocation)->formatted_address) }}"
+                maxlength="255"
+            />
+            <input
+                type="hidden"
+                id="guardian_home_formatted_address"
+                name="home_formatted_address"
+                value="{{ old('home_formatted_address', optional($homeLocation)->nearest_landmark ?: optional($homeLocation)->formatted_address) }}"
+            />
+        </div>
+    </div>
+</section>
 
 <div class="form-actions">
     <a class="btn-muted" href="{{ route('dashboard.guardians.index') }}">{{ __('dashboard.cancel') }}</a>

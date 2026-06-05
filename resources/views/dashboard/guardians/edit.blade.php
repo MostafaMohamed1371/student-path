@@ -11,8 +11,11 @@
                     'method' => 'put',
                     'submitLabel' => __('dashboard.save_guardian'),
                     'guardian' => $guardian,
+                    'schools' => $schools,
+                    'homeLocation' => $homeLocation ?? null,
                 ])
             </form>
         </section>
     @endcomponent
+    @include('dashboard.guardians._home_location_map_script')
 @endsection

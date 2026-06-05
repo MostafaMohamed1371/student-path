@@ -41,8 +41,7 @@ class DashboardPhoneUniquenessTest extends TestCase
             'student_phone' => $phone,
             'guardian_id' => $guardianId,
             'relationship' => 'father',
-            'district_area' => 'Area',
-            'nearest_landmark' => 'Landmark',
+            'home_address' => 'Home address',
             'status' => 'active',
         ]);
 
@@ -161,8 +160,7 @@ class DashboardPhoneUniquenessTest extends TestCase
             'student_phone' => $phone,
             'guardian_id' => $guardianId,
             'relationship' => 'father',
-            'district_area' => 'Area',
-            'nearest_landmark' => 'Landmark',
+            'home_address' => 'Home address',
             'status' => 'active',
         ])->assertRedirect(route('dashboard.students.index'));
 
@@ -177,14 +175,13 @@ class DashboardPhoneUniquenessTest extends TestCase
             'student_phone' => $phone,
             'guardian_id' => $guardianId,
             'relationship' => 'father',
-            'district_area' => 'New Area',
-            'nearest_landmark' => 'Landmark',
+            'home_address' => 'New home address',
             'status' => 'active',
         ])->assertRedirect(route('dashboard.students.index'));
 
         $student->refresh();
         $this->assertSame('2', $student->grade);
-        $this->assertSame('New Area', $student->district_area);
+        $this->assertSame('New home address', $student->nearest_landmark);
     }
 
     public function test_driver_update_allows_unchanged_phone_when_editing_other_fields(): void

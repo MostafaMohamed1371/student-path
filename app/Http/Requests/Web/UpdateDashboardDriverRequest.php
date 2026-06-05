@@ -80,8 +80,8 @@ class UpdateDashboardDriverRequest extends FormRequest
             driverPhoneField: 'emergency_phone',
         );
 
-        $this->assertUniqueDashboardPhone($validator, 'primary_phone', PhoneAccountType::Driver, $exceptPrimary);
-        $this->assertUniqueDashboardPhone($validator, 'emergency_phone', PhoneAccountType::Driver, $exceptEmergency);
+        $this->assertUniqueDashboardPhone($validator, 'primary_phone', PhoneAccountType::Driver, $exceptPrimary, $driver->primary_phone);
+        $this->assertUniqueDashboardPhone($validator, 'emergency_phone', PhoneAccountType::Driver, $exceptEmergency, $driver->emergency_phone);
         $this->assertUniqueDashboardIdCard(
             $validator,
             'id_card_number',

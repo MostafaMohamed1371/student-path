@@ -14,8 +14,9 @@ trait ValidatesUniqueDashboardPhone
         string $field,
         PhoneAccountType $type,
         ?PhoneRecordIdentity $except = null,
+        mixed $originalPhone = null,
     ): void {
-        $validator->after(function (Validator $validator) use ($field, $type, $except): void {
+        $validator->after(function (Validator $validator) use ($field, $type, $except, $originalPhone): void {
             if ($validator->errors()->has($field)) {
                 return;
             }
@@ -23,6 +24,10 @@ trait ValidatesUniqueDashboardPhone
             $registry = app(DashboardPhoneRegistry::class);
             $raw = $registry->nationalDigits((string) $this->input($field, ''));
             if ($raw === '' || ! app(\App\Services\Phone\PhoneNormalizer::class)->isValidIraqiMobile($raw)) {
+                return;
+            }
+
+            if ($originalPhone !== null && $registry->phonesMatch($raw, $originalPhone)) {
                 return;
             }
 

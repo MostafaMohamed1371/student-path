@@ -3,6 +3,8 @@
 namespace App\Http\Requests\Web;
 
 use App\Enums\PhoneAccountType;
+use App\Http\Requests\Concerns\MapsGuardianHomeAddressInput;
+use App\Http\Requests\Concerns\ValidatesOptionalGuardianHomeLocation;
 use App\Http\Requests\Concerns\ValidatesUniqueDashboardIdCard;
 use App\Http\Requests\Concerns\ValidatesUniqueDashboardPhone;
 use App\Services\IdCard\IdCardRecordIdentity;
@@ -13,6 +15,8 @@ use Illuminate\Validation\Validator;
 
 class StoreDashboardGuardianRequest extends FormRequest
 {
+    use MapsGuardianHomeAddressInput;
+    use ValidatesOptionalGuardianHomeLocation;
     use ValidatesUniqueDashboardIdCard;
     use ValidatesUniqueDashboardPhone;
     public function authorize(): bool
@@ -35,6 +39,8 @@ class StoreDashboardGuardianRequest extends FormRequest
                 'id_card_number' => IdCardNumber::normalize($this->input('id_card_number')),
             ]);
         }
+
+        $this->mapGuardianHomeAddressInput();
     }
 
     public function rules(): array
@@ -46,6 +52,7 @@ class StoreDashboardGuardianRequest extends FormRequest
             'backup_phone' => ['nullable', 'regex:/^[1-9][0-9]{9}$/'],
             'id_card_number' => ['nullable', 'string', 'max:64'],
             'status' => ['required', 'in:active,inactive'],
+            ...$this->optionalGuardianHomeLocationRules(),
         ];
     }
 

@@ -9,6 +9,7 @@ use App\Http\Requests\Web\StoreDashboardGuardianRequest;
 use App\Http\Requests\Web\UpdateDashboardGuardianRequest;
 use App\Models\Guardian;
 use App\Models\User;
+use App\Services\Guardian\GuardianHomeLocationSync;
 use App\Services\Guardian\GuardianSchoolProvisioner;
 use App\Services\IdCard\DashboardIdCardRegistry;
 use App\Services\Phone\DashboardPhoneUserProvisioner;
@@ -56,6 +57,7 @@ class DashboardGuardianController extends Controller
         return view('dashboard.guardians.create', [
             'schools' => $schools,
             'guardianLookupUrl' => route('dashboard.guardians.lookup_by_id_card'),
+            'homeLocation' => null,
         ]);
     }
 
@@ -63,6 +65,7 @@ class DashboardGuardianController extends Controller
         Request $request,
         DashboardIdCardRegistry $idCardRegistry,
         GuardianSchoolProvisioner $provisioner,
+        GuardianHomeLocationSync $homeLocationSync,
     ): JsonResponse {
         $this->abortUnlessCanMutateSchoolRoster();
 
@@ -87,7 +90,7 @@ class DashboardGuardianController extends Controller
                 return response()->json([
                     'found' => true,
                     'already_at_school' => true,
-                    'guardian' => $this->guardianLookupPayload($atSchool),
+                    'guardian' => $this->guardianLookupPayload($atSchool, $homeLocationSync),
                 ]);
             }
         }
@@ -100,32 +103,40 @@ class DashboardGuardianController extends Controller
         return response()->json([
             'found' => true,
             'already_at_school' => false,
-            'guardian' => $this->guardianLookupPayload($source),
+            'guardian' => $this->guardianLookupPayload($source, $homeLocationSync),
         ]);
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function guardianLookupPayload(Guardian $guardian): array
+    private function guardianLookupPayload(Guardian $guardian, GuardianHomeLocationSync $homeLocationSync): array
     {
-        return [
+        $payload = [
             'full_name' => (string) $guardian->full_name,
             'phone' => (string) $guardian->phone,
             'backup_phone' => (string) ($guardian->backup_phone ?? ''),
             'id_card_number' => (string) ($guardian->id_card_number ?? ''),
             'status' => (string) $guardian->status,
         ];
+
+        $payload = array_merge($payload, $homeLocationSync->homeLocationFieldsForGuardian($guardian));
+
+        return $payload;
     }
 
-    public function store(StoreDashboardGuardianRequest $request, PhoneNormalizer $phoneNormalizer): RedirectResponse
-    {
+    public function store(
+        StoreDashboardGuardianRequest $request,
+        PhoneNormalizer $phoneNormalizer,
+        GuardianHomeLocationSync $homeLocationSync,
+    ): RedirectResponse {
         $this->abortUnlessCanMutateSchoolRoster();
         $validated = $this->enforceRosterSchoolIdForStaff($request->validated());
         $this->abortUnlessCanMutateSchoolRosterForSchool((int) $validated['school_id']);
 
-        $guardian = Guardian::query()->create($validated);
-        $this->syncGuardianUser($guardian, app(DashboardPhoneUserProvisioner::class));
+        $guardian = Guardian::query()->create($this->guardianAttributesFromValidated($validated));
+        $user = $this->syncGuardianUser($guardian, app(DashboardPhoneUserProvisioner::class));
+        $this->syncGuardianHomeLocation($user, $validated, $homeLocationSync);
 
         return redirect()->route('dashboard.guardians.index')
             ->with('success', __('dashboard.guardian_created'));
@@ -136,16 +147,23 @@ class DashboardGuardianController extends Controller
         $this->abortUnlessCanMutateSchoolRosterForSchool((int) $guardian->school_id);
         $schools = $this->schoolsForRosterForm();
 
-        return view('dashboard.guardians.edit', compact('guardian', 'schools'));
+        $homeLocation = app(GuardianHomeLocationSync::class)->homeLocationForGuardian($guardian);
+
+        return view('dashboard.guardians.edit', compact('guardian', 'schools', 'homeLocation'));
     }
 
-    public function update(UpdateDashboardGuardianRequest $request, Guardian $guardian, PhoneNormalizer $phoneNormalizer): RedirectResponse
-    {
+    public function update(
+        UpdateDashboardGuardianRequest $request,
+        Guardian $guardian,
+        PhoneNormalizer $phoneNormalizer,
+        GuardianHomeLocationSync $homeLocationSync,
+    ): RedirectResponse {
         $validated = $this->enforceRosterSchoolIdForStaff($request->validated());
         $this->abortUnlessCanMutateSchoolRosterForSchool((int) ($validated['school_id'] ?? $guardian->school_id));
 
-        $guardian->update($validated);
-        $this->syncGuardianUser($guardian->fresh(), app(DashboardPhoneUserProvisioner::class));
+        $guardian->update($this->guardianAttributesFromValidated($validated));
+        $user = $this->syncGuardianUser($guardian->fresh(), app(DashboardPhoneUserProvisioner::class));
+        $this->syncGuardianHomeLocation($user, $validated, $homeLocationSync);
 
         return redirect()->route('dashboard.guardians.index')
             ->with('success', __('dashboard.guardian_updated'));
@@ -160,12 +178,62 @@ class DashboardGuardianController extends Controller
             ->with('success', __('dashboard.guardian_deleted'));
     }
 
-    private function syncGuardianUser(Guardian $guardian, DashboardPhoneUserProvisioner $provisioner): void
+    private function syncGuardianUser(Guardian $guardian, DashboardPhoneUserProvisioner $provisioner): User
     {
-        $provisioner->upsertGuardian(
+        return $provisioner->upsertGuardian(
             $guardian,
             (string) $guardian->phone,
             (string) $guardian->full_name,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function guardianAttributesFromValidated(array $validated): array
+    {
+        return collect($validated)->only([
+            'school_id',
+            'full_name',
+            'phone',
+            'backup_phone',
+            'id_card_number',
+            'status',
+        ])->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     */
+    private function syncGuardianHomeLocation(
+        User $user,
+        array $validated,
+        GuardianHomeLocationSync $homeLocationSync,
+    ): void {
+        $lat = array_key_exists('home_latitude', $validated) && $validated['home_latitude'] !== null
+            ? (float) $validated['home_latitude']
+            : null;
+        $lng = array_key_exists('home_longitude', $validated) && $validated['home_longitude'] !== null
+            ? (float) $validated['home_longitude']
+            : null;
+        $address = isset($validated['home_formatted_address']) && is_string($validated['home_formatted_address'])
+            ? trim($validated['home_formatted_address'])
+            : null;
+        $district = isset($validated['home_district_area']) && is_string($validated['home_district_area'])
+            ? trim($validated['home_district_area'])
+            : null;
+        $landmark = isset($validated['home_nearest_landmark']) && is_string($validated['home_nearest_landmark'])
+            ? trim($validated['home_nearest_landmark'])
+            : null;
+
+        $homeLocationSync->syncForUser(
+            $user,
+            $lat,
+            $lng,
+            $address !== '' ? $address : null,
+            $district !== '' ? $district : null,
+            $landmark !== '' ? $landmark : null,
         );
     }
 }

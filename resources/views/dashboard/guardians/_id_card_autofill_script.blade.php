@@ -20,6 +20,11 @@
         backup_phone: document.getElementById('guardian_form_backup_phone'),
         status: document.getElementById('guardian_form_status'),
     };
+    const homeLatInput = document.getElementById('guardian_home_latitude');
+    const homeLngInput = document.getElementById('guardian_home_longitude');
+    const homeDistrictInput = document.getElementById('guardian_home_district_area');
+    const homeLandmarkInput = document.getElementById('guardian_home_nearest_landmark');
+    const homeFormattedInput = document.getElementById('guardian_home_formatted_address');
 
     let lookupTimer = null;
 
@@ -66,6 +71,34 @@
         }
         if (data.id_card_number) {
             idCardInput.value = data.id_card_number;
+        }
+        if (data.home_latitude != null && data.home_longitude != null) {
+            const landmark = data.home_nearest_landmark || data.home_formatted_address || '';
+            const district = data.home_district_area || '';
+            if (typeof window.guardianHomeMapSetLocation === 'function') {
+                window.guardianHomeMapSetLocation(
+                    data.home_latitude,
+                    data.home_longitude,
+                    landmark,
+                    district,
+                );
+            } else {
+                if (homeLatInput) {
+                    homeLatInput.value = data.home_latitude;
+                }
+                if (homeLngInput) {
+                    homeLngInput.value = data.home_longitude;
+                }
+                if (homeLandmarkInput) {
+                    homeLandmarkInput.value = landmark;
+                }
+                if (homeDistrictInput) {
+                    homeDistrictInput.value = district;
+                }
+                if (homeFormattedInput) {
+                    homeFormattedInput.value = landmark;
+                }
+            }
         }
     }
 

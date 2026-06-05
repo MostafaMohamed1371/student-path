@@ -4,17 +4,21 @@ namespace App\Http\Requests\Web;
 
 use App\Enums\PhoneAccountType;
 use App\Http\Requests\Concerns\AppendsGuardianFamilySuffixToStudentName;
+use App\Http\Requests\Concerns\MapsStudentHomeAddressInput;
 use App\Http\Requests\Concerns\SyncsAgeFromDateOfBirth;
 use App\Http\Requests\Concerns\ValidatesStudentGuardianIdCardLookup;
 use App\Http\Requests\Concerns\ValidatesUniqueDashboardPhone;
 use App\Support\IdCardNumber;
+use App\Models\Student;
 use App\Rules\FullNameWordCount;
+use App\Services\Phone\PhoneRecordIdentity;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
-class StoreDashboardStudentRequest extends FormRequest
+class UpdateDashboardStudentRequest extends FormRequest
 {
     use AppendsGuardianFamilySuffixToStudentName;
+    use MapsStudentHomeAddressInput;
     use SyncsAgeFromDateOfBirth;
     use ValidatesStudentGuardianIdCardLookup;
     use ValidatesUniqueDashboardPhone;
@@ -39,6 +43,8 @@ class StoreDashboardStudentRequest extends FormRequest
                 'guardian_id_card_number' => IdCardNumber::normalize($this->input('guardian_id_card_number')),
             ]);
         }
+
+        $this->mapStudentHomeAddressInput();
     }
 
     public function rules(): array
@@ -55,8 +61,9 @@ class StoreDashboardStudentRequest extends FormRequest
             'guardian_id' => ['required', 'integer', 'exists:guardians,id'],
             'guardian_id_card_number' => ['nullable', 'string', 'max:64'],
             'relationship' => ['required', 'string', 'max:100'],
-            'district_area' => ['required', 'string', 'max:255'],
-            'nearest_landmark' => ['required', 'string', 'max:255'],
+            'home_address' => ['required', 'string', 'max:255'],
+            'district_area' => ['nullable', 'string', 'max:255'],
+            'nearest_landmark' => ['nullable', 'string', 'max:255'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'status' => ['required', 'in:active,inactive'],
@@ -66,8 +73,16 @@ class StoreDashboardStudentRequest extends FormRequest
 
     public function withValidator(Validator $validator): void
     {
-        $this->assertUniqueDashboardPhone($validator, 'student_phone', PhoneAccountType::Student);
+        /** @var Student $student */
+        $student = $this->route('student');
+
+        $this->assertUniqueDashboardPhone(
+            $validator,
+            'student_phone',
+            PhoneAccountType::Student,
+            new PhoneRecordIdentity(studentId: (int) $student->id),
+            $student->student_phone,
+        );
         $this->assertStudentGuardianIdCardLookup($validator);
-        $this->assertStudentFirstNameIsSingleWordBeforeAppend($validator);
     }
 }

@@ -3,6 +3,8 @@
 namespace App\Http\Requests\Web;
 
 use App\Enums\PhoneAccountType;
+use App\Http\Requests\Concerns\MapsGuardianHomeAddressInput;
+use App\Http\Requests\Concerns\ValidatesOptionalGuardianHomeLocation;
 use App\Http\Requests\Concerns\ValidatesUniqueDashboardIdCard;
 use App\Http\Requests\Concerns\ValidatesUniqueDashboardPhone;
 use App\Models\Guardian;
@@ -14,6 +16,8 @@ use Illuminate\Validation\Validator;
 
 class UpdateDashboardGuardianRequest extends FormRequest
 {
+    use MapsGuardianHomeAddressInput;
+    use ValidatesOptionalGuardianHomeLocation;
     use ValidatesUniqueDashboardIdCard;
     use ValidatesUniqueDashboardPhone;
     public function authorize(): bool
@@ -36,6 +40,8 @@ class UpdateDashboardGuardianRequest extends FormRequest
                 'id_card_number' => IdCardNumber::normalize($this->input('id_card_number')),
             ]);
         }
+
+        $this->mapGuardianHomeAddressInput();
     }
 
     public function rules(): array
@@ -47,6 +53,7 @@ class UpdateDashboardGuardianRequest extends FormRequest
             'backup_phone' => ['nullable', 'regex:/^[1-9][0-9]{9}$/'],
             'id_card_number' => ['nullable', 'string', 'max:64'],
             'status' => ['required', 'in:active,inactive'],
+            ...$this->optionalGuardianHomeLocationRules(),
         ];
     }
 
@@ -68,6 +75,7 @@ class UpdateDashboardGuardianRequest extends FormRequest
                 guardianSchoolId: $schoolId,
                 guardianIdCardNumber: $idCard,
             ),
+            $guardian->phone,
         );
         $this->assertUniqueDashboardPhone(
             $validator,
@@ -79,6 +87,7 @@ class UpdateDashboardGuardianRequest extends FormRequest
                 guardianSchoolId: $schoolId,
                 guardianIdCardNumber: $idCard,
             ),
+            $guardian->backup_phone,
         );
         $this->assertUniqueDashboardIdCard(
             $validator,

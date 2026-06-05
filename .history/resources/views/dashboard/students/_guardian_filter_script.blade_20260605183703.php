@@ -143,47 +143,28 @@
         applyStudentFullNameWithParent();
     }
 
-    function fillStudentAddressFromGuardian(guardian) {
-        const districtInput = document.getElementById('district_area');
-        const landmarkInput = document.getElementById('nearest_landmark');
-        const district = String(guardian.home_district_area || '').trim();
-        const landmark = String(
-            guardian.home_nearest_landmark || guardian.home_formatted_address || '',
-        ).trim();
-
-        if (districtInput && district && !String(districtInput.value || '').trim()) {
-            districtInput.value = district;
-        }
-        if (landmarkInput && landmark && !String(landmarkInput.value || '').trim()) {
-            landmarkInput.value = landmark;
-        }
-
-        return { district: district, landmark: landmark };
-    }
-
     function fillStudentLocationFromGuardian(guardian) {
-        if (!guardian) {
-            return;
-        }
-
-        const address = fillStudentAddressFromGuardian(guardian);
-
-        if (guardian.home_latitude == null || guardian.home_longitude == null) {
+        if (!guardian || guardian.home_latitude == null || guardian.home_longitude == null) {
             return;
         }
 
         const latInput = document.getElementById('latitude');
         const lngInput = document.getElementById('longitude');
+        const homeAddressInput = document.getElementById('home_address');
+        const landmarkInput = document.getElementById('nearest_landmark');
+        const addressInput = homeAddressInput || landmarkInput;
+
         const lat = Number(guardian.home_latitude).toFixed(7);
         const lng = Number(guardian.home_longitude).toFixed(7);
+        const landmark = (addressInput && !String(addressInput.value || '').trim())
+            ? (guardian.home_formatted_address || '')
+            : '';
 
         if (typeof window.studentMapSetLocation === 'function') {
             window.studentMapSetLocation(
                 lat,
                 lng,
-                address.landmark,
-                address.district,
-                true,
+                landmark || guardian.home_formatted_address || '',
             );
             return;
         }
@@ -193,6 +174,12 @@
         }
         if (lngInput) {
             lngInput.value = lng;
+        }
+        if (addressInput && !String(addressInput.value || '').trim() && guardian.home_formatted_address) {
+            addressInput.value = guardian.home_formatted_address;
+            if (landmarkInput && landmarkInput !== addressInput) {
+                landmarkInput.value = guardian.home_formatted_address;
+            }
         }
     }
 
