@@ -38,10 +38,12 @@ class DashboardDriverController extends Controller
             $this->applyDashboardReportFilters($query, $filters, 'driver_roster');
         }
         $this->applyRosterShiftFilter($query, $filters);
+        $locationFilters = $this->iraqLocationFilterContext($request);
+        $this->applyDriverLocationFilter($query, $locationFilters);
 
         $drivers = $query->paginate($this->dashboardListPerPage())->withQueryString();
 
-        return view('dashboard.drivers.index', array_merge($filters, [
+        return view('dashboard.drivers.index', array_merge($filters, $locationFilters, [
             'filterAction' => route('dashboard.drivers.index'),
             'drivers' => $drivers,
         ]));

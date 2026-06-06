@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\Concerns;
 use App\Models\Area;
 use App\Models\District;
 use App\Models\Neighborhood;
+use App\Services\Drivers\DriverIraqLocationFilter;
 use App\Services\Routes\RouteIraqLocationFilter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -166,6 +167,20 @@ trait ProvidesDashboardIraqLocationFilters
     protected function applyTransportRouteLocationFilter(Builder $query, array $filters): void
     {
         app(RouteIraqLocationFilter::class)->apply(
+            $query,
+            (int) ($filters['filterDistrictId'] ?? 0),
+            (int) ($filters['filterAreaId'] ?? 0),
+            (int) ($filters['filterNeighborhoodId'] ?? 0),
+        );
+    }
+
+    /**
+     * @param  Builder<\App\Models\Driver>  $query
+     * @param  array<string, mixed>  $filters
+     */
+    protected function applyDriverLocationFilter(Builder $query, array $filters): void
+    {
+        app(DriverIraqLocationFilter::class)->apply(
             $query,
             (int) ($filters['filterDistrictId'] ?? 0),
             (int) ($filters['filterAreaId'] ?? 0),
