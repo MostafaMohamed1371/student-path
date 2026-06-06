@@ -90,19 +90,32 @@ trait ProvidesDashboardIraqLocationFilters
     }
 
     /**
+     * @param  array<int, int>|int  $neighborhoodIds
      * @return array{
      *     governorates: Collection<int, District>,
      *     filterAreas: Collection<int, Area>,
      *     filterNeighborhoods: Collection<int, Neighborhood>,
      *     filterDistrictId: int,
      *     filterAreaId: int,
-     *     filterNeighborhoodId: int
+     *     filterNeighborhoodId: int,
+     *     filterNeighborhoodIds: list<int>
      * }
      */
-    protected function iraqLocationFormContext(int $districtId, int $areaId, int $neighborhoodId): array
+    protected function iraqLocationFormContext(int $districtId, int $areaId, array|int $neighborhoodIds = []): array
     {
-        if ($neighborhoodId > 0) {
-            $neighborhood = Neighborhood::query()->with('area')->find($neighborhoodId);
+        if (! is_array($neighborhoodIds)) {
+            $neighborhoodIds = (int) $neighborhoodIds > 0 ? [(int) $neighborhoodIds] : [];
+        }
+
+        $neighborhoodIds = collect($neighborhoodIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($neighborhoodIds !== []) {
+            $neighborhood = Neighborhood::query()->with('area')->find($neighborhoodIds[0]);
             if ($neighborhood?->area) {
                 $areaId = (int) $neighborhood->area_id;
                 $districtId = (int) $neighborhood->area->district_id;
@@ -141,7 +154,8 @@ trait ProvidesDashboardIraqLocationFilters
             'filterNeighborhoods' => $filterNeighborhoods,
             'filterDistrictId' => $districtId,
             'filterAreaId' => $areaId,
-            'filterNeighborhoodId' => $neighborhoodId,
+            'filterNeighborhoodId' => $neighborhoodIds[0] ?? 0,
+            'filterNeighborhoodIds' => $neighborhoodIds,
         ];
     }
 
@@ -161,31 +175,79 @@ trait ProvidesDashboardIraqLocationFilters
 
     /**
      * @param  array<string, mixed>  $validated
+     * @return array{attributes: array<string, mixed>, neighborhood_ids: list<int>}
+     */
+    protected function resolveIraqLocationPayload(array $validated): array
+    {
+        $neighborhoodIds = $this->parsedNeighborhoodIds($validated);
+        unset($validated['neighborhood_ids'], $validated['neighborhood_id']);
+
+        $areaId = isset($validated['area_id']) ? (int) $validated['area_id'] : 0;
+
+        if ($neighborhoodIds !== []) {
+            $neighborhoods = Neighborhood::query()->whereIn('id', $neighborhoodIds)->get();
+            if ($areaId > 0) {
+                $neighborhoodIds = $neighborhoods
+                    ->where('area_id', $areaId)
+                    ->pluck('id')
+                    ->map(fn ($id) => (int) $id)
+                    ->values()
+                    ->all();
+            } else {
+                $first = $neighborhoods->first();
+                if ($first !== null) {
+                    $areaId = (int) $first->area_id;
+                    $neighborhoodIds = $neighborhoods
+                        ->where('area_id', $areaId)
+                        ->pluck('id')
+                        ->map(fn ($id) => (int) $id)
+                        ->values()
+                        ->all();
+                    $validated['area_id'] = $areaId;
+                }
+            }
+        }
+
+        return [
+            'attributes' => $this->normalizeRouteLocationFields($validated),
+            'neighborhood_ids' => $neighborhoodIds,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return list<int>
+     */
+    protected function parsedNeighborhoodIds(array $validated): array
+    {
+        $raw = $validated['neighborhood_ids'] ?? $validated['neighborhood_id'] ?? [];
+
+        if (! is_array($raw)) {
+            $raw = [(int) $raw];
+        }
+
+        return collect($raw)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
      * @return array<string, mixed>
      */
     protected function normalizeRouteLocationFields(array $validated): array
     {
-        $neighborhoodId = isset($validated['neighborhood_id']) ? (int) $validated['neighborhood_id'] : 0;
         $areaId = isset($validated['area_id']) ? (int) $validated['area_id'] : 0;
         $districtId = isset($validated['district_id']) ? (int) $validated['district_id'] : 0;
-
-        if ($neighborhoodId > 0) {
-            $neighborhood = Neighborhood::query()->with('area')->find($neighborhoodId);
-            if ($neighborhood?->area) {
-                $validated['neighborhood_id'] = $neighborhoodId;
-                $validated['area_id'] = (int) $neighborhood->area_id;
-                $validated['district_id'] = (int) $neighborhood->area->district_id;
-
-                return $validated;
-            }
-        }
 
         if ($areaId > 0) {
             $area = Area::query()->find($areaId);
             if ($area) {
                 $validated['area_id'] = $areaId;
                 $validated['district_id'] = (int) $area->district_id;
-                $validated['neighborhood_id'] = null;
 
                 return $validated;
             }
@@ -194,15 +256,26 @@ trait ProvidesDashboardIraqLocationFilters
         if ($districtId > 0 && District::query()->whereKey($districtId)->exists()) {
             $validated['district_id'] = $districtId;
             $validated['area_id'] = null;
-            $validated['neighborhood_id'] = null;
 
             return $validated;
         }
 
         $validated['district_id'] = null;
         $validated['area_id'] = null;
-        $validated['neighborhood_id'] = null;
 
         return $validated;
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Model&object{pivot?}  $model
+     * @param  list<int>  $neighborhoodIds
+     */
+    protected function syncModelNeighborhoods(object $model, array $neighborhoodIds): void
+    {
+        if (! method_exists($model, 'neighborhoods')) {
+            return;
+        }
+
+        $model->neighborhoods()->sync($neighborhoodIds);
     }
 }

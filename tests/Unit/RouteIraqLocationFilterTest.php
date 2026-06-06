@@ -51,13 +51,13 @@ class RouteIraqLocationFilterTest extends TestCase
         ]);
         $bySub = TransportRoute::query()->create([
             'school_id' => $school->id,
-            'neighborhood_id' => $sub->id,
             'area_id' => $area->id,
             'district_id' => $gov->id,
             'name' => 'By Sub',
             'trip_type' => 'MORNING_PICKUP',
             'status' => 'active',
         ]);
+        $bySub->neighborhoods()->attach($sub->id);
 
         $ids = TransportRoute::query()
             ->tap(fn ($q) => app(RouteIraqLocationFilter::class)->apply($q, $gov->id, 0, 0))

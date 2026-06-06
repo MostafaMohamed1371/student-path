@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
+use App\Http\Controllers\Web\Concerns\ProvidesDashboardIraqLocationFilters;
 use App\Http\Controllers\Web\Concerns\ProvidesDashboardSchoolDriverFilters;
 use App\Http\Requests\Web\StoreDashboardDriverRequest;
 use App\Http\Requests\Web\UpdateDashboardDriverRequest;
@@ -22,6 +23,7 @@ use Illuminate\View\View;
 class DashboardDriverController extends Controller
 {
     use ManagesDashboardScoping;
+    use ProvidesDashboardIraqLocationFilters;
     use ProvidesDashboardSchoolDriverFilters;
 
     public function index(Request $request): View
@@ -53,13 +55,23 @@ class DashboardDriverController extends Controller
             return $this->redirectToSchoolCreateForAdminsOrHomeForStaff('dashboard.create_school_first');
         }
 
-        return view('dashboard.drivers.create', compact('schools'));
+        return view('dashboard.drivers.create', [
+            'schools' => $schools,
+            ...$this->iraqLocationFormContext(
+                (int) old('district_id', 0),
+                (int) old('area_id', 0),
+                old('neighborhood_ids', []),
+            ),
+        ]);
     }
 
     public function store(StoreDashboardDriverRequest $request, PhoneNormalizer $phoneNormalizer): RedirectResponse
     {
         $this->abortUnlessCanMutateSchoolRoster();
-        $validated = $this->enforceRosterSchoolIdForStaff($request->validated());
+        $locationPayload = $this->resolveIraqLocationPayload(
+            $this->enforceRosterSchoolIdForStaff($request->validated()),
+        );
+        $validated = $locationPayload['attributes'];
         $this->abortUnlessCanMutateSchoolRosterForSchool((int) $validated['school_id']);
         $ratingAvg = Arr::pull($validated, 'rating_avg');
         $ratingCount = Arr::pull($validated, 'rating_count');
@@ -75,15 +87,16 @@ class DashboardDriverController extends Controller
         );
         $this->syncDriverProfileImage($user, $request->file('profile_image'));
 
-        $driverData = Arr::except($validated, ['route_description', 'monthly_subscription_price', 'shift_period']);
+        $driverData = Arr::except($validated, ['route_description', 'shift_period']);
 
-        Driver::query()->create([
+        $driver = Driver::query()->create([
             ...$driverData,
             'user_id' => $user->id,
             'id_card_image' => $this->storeFile($request->file('id_card_image'), 'drivers'),
             'license_image' => $this->storeFile($request->file('license_image'), 'drivers'),
             'non_conviction_certificate' => $this->storeFile($request->file('non_conviction_certificate'), 'drivers'),
         ]);
+        $this->syncModelNeighborhoods($driver, $locationPayload['neighborhood_ids']);
 
         return redirect()->route('dashboard.drivers.index')->with('success', __('dashboard.driver_created'));
     }
@@ -91,15 +104,26 @@ class DashboardDriverController extends Controller
     public function edit(Driver $driver): View
     {
         $this->abortUnlessCanMutateSchoolRosterForSchool((int) $driver->school_id);
-        $driver->loadMissing('user');
+        $driver->loadMissing(['user', 'neighborhoods']);
         $schools = $this->schoolsForRosterForm();
 
-        return view('dashboard.drivers.edit', compact('driver', 'schools'));
+        return view('dashboard.drivers.edit', [
+            'driver' => $driver,
+            'schools' => $schools,
+            ...$this->iraqLocationFormContext(
+                (int) old('district_id', $driver->district_id ?? 0),
+                (int) old('area_id', $driver->area_id ?? 0),
+                old('neighborhood_ids', $driver->neighborhoods->pluck('id')->all()),
+            ),
+        ]);
     }
 
     public function update(UpdateDashboardDriverRequest $request, Driver $driver, PhoneNormalizer $phoneNormalizer): RedirectResponse
     {
-        $validated = $this->enforceRosterSchoolIdForStaff($request->validated());
+        $locationPayload = $this->resolveIraqLocationPayload(
+            $this->enforceRosterSchoolIdForStaff($request->validated()),
+        );
+        $validated = $locationPayload['attributes'];
         $this->abortUnlessCanMutateSchoolRosterForSchool((int) ($validated['school_id'] ?? $driver->school_id));
         $ratingAvg = Arr::pull($validated, 'rating_avg');
         $ratingCount = Arr::pull($validated, 'rating_count');
@@ -114,13 +138,14 @@ class DashboardDriverController extends Controller
         );
         $this->syncDriverProfileImage($user, $request->file('profile_image'));
 
-        $payload = Arr::except($validated, ['route_description', 'monthly_subscription_price', 'shift_period']);
+        $payload = Arr::except($validated, ['route_description', 'shift_period']);
         $payload['user_id'] = $user->id;
         $payload['id_card_image'] = $this->replaceFile($request->file('id_card_image'), $driver->id_card_image, 'drivers');
         $payload['license_image'] = $this->replaceFile($request->file('license_image'), $driver->license_image, 'drivers');
         $payload['non_conviction_certificate'] = $this->replaceFile($request->file('non_conviction_certificate'), $driver->non_conviction_certificate, 'drivers');
 
         $driver->update($payload);
+        $this->syncModelNeighborhoods($driver, $locationPayload['neighborhood_ids']);
 
         return redirect()->route('dashboard.drivers.index')->with('success', __('dashboard.driver_updated'));
     }

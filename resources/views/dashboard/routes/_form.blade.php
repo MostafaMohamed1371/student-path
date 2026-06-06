@@ -28,7 +28,7 @@
     </select>
 </label>
 
-@include('dashboard.partials.iraq_location_fields')
+@include('dashboard.partials.iraq_location_fields', ['neighborhoodMultiple' => true])
 
 <label>
     <span class="field-label">{{ __('dashboard.route_name') }}</span>

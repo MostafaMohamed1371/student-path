@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class TransportRoute extends Model
@@ -12,7 +13,6 @@ class TransportRoute extends Model
         'school_id',
         'district_id',
         'area_id',
-        'neighborhood_id',
         'driver_id',
         'name',
         'shift_period',
@@ -48,9 +48,9 @@ class TransportRoute extends Model
         return $this->belongsTo(Area::class);
     }
 
-    public function neighborhood(): BelongsTo
+    public function neighborhoods(): BelongsToMany
     {
-        return $this->belongsTo(Neighborhood::class);
+        return $this->belongsToMany(Neighborhood::class, 'transport_route_neighborhood');
     }
 
     public function driver(): BelongsTo

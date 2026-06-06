@@ -5,12 +5,14 @@ namespace App\Services\Guardian;
 use App\Models\Guardian;
 use App\Models\HomeLocation;
 use App\Models\User;
+use App\Services\HomeLocation\HomeLocationService;
 use App\Services\Phone\PhoneNormalizer;
 
 final class GuardianHomeLocationSync
 {
     public function __construct(
         private readonly PhoneNormalizer $phoneNormalizer,
+        private readonly HomeLocationService $homeLocationService,
     ) {}
 
     public function homeLocationForGuardian(Guardian $guardian): ?HomeLocation
@@ -18,6 +20,11 @@ final class GuardianHomeLocationSync
         $user = $this->userForGuardian($guardian);
 
         return $user?->homeLocation;
+    }
+
+    public function hasHomeLocationForGuardian(Guardian $guardian): bool
+    {
+        return $this->homeLocationService->hasLocation($this->homeLocationForGuardian($guardian));
     }
 
     /**
@@ -77,21 +84,13 @@ final class GuardianHomeLocationSync
             return;
         }
 
-        $landmark = trim((string) ($nearestLandmark ?? $formattedAddress ?? ''));
-        $district = trim((string) ($districtArea ?? ''));
-        if ($district === '' && $landmark !== '') {
-            $district = $landmark;
-        }
-
-        HomeLocation::query()->updateOrCreate(
-            ['user_id' => $user->id],
-            [
-                'latitude' => $latitude,
-                'longitude' => $longitude,
-                'formatted_address' => $landmark !== '' ? $landmark : $formattedAddress,
-                'district_area' => $district !== '' ? $district : null,
-                'nearest_landmark' => $landmark !== '' ? $landmark : null,
-            ],
+        $this->homeLocationService->syncForUser(
+            $user,
+            $latitude,
+            $longitude,
+            $formattedAddress,
+            $districtArea,
+            $nearestLandmark,
         );
     }
 }

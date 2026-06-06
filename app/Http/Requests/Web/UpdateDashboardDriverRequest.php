@@ -37,6 +37,16 @@ class UpdateDashboardDriverRequest extends FormRequest
                 'id_card_number' => IdCardNumber::normalize($this->input('id_card_number')),
             ]);
         }
+
+        foreach (['district_id', 'area_id', 'monthly_subscription_price'] as $field) {
+            if ($this->input($field) === '') {
+                $this->merge([$field => null]);
+            }
+        }
+
+        if (! is_array($this->input('neighborhood_ids'))) {
+            $this->merge(['neighborhood_ids' => []]);
+        }
     }
 
     /** @return array<string, list<string|ValidationRule>> */
@@ -54,6 +64,11 @@ class UpdateDashboardDriverRequest extends FormRequest
             'primary_phone' => ['required', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
             'emergency_phone' => ['required', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
             'residential_address' => ['required', 'string', 'max:255'],
+            'district_id' => ['nullable', 'integer', 'exists:districts,id'],
+            'area_id' => ['nullable', 'integer', 'exists:areas,id'],
+            'neighborhood_ids' => ['nullable', 'array'],
+            'neighborhood_ids.*' => ['integer', 'exists:neighborhoods,id'],
+            'monthly_subscription_price' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
             'status' => ['required', 'in:active,inactive'],
             'profile_image' => ['nullable', 'file', 'image', 'max:4096'],
             'id_card_image' => ['nullable', 'file', 'image', 'max:4096'],

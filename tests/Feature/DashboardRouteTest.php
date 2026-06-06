@@ -473,11 +473,10 @@ class DashboardRouteTest extends TestCase
             'status' => 'active',
         ]);
 
-        TransportRoute::query()->create([
+        $karradaRoute = TransportRoute::query()->create([
             'school_id' => $school->id,
             'district_id' => $governorate->id,
             'area_id' => $district->id,
-            'neighborhood_id' => $subDistrict->id,
             'name' => 'Route Karrada',
             'trip_type' => TripType::MORNING_PICKUP->value,
             'shift_period' => 'MORNING',
@@ -486,6 +485,7 @@ class DashboardRouteTest extends TestCase
             'start_longitude' => 44.361,
             'status' => 'active',
         ]);
+        $karradaRoute->neighborhoods()->attach($subDistrict->id);
         TransportRoute::query()->create([
             'school_id' => $school->id,
             'district_id' => $governorate->id,
@@ -506,6 +506,7 @@ class DashboardRouteTest extends TestCase
             'school_id' => $school->id,
             'district_id' => $governorate->id,
             'area_id' => $district->id,
+            'neighborhood_id' => $subDistrict->id,
         ]))
             ->assertOk()
             ->assertSee('<strong>Route Karrada</strong>', false)
@@ -515,7 +516,6 @@ class DashboardRouteTest extends TestCase
             'school_id' => $school->id,
             'district_id' => $governorate->id,
             'area_id' => $district->id,
-            'neighborhood_id' => $subDistrict->id,
         ]))
             ->assertOk()
             ->assertSee('<strong>Route Karrada</strong>', false)
@@ -551,17 +551,17 @@ class DashboardRouteTest extends TestCase
             'status' => 'active',
         ]);
 
-        TransportRoute::query()->create([
+        $taggedRoute = TransportRoute::query()->create([
             'school_id' => $school->id,
             'district_id' => $governorate->id,
             'area_id' => $area->id,
-            'neighborhood_id' => $subDistrict->id,
             'name' => 'Tagged At Sub District',
             'trip_type' => TripType::MORNING_PICKUP->value,
             'shift_period' => 'MORNING',
             'start_address' => 'Start',
             'status' => 'active',
         ]);
+        $taggedRoute->neighborhoods()->attach($subDistrict->id);
 
         $admin = User::factory()->create(['is_admin' => true]);
         $this->actingAs($admin);
@@ -592,7 +592,6 @@ class DashboardRouteTest extends TestCase
             'school_id' => $school->id,
             'district_id' => null,
             'area_id' => $area->id,
-            'neighborhood_id' => null,
             'name' => 'Route Area Tag Only',
             'trip_type' => TripType::MORNING_PICKUP->value,
             'shift_period' => 'MORNING',
@@ -636,7 +635,6 @@ class DashboardRouteTest extends TestCase
             'school_id' => $school->id,
             'district_id' => null,
             'area_id' => null,
-            'neighborhood_id' => null,
             'name' => 'Route Geo Match',
             'trip_type' => TripType::MORNING_PICKUP->value,
             'shift_period' => 'MORNING',
@@ -653,7 +651,6 @@ class DashboardRouteTest extends TestCase
             'school_id' => $school->id,
             'district_id' => $governorate->id,
             'area_id' => $area->id,
-            'neighborhood_id' => $subDistrict->id,
         ]))
             ->assertOk()
             ->assertSee('Route Geo Match', false);

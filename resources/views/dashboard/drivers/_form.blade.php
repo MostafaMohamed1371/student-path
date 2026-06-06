@@ -66,6 +66,29 @@
 
 <hr style="margin: 20px 0; border: 0; border-top: 1px solid #e2e8f0;">
 <div style="margin-top: 4px;">
+    <h3 style="margin: 0 0 10px; font-size: 18px;">{{ __('dashboard.address_information') }}</h3>
+</div>
+
+<div class="form-grid">
+    @include('dashboard.partials.iraq_location_fields', ['neighborhoodMultiple' => true])
+    <div>
+        <label class="field-label" for="monthly_subscription_price">{{ __('dashboard.monthly_subscription_price') }}</label>
+        <input
+            class="input"
+            id="monthly_subscription_price"
+            name="monthly_subscription_price"
+            type="number"
+            min="0"
+            step="1"
+            value="{{ old('monthly_subscription_price', $driver->monthly_subscription_price ?? '') }}"
+            placeholder="65000"
+        />
+        <p style="margin:6px 0 0;font-size:12px;color:#64748b;">{{ __('dashboard.monthly_subscription_price_help') }}</p>
+    </div>
+</div>
+
+<hr style="margin: 20px 0; border: 0; border-top: 1px solid #e2e8f0;">
+<div style="margin-top: 4px;">
     <h3 style="margin: 0 0 10px; font-size: 18px;">{{ __('dashboard.official_documents') }}</h3>
 </div>
 

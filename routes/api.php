@@ -142,6 +142,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
 
     Route::get('home-location', [V1HomeLocationController::class, 'show']);
     Route::post('home-location', [V1HomeLocationController::class, 'store']);
+    Route::put('home-location', [V1HomeLocationController::class, 'update']);
+    Route::patch('home-location', [V1HomeLocationController::class, 'update']);
     Route::delete('home-location', [V1HomeLocationController::class, 'destroy']);
 
     Route::get('locations/districts', [V1LocationController::class, 'districts']);

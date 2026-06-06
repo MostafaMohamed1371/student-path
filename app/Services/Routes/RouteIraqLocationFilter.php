@@ -42,7 +42,7 @@ final class RouteIraqLocationFilter
         $maxMeters = $this->maxMeters();
 
         $query->where(function (Builder $q) use ($neighborhoodId, $neighborhood, $maxMeters): void {
-            $q->where('neighborhood_id', $neighborhoodId);
+            $q->whereHas('neighborhoods', fn (Builder $relation) => $relation->whereKey($neighborhoodId));
 
             if ($neighborhood && $neighborhood->latitude !== null && $neighborhood->longitude !== null) {
                 $this->orWhereUntaggedStartNearPoint(
@@ -67,7 +67,7 @@ final class RouteIraqLocationFilter
             $q->where('area_id', $areaId);
 
             if ($neighborhoodIds->isNotEmpty()) {
-                $q->orWhereIn('neighborhood_id', $neighborhoodIds);
+                $q->orWhereHas('neighborhoods', fn (Builder $relation) => $relation->whereIn('neighborhoods.id', $neighborhoodIds));
             }
 
             $this->orWhereStartNearNeighborhoodsInArea($q, $areaId, $maxMeters);
@@ -90,7 +90,7 @@ final class RouteIraqLocationFilter
 
                 $neighborhoodIds = Neighborhood::query()->whereIn('area_id', $areaIds)->pluck('id');
                 if ($neighborhoodIds->isNotEmpty()) {
-                    $q->orWhereIn('neighborhood_id', $neighborhoodIds);
+                    $q->orWhereHas('neighborhoods', fn (Builder $relation) => $relation->whereIn('neighborhoods.id', $neighborhoodIds));
                 }
 
                 $this->orWhereStartNearNeighborhoodsInAreas($q, $areaIds, $maxMeters);
@@ -148,7 +148,7 @@ final class RouteIraqLocationFilter
         $query->orWhere(function (Builder $geo) use ($neighborhoods, $maxMeters): void {
             $geo->whereNull('district_id')
                 ->whereNull('area_id')
-                ->whereNull('neighborhood_id')
+                ->whereDoesntHave('neighborhoods')
                 ->where(function (Builder $near) use ($neighborhoods, $maxMeters): void {
                     $first = true;
                     foreach ($neighborhoods as $neighborhood) {
@@ -179,7 +179,7 @@ final class RouteIraqLocationFilter
         $query->orWhere(function (Builder $geo) use ($lat, $lng, $maxMeters): void {
             $geo->whereNull('district_id')
                 ->whereNull('area_id')
-                ->whereNull('neighborhood_id')
+                ->whereDoesntHave('neighborhoods')
                 ->where(function (Builder $q) use ($lat, $lng, $maxMeters): void {
                     $this->whereStartNearPoint($q, $lat, $lng, $maxMeters);
                 });

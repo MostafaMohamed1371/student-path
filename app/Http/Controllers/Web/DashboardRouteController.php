@@ -150,7 +150,7 @@ class DashboardRouteController extends Controller
         $locationForm = $this->iraqLocationFormContext(
             (int) old('district_id', 0),
             (int) old('area_id', 0),
-            (int) old('neighborhood_id', 0),
+            old('neighborhood_ids', []),
         );
 
         return view('dashboard.routes.create', [
@@ -167,7 +167,8 @@ class DashboardRouteController extends Controller
         $schoolId = (int) $validated['school_id'];
         $this->abortUnlessCanMutateSchoolRosterForSchool($schoolId);
         $school = School::query()->find($schoolId);
-        $validated = $this->normalizeRouteLocationFields($validated);
+        $locationPayload = $this->resolveIraqLocationPayload($validated);
+        $validated = $locationPayload['attributes'];
         $validated['shift_period'] = $this->driverShiftResolver->fromTripType($validated['trip_type']);
         $validated['driver_id'] = null;
         $validated['name'] = trim((string) ($validated['name'] ?? '')) !== ''
@@ -175,6 +176,7 @@ class DashboardRouteController extends Controller
             : $this->defaultRouteNameForTripType($validated['trip_type'], $school);
 
         $route = TransportRoute::query()->create($validated);
+        $this->syncModelNeighborhoods($route, $locationPayload['neighborhood_ids']);
 
         return redirect()
             ->route('dashboard.routes.index', $this->indexQueryParams($schoolId, $validated['trip_type']))
@@ -186,12 +188,12 @@ class DashboardRouteController extends Controller
     {
         abort_unless($this->routeVisible($route), 404);
         $this->abortUnlessCanMutateSchoolRoster();
-        $route->load(['driver', 'school']);
+        $route->load(['driver', 'school', 'neighborhoods']);
 
         $locationForm = $this->iraqLocationFormContext(
             (int) old('district_id', $route->district_id ?? 0),
             (int) old('area_id', $route->area_id ?? 0),
-            (int) old('neighborhood_id', $route->neighborhood_id ?? 0),
+            old('neighborhood_ids', $route->neighborhoods->pluck('id')->all()),
         );
 
         return view('dashboard.routes.edit', [
@@ -210,7 +212,8 @@ class DashboardRouteController extends Controller
         $schoolId = (int) ($validated['school_id'] ?? $route->school_id);
         $this->abortUnlessCanMutateSchoolRosterForSchool($schoolId);
         $tripType = (string) ($validated['trip_type'] ?? $route->trip_type);
-        $validated = $this->normalizeRouteLocationFields($validated);
+        $locationPayload = $this->resolveIraqLocationPayload($validated);
+        $validated = $locationPayload['attributes'];
         $validated['shift_period'] = $this->driverShiftResolver->fromTripType($tripType);
         unset($validated['driver_id']);
 
@@ -220,6 +223,7 @@ class DashboardRouteController extends Controller
         }
 
         $route->update($validated);
+        $this->syncModelNeighborhoods($route, $locationPayload['neighborhood_ids']);
 
         if ($route->driver_id) {
             $driver = Driver::query()->find((int) $route->driver_id);
@@ -474,7 +478,8 @@ class DashboardRouteController extends Controller
             'monthly_subscription_price' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
             'district_id' => ['nullable', 'integer', 'exists:districts,id'],
             'area_id' => ['nullable', 'integer', 'exists:areas,id'],
-            'neighborhood_id' => ['nullable', 'integer', 'exists:neighborhoods,id'],
+            'neighborhood_ids' => ['nullable', 'array'],
+            'neighborhood_ids.*' => ['integer', 'exists:neighborhoods,id'],
         ];
     }
 

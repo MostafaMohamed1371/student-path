@@ -121,6 +121,7 @@ class DashboardGuardianController extends Controller
         ];
 
         $payload = array_merge($payload, $homeLocationSync->homeLocationFieldsForGuardian($guardian));
+        $payload['has_parent_home_location'] = $homeLocationSync->hasHomeLocationForGuardian($guardian);
 
         return $payload;
     }

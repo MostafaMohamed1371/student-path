@@ -89,15 +89,65 @@ class ApiV1ParentEndpointsTest extends TestCase
             'latitude' => 33.3152,
             'longitude' => 44.3661,
             'formatted_address' => 'Baghdad',
+            'district_area' => 'Karrada',
+            'nearest_landmark' => 'Near school',
             'place_id' => 'test_place',
         ])
             ->assertStatus(201)
             ->assertJsonPath('data.latitude', 33.3152)
+            ->assertJsonPath('data.district_area', 'Karrada')
+            ->assertJsonPath('data.nearest_landmark', 'Near school')
+            ->assertJsonPath('data.has_location', true)
             ->assertJsonPath('data.place_id', 'test_place');
 
         $this->getJson('/api/home-location')
             ->assertOk()
-            ->assertJsonPath('data.formatted_address', 'Baghdad');
+            ->assertJsonPath('data.formatted_address', 'Near school')
+            ->assertJsonPath('data.has_location', true);
+
+        $this->putJson('/api/home-location', [
+            'latitude' => 33.4,
+            'longitude' => 44.4,
+            'districtArea' => 'Updated area',
+            'nearestLandmark' => 'Updated landmark',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.latitude', 33.4)
+            ->assertJsonPath('data.district_area', 'Updated area')
+            ->assertJsonPath('data.nearest_landmark', 'Updated landmark');
+    }
+
+    public function test_v1_home_location_saved_from_mobile_is_visible_on_dashboard_guardian_form(): void
+    {
+        $school = $this->makeSchool('Shared Home Loc School');
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'Mobile Parent',
+            'phone' => '7900555123',
+            'id_card_number' => 'MOBILE-LOC-1',
+            'status' => 'active',
+        ]);
+        $user = User::factory()->create([
+            'guardian_id' => $guardian->id,
+            'phone' => '9647900555123',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/home-location', [
+            'latitude' => 33.3152,
+            'longitude' => 44.3661,
+            'district_area' => 'Karrada',
+            'nearest_landmark' => 'Parent app pickup point',
+        ])->assertStatus(201);
+
+        $payload = app(\App\Services\Guardian\GuardianHomeLocationSync::class)
+            ->homeLocationFieldsForGuardian($guardian->fresh());
+
+        $this->assertSame(33.3152, $payload['home_latitude']);
+        $this->assertSame(44.3661, $payload['home_longitude']);
+        $this->assertSame('Karrada', $payload['home_district_area']);
+        $this->assertSame('Parent app pickup point', $payload['home_nearest_landmark']);
     }
 
     public function test_v1_district_areas(): void

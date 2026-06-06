@@ -163,6 +163,7 @@ class DashboardStudentController extends Controller
             'parent_name' => (string) $guardian->full_name,
             'family_name_suffix' => StudentNameComposer::familySuffixFromGuardianName((string) $guardian->full_name),
             ...$homeLocationSync->homeLocationFieldsForGuardian($guardian),
+            'has_parent_home_location' => $homeLocationSync->hasHomeLocationForGuardian($guardian),
         ];
     }
 
