@@ -2,11 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Models\Area;
 use App\Models\Absence;
 use App\Models\Bus;
+use App\Models\District;
 use App\Models\Driver;
+use App\Models\DriverServiceArea;
 use App\Models\Guardian;
 use App\Models\InAppNotification;
+use App\Models\Neighborhood;
 use App\Models\School;
 use App\Models\Student;
 use App\Models\TripHistory;
@@ -1992,6 +1996,167 @@ class ApiV1ParentEndpointsTest extends TestCase
         $this->getJson('/api/transport-lines/drivers?student_id='.$student->id.'&matches_route_only=0')
             ->assertOk()
             ->assertJsonCount(2, 'data.drivers');
+    }
+
+    public function test_v1_transport_lines_drivers_matches_student_to_driver_service_areas(): void
+    {
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'Service Area School',
+            'province' => 'P',
+            'district' => 'D',
+            'address' => 'Campus',
+            'latitude' => 33.31,
+            'longitude' => 44.36,
+            'status' => 'active',
+        ]);
+
+        $governorate = District::query()->create(['name' => 'Baghdad', 'sort_order' => 1]);
+        $area = Area::query()->create(['district_id' => $governorate->id, 'name' => 'Karkh', 'sort_order' => 0]);
+        $nearNeighborhood = Neighborhood::query()->create([
+            'area_id' => $area->id,
+            'name' => 'Near stop',
+            'sort_order' => 0,
+            'latitude' => 33.311,
+            'longitude' => 44.361,
+        ]);
+        $farNeighborhood = Neighborhood::query()->create([
+            'area_id' => $area->id,
+            'name' => 'Far stop',
+            'sort_order' => 1,
+            'latitude' => 33.0,
+            'longitude' => 44.0,
+        ]);
+
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'G SA',
+            'phone' => '7300000499',
+            'status' => 'active',
+        ]);
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'Near Student',
+            'gender' => 'male',
+            'grade' => '1',
+            'student_phone' => '7400000499',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'latitude' => 33.312,
+            'longitude' => 44.362,
+            'status' => 'active',
+            'shift_period' => 'MORNING',
+        ]);
+
+        $parent = User::factory()->create(['guardian_id' => $guardian->id, 'school_id' => $school->id]);
+
+        $matchingDriver = Driver::query()->create([
+            'user_id' => User::factory()->create()->id,
+            'school_id' => $school->id,
+            'first_name' => 'Service',
+            'father_name' => 'Area',
+            'grandfather_name' => 'X',
+            'last_name' => 'Driver',
+            'age' => 35,
+            'id_card_number' => 'IDC-SA-M',
+            'license_number' => 'LIC-SA-M',
+            'primary_phone' => '7770000491',
+            'emergency_phone' => '7770000492',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+            'shift_period' => 'MORNING',
+            'monthly_subscription_price' => 60000,
+        ]);
+        $otherDriver = Driver::query()->create([
+            'user_id' => User::factory()->create()->id,
+            'school_id' => $school->id,
+            'first_name' => 'Far',
+            'father_name' => 'Area',
+            'grandfather_name' => 'X',
+            'last_name' => 'Driver',
+            'age' => 36,
+            'id_card_number' => 'IDC-SA-O',
+            'license_number' => 'LIC-SA-O',
+            'primary_phone' => '7770000493',
+            'emergency_phone' => '7770000494',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+            'shift_period' => 'MORNING',
+        ]);
+
+        Bus::query()->create([
+            'user_id' => User::factory()->create()->id,
+            'driver_id' => $matchingDriver->id,
+            'name' => 'Bus SA-M',
+            'number' => 'SA-M',
+            'type' => 'Van',
+            'city' => 'Baghdad',
+            'capacity' => 12,
+            'color' => 'white',
+            'fuel_type' => 'diesel',
+            'status' => 'active',
+        ]);
+        Bus::query()->create([
+            'user_id' => User::factory()->create()->id,
+            'driver_id' => $otherDriver->id,
+            'name' => 'Bus SA-O',
+            'number' => 'SA-O',
+            'type' => 'Van',
+            'city' => 'Baghdad',
+            'capacity' => 12,
+            'color' => 'white',
+            'fuel_type' => 'diesel',
+            'status' => 'active',
+        ]);
+
+        $matchingServiceArea = DriverServiceArea::query()->create([
+            'driver_id' => $matchingDriver->id,
+            'district_id' => $governorate->id,
+            'area_id' => $area->id,
+            'monthly_subscription_price' => 60000,
+            'sort_order' => 0,
+        ]);
+        $matchingServiceArea->neighborhoods()->attach($nearNeighborhood->id);
+
+        $otherServiceArea = DriverServiceArea::query()->create([
+            'driver_id' => $otherDriver->id,
+            'district_id' => $governorate->id,
+            'area_id' => $area->id,
+            'sort_order' => 0,
+        ]);
+        $otherServiceArea->neighborhoods()->attach($farNeighborhood->id);
+
+        TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $matchingDriver->id,
+            'bus_number' => 'SA-M',
+            'route_title' => 'Baghdad / Karkh / Near stop',
+            'start_address' => 'Near stop',
+            'start_latitude' => 33.311,
+            'start_longitude' => 44.361,
+            'students_count' => 0,
+            'distance_km' => 1,
+            'start_time' => now()->subHour(),
+            'status' => 'PRESENT',
+        ]);
+
+        Sanctum::actingAs($parent);
+
+        $this->getJson('/api/transport-lines/drivers?student_id='.$student->id)
+            ->assertOk()
+            ->assertJsonCount(1, 'data.drivers')
+            ->assertJsonPath('data.drivers.0.driverId', (string) $matchingDriver->id)
+            ->assertJsonPath('data.drivers.0.matchesStudentRoute', true)
+            ->assertJsonPath('data.drivers.0.routeDescription', 'Baghdad / Karkh / Near stop');
+
+        $this->getJson('/api/transport-lines/drivers?student_id='.$student->id.'&matches_route_only=1')
+            ->assertOk()
+            ->assertJsonCount(1, 'data.drivers')
+            ->assertJsonPath('data.drivers.0.driverId', (string) $matchingDriver->id);
     }
 
     private function makeSchool(string $nameEn): School

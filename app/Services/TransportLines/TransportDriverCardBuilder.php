@@ -10,6 +10,7 @@ use App\Models\TransportRoute;
 use App\Models\TripHistory;
 use App\Models\TripRequest;
 use App\Models\User;
+use App\Services\Drivers\DriverServiceAreaStudentMatcher;
 use App\Services\Routes\RouteAssignmentPlanner;
 use Illuminate\Support\Collection;
 
@@ -17,6 +18,7 @@ final class TransportDriverCardBuilder
 {
     public function __construct(
         private readonly RouteAssignmentPlanner $routeAssignmentPlanner,
+        private readonly DriverServiceAreaStudentMatcher $serviceAreaStudentMatcher,
     ) {}
     /**
      * @param  Collection<int, Driver>  $drivers
@@ -276,11 +278,25 @@ final class TransportDriverCardBuilder
         $routeDescription = $this->resolveRouteDescription($driver, $bus, $latestTripRoute, $transportRoute);
 
         $matchesStudentRoute = null;
-        if ($studentForRouteMatch !== null && $transportRoute !== null) {
-            $matchesStudentRoute = $this->routeAssignmentPlanner->studentMatchesRouteCorridor(
-                $studentForRouteMatch,
-                $transportRoute,
-            );
+        if ($studentForRouteMatch !== null) {
+            $school = $driver->relationLoaded('school')
+                ? $driver->school
+                : School::query()->find($driver->school_id);
+
+            if ($school instanceof School
+                && $this->serviceAreaStudentMatcher->studentMatchesDriverServiceAreas(
+                    $studentForRouteMatch,
+                    $driver,
+                )) {
+                $matchesStudentRoute = true;
+            } elseif ($transportRoute !== null) {
+                $matchesStudentRoute = $this->routeAssignmentPlanner->studentMatchesRouteCorridor(
+                    $studentForRouteMatch,
+                    $transportRoute,
+                );
+            } else {
+                $matchesStudentRoute = false;
+            }
         }
 
         return [
