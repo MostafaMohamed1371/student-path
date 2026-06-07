@@ -14,6 +14,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'bus_number',
     'route_title',
     'location',
+    'start_address',
+    'start_latitude',
+    'start_longitude',
     'students_count',
     'distance_km',
     'start_time',
@@ -36,6 +39,8 @@ class TripHistory extends Model
             'end_time' => 'datetime',
             'final_lat' => 'float',
             'final_lng' => 'float',
+            'start_latitude' => 'float',
+            'start_longitude' => 'float',
             'distance_km' => 'float',
             'students_count' => 'integer',
         ];

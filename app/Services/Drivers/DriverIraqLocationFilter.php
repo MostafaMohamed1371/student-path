@@ -18,7 +18,10 @@ final class DriverIraqLocationFilter
     public function apply(Builder $query, int $governorateId, int $areaId, int $neighborhoodId): void
     {
         if ($neighborhoodId > 0) {
-            $query->whereHas('neighborhoods', fn (Builder $relation) => $relation->whereKey($neighborhoodId));
+            $query->where(function (Builder $q) use ($neighborhoodId): void {
+                $q->whereHas('neighborhoods', fn (Builder $relation) => $relation->whereKey($neighborhoodId))
+                    ->orWhereHas('serviceAreas.neighborhoods', fn (Builder $relation) => $relation->whereKey($neighborhoodId));
+            });
 
             return;
         }
@@ -42,10 +45,12 @@ final class DriverIraqLocationFilter
         $neighborhoodIds = Neighborhood::query()->where('area_id', $areaId)->pluck('id');
 
         $query->where(function (Builder $q) use ($areaId, $neighborhoodIds): void {
-            $q->where('area_id', $areaId);
+            $q->where('area_id', $areaId)
+                ->orWhereHas('serviceAreas', fn (Builder $relation) => $relation->where('area_id', $areaId));
 
             if ($neighborhoodIds->isNotEmpty()) {
-                $q->orWhereHas('neighborhoods', fn (Builder $relation) => $relation->whereIn('neighborhoods.id', $neighborhoodIds));
+                $q->orWhereHas('neighborhoods', fn (Builder $relation) => $relation->whereIn('neighborhoods.id', $neighborhoodIds))
+                    ->orWhereHas('serviceAreas.neighborhoods', fn (Builder $relation) => $relation->whereIn('neighborhoods.id', $neighborhoodIds));
             }
         });
     }
@@ -58,14 +63,17 @@ final class DriverIraqLocationFilter
         $areaIds = Area::query()->where('district_id', $governorateId)->pluck('id');
 
         $query->where(function (Builder $q) use ($governorateId, $areaIds): void {
-            $q->where('district_id', $governorateId);
+            $q->where('district_id', $governorateId)
+                ->orWhereHas('serviceAreas', fn (Builder $relation) => $relation->where('district_id', $governorateId));
 
             if ($areaIds->isNotEmpty()) {
-                $q->orWhereIn('area_id', $areaIds);
+                $q->orWhereIn('area_id', $areaIds)
+                    ->orWhereHas('serviceAreas', fn (Builder $relation) => $relation->whereIn('area_id', $areaIds));
 
                 $neighborhoodIds = Neighborhood::query()->whereIn('area_id', $areaIds)->pluck('id');
                 if ($neighborhoodIds->isNotEmpty()) {
-                    $q->orWhereHas('neighborhoods', fn (Builder $relation) => $relation->whereIn('neighborhoods.id', $neighborhoodIds));
+                    $q->orWhereHas('neighborhoods', fn (Builder $relation) => $relation->whereIn('neighborhoods.id', $neighborhoodIds))
+                        ->orWhereHas('serviceAreas.neighborhoods', fn (Builder $relation) => $relation->whereIn('neighborhoods.id', $neighborhoodIds));
                 }
             }
         });

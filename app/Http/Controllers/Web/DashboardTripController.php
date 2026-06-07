@@ -13,6 +13,7 @@ use App\Models\Student;
 use App\Models\TripHistory;
 use App\Models\TripHistoryStudent;
 use App\Models\TransportRoute;
+use App\Services\Drivers\DriverServiceAreaTripFormatter;
 use App\Services\Routes\RouteAssignmentPlanner;
 use App\Services\Trips\DriverShiftResolver;
 use App\Services\Trips\DriverTripModuleService;
@@ -20,7 +21,7 @@ use App\Services\Trips\StudentShiftFilter;
 use App\Services\Trips\TripStudentAvailability;
 use App\Services\Trips\TripLocationTrackingService;
 use App\Services\Trips\TripTransportRouteApplier;
-use App\Services\Push\TripTrackingAuthorization;
+use App\Support\Geo\Haversine;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -39,6 +40,7 @@ class DashboardTripController extends Controller
         private readonly TripStudentAvailability $tripStudentAvailability,
         private readonly TripTransportRouteApplier $tripTransportRouteApplier,
         private readonly RouteAssignmentPlanner $routeAssignmentPlanner,
+        private readonly DriverServiceAreaTripFormatter $driverServiceAreaTripFormatter,
     ) {}
 
     public function index(Request $request): View
@@ -207,9 +209,7 @@ class DashboardTripController extends Controller
             (int) $validated['school_id'],
         );
 
-        unset($validated['student_ids']);
-
-        $validated = $this->tripTransportRouteApplier->applyRouteToTripAttributes($validated);
+        $validated = $this->applyTripRouteFieldsFromRequest($request, $validated, (int) $validated['school_id']);
         $this->assertTripHasDriver($validated);
         $validated['students_count'] = 0;
         $validated['students_preview'] = [];
@@ -492,21 +492,25 @@ class DashboardTripController extends Controller
         ]);
 
         $payload = $this->driverOptionRow($driver, $route);
+        $school = School::query()->find($schoolId);
+        $serviceAreas = $this->driverServiceAreaTripFormatter->serviceAreasForDriver($driverId);
 
         return response()->json([
             'ok' => true,
             'has_route' => $route !== null,
+            'has_service_areas' => $serviceAreas !== [],
+            'service_areas' => $serviceAreas,
             'bus_number' => $payload['bus_number'],
             'route_title' => $payload['route_title'],
             'location' => $payload['location'],
             'distance_km' => $payload['distance_km'],
             'students_count' => $payload['students_count'],
             'start_address' => $payload['start_address'],
-            'end_address' => $payload['end_address'],
+            'end_address' => $payload['end_address'] ?? ($school ? trim((string) ($school->address ?? '')) : null),
             'route_start_latitude' => $payload['route_start_latitude'],
             'route_start_longitude' => $payload['route_start_longitude'],
-            'school_latitude' => $payload['school_latitude'],
-            'school_longitude' => $payload['school_longitude'],
+            'school_latitude' => $payload['school_latitude'] ?? ($school?->latitude !== null ? (float) $school->latitude : null),
+            'school_longitude' => $payload['school_longitude'] ?? ($school?->longitude !== null ? (float) $school->longitude : null),
             'transport_route_id' => $payload['transport_route_id'],
         ]);
     }
@@ -522,9 +526,11 @@ class DashboardTripController extends Controller
             (int) ($validated['school_id'] ?? $trip->school_id),
         );
 
-        unset($validated['student_ids']);
-
-        $validated = $this->tripTransportRouteApplier->applyRouteToTripAttributes($validated);
+        $validated = $this->applyTripRouteFieldsFromRequest(
+            $request,
+            $validated,
+            (int) ($validated['school_id'] ?? $trip->school_id),
+        );
 
         $trip->update($validated);
 
@@ -561,6 +567,9 @@ class DashboardTripController extends Controller
             'bus_number' => [$required, 'string', 'max:64'],
             'route_title' => ['nullable', 'string', 'max:255'],
             'location' => ['nullable', 'string', 'max:255'],
+            'start_address' => ['nullable', 'string', 'max:255'],
+            'start_latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'start_longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'students_count' => [$required, 'integer', 'min:0'],
             'distance_km' => [$required, 'numeric', 'min:0'],
             'start_time' => [$required, 'date'],
@@ -569,7 +578,157 @@ class DashboardTripController extends Controller
             'note' => ['nullable', 'string'],
             'student_ids' => [$partial ? 'sometimes' : 'nullable', 'array'],
             'student_ids.*' => ['integer', 'exists:students,id'],
+            'driver_service_area_ids' => ['nullable', 'array'],
+            'driver_service_area_ids.*' => ['integer', 'exists:driver_service_areas,id'],
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function applyTripRouteFieldsFromRequest(Request $request, array $validated, int $schoolId): array
+    {
+        unset($validated['student_ids'], $validated['driver_service_area_ids']);
+
+        $serviceAreaIds = array_values(array_unique(array_filter(array_map(
+            static fn ($v): int => (int) $v,
+            $request->input('driver_service_area_ids', []),
+        ), static fn (int $id): bool => $id > 0)));
+
+        if ($serviceAreaIds !== [] && isset($validated['driver_id'])) {
+            $this->assertDriverServiceAreasBelongToDriver($serviceAreaIds, (int) $validated['driver_id']);
+            $combined = $this->driverServiceAreaTripFormatter->combineForTrip($serviceAreaIds, null);
+            if (trim($combined['route_title']) !== '') {
+                $validated['route_title'] = $combined['route_title'];
+            }
+        }
+
+        $startLat = $this->nullableCoordinate($validated['start_latitude'] ?? null);
+        $startLng = $this->nullableCoordinate($validated['start_longitude'] ?? null);
+
+        if ($startLat === null || $startLng === null) {
+            $route = $this->tripTransportRouteApplier->findRouteForTrip($validated);
+            if (
+                $route !== null
+                && $route->start_latitude !== null
+                && $route->start_longitude !== null
+            ) {
+                $startLat = (float) $route->start_latitude;
+                $startLng = (float) $route->start_longitude;
+                $validated['start_latitude'] = $startLat;
+                $validated['start_longitude'] = $startLng;
+                if (trim((string) ($validated['start_address'] ?? '')) === '') {
+                    $startAddress = trim((string) ($route->start_address ?? ''));
+                    $validated['start_address'] = $startAddress !== '' ? $startAddress : null;
+                }
+            }
+        }
+
+        $school = School::query()->find($schoolId);
+
+        if ($startLat !== null && $startLng !== null) {
+            $startAddress = trim((string) ($validated['start_address'] ?? ''));
+            $endAddress = $school ? trim((string) ($school->address ?? '')) : '';
+            $validated['location'] = $this->tripLocationLabel($startAddress, $endAddress);
+
+            if (
+                $school instanceof School
+                && $school->latitude !== null
+                && $school->longitude !== null
+            ) {
+                $validated['distance_km'] = round(
+                    Haversine::metersBetween(
+                        $startLat,
+                        $startLng,
+                        (float) $school->latitude,
+                        (float) $school->longitude,
+                    ) / 1000,
+                    2,
+                );
+            }
+
+            return $validated;
+        }
+
+        if (
+            trim((string) ($validated['route_title'] ?? '')) === ''
+            || trim((string) ($validated['location'] ?? '')) === ''
+        ) {
+            $validated = $this->tripTransportRouteApplier->applyRouteToTripAttributes(
+                $validated,
+                overwrite: $serviceAreaIds === [],
+            );
+        }
+
+        $route = $this->tripTransportRouteApplier->findRouteForTrip($validated);
+        if ($route !== null) {
+            if (! isset($validated['start_latitude']) && $route->start_latitude !== null) {
+                $validated['start_latitude'] = $route->start_latitude;
+            }
+            if (! isset($validated['start_longitude']) && $route->start_longitude !== null) {
+                $validated['start_longitude'] = $route->start_longitude;
+            }
+            if (trim((string) ($validated['start_address'] ?? '')) === '' && trim((string) ($route->start_address ?? '')) !== '') {
+                $validated['start_address'] = trim((string) $route->start_address);
+            }
+        }
+
+        return $validated;
+    }
+
+    private function tripLocationLabel(string $start, string $end): ?string
+    {
+        if ($start === '' && $end === '') {
+            return null;
+        }
+
+        if ($start === '') {
+            return __('dashboard.trip_location_end_only', ['end' => $end]);
+        }
+
+        if ($end === '') {
+            return __('dashboard.trip_location_start_only', ['start' => $start]);
+        }
+
+        return __('dashboard.trip_location_start_to_end', [
+            'start' => $start,
+            'end' => $end,
+        ]);
+    }
+
+    private function nullableCoordinate(mixed $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (! is_numeric($value)) {
+            return null;
+        }
+
+        return (float) $value;
+    }
+
+    /**
+     * @param  list<int>  $serviceAreaIds
+     */
+    private function assertDriverServiceAreasBelongToDriver(array $serviceAreaIds, int $driverId): void
+    {
+        if ($serviceAreaIds === []) {
+            return;
+        }
+
+        $count = \App\Models\DriverServiceArea::query()
+            ->where('driver_id', $driverId)
+            ->whereIn('id', $serviceAreaIds)
+            ->count();
+
+        if ($count !== count($serviceAreaIds)) {
+            throw ValidationException::withMessages([
+                'driver_service_area_ids' => [__('dashboard.trip_driver_service_areas_invalid')],
+            ]);
+        }
     }
 
     /**

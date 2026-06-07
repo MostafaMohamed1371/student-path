@@ -14,7 +14,13 @@
                     <select id="trip_form_school_id" name="school_id" required>
                         <option value="">{{ __('dashboard.select_school') }}</option>
                         @foreach($schools as $school)
-                            <option value="{{ $school->id }}" @selected(old('school_id') == $school->id)>{{ $school->name_en }}</option>
+                            <option
+                                value="{{ $school->id }}"
+                                data-address="{{ e($school->address ?? '') }}"
+                                data-latitude="{{ $school->latitude !== null ? $school->latitude : '' }}"
+                                data-longitude="{{ $school->longitude !== null ? $school->longitude : '' }}"
+                                @selected(old('school_id') == $school->id)
+                            >{{ $school->name_en }}</option>
                         @endforeach
                     </select>
                 </label>
@@ -41,8 +47,26 @@
                     </select>
                 </label>
 
+                <label style="grid-column:1 / -1;">
+                    <span>{{ __('dashboard.trip_field_driver_service_areas') }}</span>
+                    <select id="trip_form_driver_service_area_ids" name="driver_service_area_ids[]" multiple size="5" disabled>
+                    </select>
+                    <p class="help" style="margin:6px 0 0;">{{ __('dashboard.trip_service_areas_help') }}</p>
+                </label>
+
                 <label><span>{{ __('dashboard.bus_number') }}</span><input id="trip_form_bus_number" name="bus_number" value="{{ old('bus_number') }}" required></label>
                 <label><span>{{ __('dashboard.route_title') }}</span><input id="trip_form_route_title" name="route_title" value="{{ old('route_title') }}"></label>
+
+                <label style="grid-column:1 / -1;">
+                    <span>{{ __('dashboard.trip_start_on_map') }}</span>
+                    <input id="trip_form_start_address" name="start_address" value="{{ old('start_address') }}" readonly placeholder="{{ __('dashboard.trip_start_address_placeholder') }}">
+                </label>
+                <div style="grid-column:1 / -1;">
+                    <div id="trip_form_start_map" style="height:320px;border:1px solid #cbd5e1;border-radius:10px;"></div>
+                </div>
+                <input type="hidden" id="trip_form_start_latitude" name="start_latitude" value="{{ old('start_latitude') }}">
+                <input type="hidden" id="trip_form_start_longitude" name="start_longitude" value="{{ old('start_longitude') }}">
+
                 <label style="grid-column:1 / -1;">
                     <span>{{ __('dashboard.trip_route_path') }}</span>
                     <input id="trip_form_location" name="location" value="{{ old('location') }}" readonly placeholder="{{ __('dashboard.trip_route_path_placeholder') }}">
@@ -79,4 +103,5 @@
         'driverAutoFillUrl' => $driverAutoFillUrl ?? '',
         'exceptTripId' => $exceptTripId ?? null,
     ])
+    @include('dashboard.trips._trip_start_map_script')
 @endsection

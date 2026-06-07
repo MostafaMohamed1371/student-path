@@ -66,6 +66,11 @@ class Driver extends Model
         return $this->belongsToMany(Neighborhood::class, 'driver_neighborhood');
     }
 
+    public function serviceAreas(): HasMany
+    {
+        return $this->hasMany(DriverServiceArea::class)->orderBy('sort_order')->orderBy('id');
+    }
+
     public function bus(): HasOne
     {
         return $this->hasOne(Bus::class);

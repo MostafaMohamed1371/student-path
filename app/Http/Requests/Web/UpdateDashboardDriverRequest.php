@@ -47,6 +47,31 @@ class UpdateDashboardDriverRequest extends FormRequest
         if (! is_array($this->input('neighborhood_ids'))) {
             $this->merge(['neighborhood_ids' => []]);
         }
+
+        if (! is_array($this->input('service_areas'))) {
+            $this->merge(['service_areas' => []]);
+        } else {
+            $rows = collect($this->input('service_areas'))
+                ->map(function ($row): array {
+                    if (! is_array($row)) {
+                        return [];
+                    }
+
+                    foreach (['district_id', 'area_id', 'monthly_subscription_price'] as $field) {
+                        if (($row[$field] ?? '') === '') {
+                            $row[$field] = null;
+                        }
+                    }
+
+                    if (! is_array($row['neighborhood_ids'] ?? null)) {
+                        $row['neighborhood_ids'] = [];
+                    }
+
+                    return $row;
+                })
+                ->all();
+            $this->merge(['service_areas' => $rows]);
+        }
     }
 
     /** @return array<string, list<string|ValidationRule>> */
@@ -68,6 +93,12 @@ class UpdateDashboardDriverRequest extends FormRequest
             'area_id' => ['nullable', 'integer', 'exists:areas,id'],
             'neighborhood_ids' => ['nullable', 'array'],
             'neighborhood_ids.*' => ['integer', 'exists:neighborhoods,id'],
+            'service_areas' => ['nullable', 'array'],
+            'service_areas.*.district_id' => ['nullable', 'integer', 'exists:districts,id'],
+            'service_areas.*.area_id' => ['nullable', 'integer', 'exists:areas,id'],
+            'service_areas.*.neighborhood_ids' => ['nullable', 'array'],
+            'service_areas.*.neighborhood_ids.*' => ['integer', 'exists:neighborhoods,id'],
+            'service_areas.*.monthly_subscription_price' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
             'monthly_subscription_price' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
             'status' => ['required', 'in:active,inactive'],
             'profile_image' => ['nullable', 'file', 'image', 'max:4096'],
