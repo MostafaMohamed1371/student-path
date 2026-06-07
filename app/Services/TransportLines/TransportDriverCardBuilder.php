@@ -42,12 +42,43 @@ final class TransportDriverCardBuilder
     }
 
     /**
+     * Latest trip route metadata per driver (route title + optional map start).
+     *
      * @param  list<int>  $schoolIds
      * @param  Collection<int, Driver>  $drivers
-     * @return array<string, string> keys "{schoolId}|{busNumber}"
+     * @return array<int, array{
+     *     route_title: string,
+     *     start_address: string|null,
+     *     start_latitude: float|null,
+     *     start_longitude: float|null
+     * }>
      */
-    public function latestRouteTitlesBySchoolAndBus(array $schoolIds, Collection $drivers): array
+    public function latestTripRouteMetaForDrivers(array $schoolIds, Collection $drivers): array
     {
+        if ($drivers->isEmpty()) {
+            return [];
+        }
+
+        $driverIds = $drivers->pluck('id')->filter()->map(fn ($id): int => (int) $id)->values()->all();
+        $out = [];
+
+        if ($driverIds !== []) {
+            $rows = TripHistory::query()
+                ->whereIn('driver_id', $driverIds)
+                ->whereNotNull('route_title')
+                ->where('route_title', '!=', '')
+                ->orderByDesc('start_time')
+                ->get(['driver_id', 'route_title', 'start_address', 'start_latitude', 'start_longitude']);
+
+            foreach ($rows as $row) {
+                $driverId = (int) $row->driver_id;
+                if ($driverId <= 0 || array_key_exists($driverId, $out)) {
+                    continue;
+                }
+                $out[$driverId] = $this->tripRouteMetaFromRow($row);
+            }
+        }
+
         $numbers = $drivers
             ->map(fn (Driver $d) => $d->bus?->number)
             ->filter()
@@ -56,25 +87,43 @@ final class TransportDriverCardBuilder
             ->all();
 
         if ($numbers === [] || $schoolIds === []) {
-            return [];
+            return $out;
         }
 
         $rows = TripHistory::query()
             ->whereIn('school_id', $schoolIds)
             ->whereIn('bus_number', $numbers)
             ->whereNotNull('route_title')
+            ->where('route_title', '!=', '')
             ->orderByDesc('start_time')
-            ->get(['school_id', 'bus_number', 'route_title']);
+            ->get(['driver_id', 'school_id', 'bus_number', 'route_title', 'start_address', 'start_latitude', 'start_longitude']);
 
-        $out = [];
+        $bySchoolBus = [];
         foreach ($rows as $row) {
             $bn = (string) $row->bus_number;
             if ($bn === '') {
                 continue;
             }
             $key = (int) $row->school_id.'|'.$bn;
-            if (! array_key_exists($key, $out)) {
-                $out[$key] = (string) $row->route_title;
+            if (! array_key_exists($key, $bySchoolBus)) {
+                $bySchoolBus[$key] = $this->tripRouteMetaFromRow($row);
+            }
+        }
+
+        foreach ($drivers as $driver) {
+            $driverId = (int) $driver->id;
+            if (array_key_exists($driverId, $out)) {
+                continue;
+            }
+
+            $plate = $driver->bus?->number;
+            if ($plate === null || $plate === '') {
+                continue;
+            }
+
+            $key = (int) $driver->school_id.'|'.(string) $plate;
+            if (isset($bySchoolBus[$key])) {
+                $out[$driverId] = $bySchoolBus[$key];
             }
         }
 
@@ -195,13 +244,18 @@ final class TransportDriverCardBuilder
 
     /**
      * @param  Collection<int|string, int>  $reservedByDriver
-     * @param  array<string, string>  $routeBySchoolAndBus
+     * @param  array<int, array{
+     *     route_title: string,
+     *     start_address: string|null,
+     *     start_latitude: float|null,
+     *     start_longitude: float|null
+     * }>  $tripRouteMetaByDriver
      * @return array<string, mixed>
      */
     public function buildCard(
         Driver $driver,
         Collection $reservedByDriver,
-        array $routeBySchoolAndBus,
+        array $tripRouteMetaByDriver,
         ?float $distanceKm,
         ?TransportRoute $transportRoute = null,
         ?Student $studentForRouteMatch = null,
@@ -216,10 +270,10 @@ final class TransportDriverCardBuilder
         $capacity = $bus !== null ? (int) $bus->capacity : null;
         $reserved = (int) ($reservedByDriver->get($driver->id) ?? 0);
         $availableSeats = $capacity !== null ? max(0, $capacity - $reserved) : null;
-
         $plate = $bus?->number;
-        $routeKey = $plate !== null ? (int) $driver->school_id.'|'.(string) $plate : '';
-        $routeDescription = $this->resolveRouteDescription($driver, $bus, $routeKey, $routeBySchoolAndBus, $transportRoute);
+
+        $latestTripRoute = $tripRouteMetaByDriver[(int) $driver->id] ?? null;
+        $routeDescription = $this->resolveRouteDescription($driver, $bus, $latestTripRoute, $transportRoute);
 
         $matchesStudentRoute = null;
         if ($studentForRouteMatch !== null && $transportRoute !== null) {
@@ -235,7 +289,9 @@ final class TransportDriverCardBuilder
             'driverName' => $this->driverDisplayName($driver),
             'profileImageUrl' => $this->normalizePublicAssetUrl($user?->image),
             'routeDescription' => $routeDescription,
-            'route' => $transportRoute !== null ? $this->formatTransportRoute($transportRoute) : null,
+            'route' => $transportRoute !== null
+                ? $this->formatTransportRoute($transportRoute, $latestTripRoute)
+                : null,
             'matchesStudentRoute' => $matchesStudentRoute,
             'ratingAvg' => $ratingAvg,
             'ratingCount' => $ratingCount,
@@ -256,19 +312,45 @@ final class TransportDriverCardBuilder
     }
 
     /**
+     * @param  array{
+     *     route_title: string,
+     *     start_address: string|null,
+     *     start_latitude: float|null,
+     *     start_longitude: float|null
+     * }|null  $latestTripRoute
      * @return array<string, mixed>
      */
-    public function formatTransportRoute(TransportRoute $route): array
+    public function formatTransportRoute(TransportRoute $route, ?array $latestTripRoute = null): array
     {
         $route->loadMissing('school');
 
+        $name = trim((string) ($latestTripRoute['route_title'] ?? ''));
+        if ($name === '') {
+            $name = trim((string) ($route->name ?? ''));
+        }
+
+        $startAddress = trim((string) ($latestTripRoute['start_address'] ?? ''));
+        if ($startAddress === '') {
+            $startAddress = trim((string) ($route->start_address ?? ''));
+        }
+
+        $startLatitude = $latestTripRoute['start_latitude'] ?? null;
+        if ($startLatitude === null && $route->start_latitude !== null) {
+            $startLatitude = (float) $route->start_latitude;
+        }
+
+        $startLongitude = $latestTripRoute['start_longitude'] ?? null;
+        if ($startLongitude === null && $route->start_longitude !== null) {
+            $startLongitude = (float) $route->start_longitude;
+        }
+
         return [
             'routeId' => (string) $route->id,
-            'name' => $route->name,
+            'name' => $name !== '' ? $name : null,
             'tripType' => $route->trip_type,
-            'startAddress' => $route->start_address,
-            'startLatitude' => $route->start_latitude !== null ? (float) $route->start_latitude : null,
-            'startLongitude' => $route->start_longitude !== null ? (float) $route->start_longitude : null,
+            'startAddress' => $startAddress !== '' ? $startAddress : null,
+            'startLatitude' => $startLatitude,
+            'startLongitude' => $startLongitude,
             'schoolAddress' => $route->school?->address,
             'schoolLatitude' => $route->school?->latitude !== null ? (float) $route->school->latitude : null,
             'schoolLongitude' => $route->school?->longitude !== null ? (float) $route->school->longitude : null,
@@ -276,15 +358,24 @@ final class TransportDriverCardBuilder
     }
 
     /**
-     * @param  array<string, string>  $routeBySchoolAndBus
+     * @param  array{
+     *     route_title: string,
+     *     start_address: string|null,
+     *     start_latitude: float|null,
+     *     start_longitude: float|null
+     * }|null  $latestTripRoute
      */
     private function resolveRouteDescription(
         Driver $driver,
         ?Bus $bus,
-        string $routeKey,
-        array $routeBySchoolAndBus,
+        ?array $latestTripRoute,
         ?TransportRoute $transportRoute = null,
     ): ?string {
+        $tripTitle = trim((string) ($latestTripRoute['route_title'] ?? ''));
+        if ($tripTitle !== '') {
+            return $tripTitle;
+        }
+
         if ($transportRoute !== null) {
             $name = trim((string) $transportRoute->name);
             $start = trim((string) ($transportRoute->start_address ?? ''));
@@ -299,13 +390,6 @@ final class TransportDriverCardBuilder
             }
         }
 
-        $fromHistory = ($routeKey !== '' && isset($routeBySchoolAndBus[$routeKey]))
-            ? trim((string) $routeBySchoolAndBus[$routeKey])
-            : '';
-        if ($fromHistory !== '') {
-            return $fromHistory;
-        }
-
         $driverText = $driver->route_description;
         if (is_string($driverText) && trim($driverText) !== '') {
             return trim($driverText);
@@ -316,6 +400,26 @@ final class TransportDriverCardBuilder
         }
 
         return null;
+    }
+
+    /**
+     * @return array{
+     *     route_title: string,
+     *     start_address: string|null,
+     *     start_latitude: float|null,
+     *     start_longitude: float|null
+     * }
+     */
+    private function tripRouteMetaFromRow(TripHistory $row): array
+    {
+        return [
+            'route_title' => trim((string) $row->route_title),
+            'start_address' => is_string($row->start_address) && trim($row->start_address) !== ''
+                ? trim($row->start_address)
+                : null,
+            'start_latitude' => $row->start_latitude !== null ? (float) $row->start_latitude : null,
+            'start_longitude' => $row->start_longitude !== null ? (float) $row->start_longitude : null,
+        ];
     }
 
     public function driverDisplayName(Driver $driver): string

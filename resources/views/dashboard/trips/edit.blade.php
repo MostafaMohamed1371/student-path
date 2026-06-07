@@ -66,8 +66,14 @@
                 <div style="grid-column:1 / -1;">
                     <div id="trip_form_start_map" style="height:320px;border:1px solid #cbd5e1;border-radius:10px;"></div>
                 </div>
-                <input type="hidden" id="trip_form_start_latitude" name="start_latitude" value="{{ old('start_latitude', $trip->start_latitude) }}">
-                <input type="hidden" id="trip_form_start_longitude" name="start_longitude" value="{{ old('start_longitude', $trip->start_longitude) }}">
+                <label>
+                    <span>{{ __('dashboard.latitude') }}</span>
+                    <input id="trip_form_start_latitude" name="start_latitude" type="number" step="0.0000001" value="{{ old('start_latitude', $trip->start_latitude) }}" readonly>
+                </label>
+                <label>
+                    <span>{{ __('dashboard.longitude') }}</span>
+                    <input id="trip_form_start_longitude" name="start_longitude" type="number" step="0.0000001" value="{{ old('start_longitude', $trip->start_longitude) }}" readonly>
+                </label>
 
                 <label style="grid-column:1 / -1;">
                     <span>{{ __('dashboard.trip_route_path') }}</span>

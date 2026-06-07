@@ -185,7 +185,7 @@ class TransportLinesDriverController extends Controller
 
         $reservedByDriver = $this->cardBuilder->reservedCountsByDriverId($drivers);
 
-        $routeBySchoolAndBus = $this->cardBuilder->latestRouteTitlesBySchoolAndBus($schoolIds, $drivers);
+        $routeBySchoolAndBus = $this->cardBuilder->latestTripRouteMetaForDrivers($schoolIds, $drivers);
         $transportRoutesByDriver = $this->cardBuilder->activeTransportRoutesByDriverId(
             $drivers,
             $tripType !== '' ? $tripType : null,
@@ -289,7 +289,10 @@ class TransportLinesDriverController extends Controller
         }
 
         $reserved = $this->cardBuilder->reservedCountsByDriverId(collect([$driver]));
-        $routes = $this->cardBuilder->latestRouteTitlesBySchoolAndBus([(int) $driver->school_id], collect([$driver]));
+        $tripRouteMetaByDriver = $this->cardBuilder->latestTripRouteMetaForDrivers(
+            [(int) $driver->school_id],
+            collect([$driver]),
+        );
         $transportRoutes = $this->cardBuilder->activeTransportRoutesByDriverId(
             collect([$driver]),
             $tripType !== '' ? $tripType : null,
@@ -299,7 +302,7 @@ class TransportLinesDriverController extends Controller
         $card = $this->cardBuilder->buildCard(
             $driver,
             $reserved,
-            $routes,
+            $tripRouteMetaByDriver,
             $distanceKm,
             $transportRoute instanceof TransportRoute ? $transportRoute : null,
             $studentForDistance,

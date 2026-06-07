@@ -53,7 +53,7 @@ class TripRequestController extends Controller
             ->unique()
             ->values()
             ->all();
-        $routes = $this->transportDriverCardBuilder->latestRouteTitlesBySchoolAndBus($schoolIds, $drivers);
+        $routes = $this->transportDriverCardBuilder->latestTripRouteMetaForDrivers($schoolIds, $drivers);
         [$queryLat, $queryLng] = $this->queryCoordinates($request);
 
         return $this->parentSuccess([
@@ -266,7 +266,7 @@ class TripRequestController extends Controller
         if ($tripRequest->driver) {
             $driver = $tripRequest->driver;
             $reserved = $reservedByDriver ?? $this->transportDriverCardBuilder->reservedCountsByDriverId(collect([$driver]));
-            $routes = $routeBySchoolAndBus ?? $this->transportDriverCardBuilder->latestRouteTitlesBySchoolAndBus(
+            $routes = $routeBySchoolAndBus ?? $this->transportDriverCardBuilder->latestTripRouteMetaForDrivers(
                 [(int) $driver->school_id],
                 collect([$driver]),
             );

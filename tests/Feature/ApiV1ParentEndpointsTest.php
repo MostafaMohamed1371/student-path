@@ -1420,8 +1420,9 @@ class ApiV1ParentEndpointsTest extends TestCase
 
         TripHistory::query()->create([
             'school_id' => $school->id,
+            'driver_id' => $driver->id,
             'bus_number' => 'TL-100',
-            'route_title' => 'Route 15 - Northern Complex',
+            'route_title' => 'Baghdad / Karkh / Al-Jami\'a',
             'location' => 'Campus',
             'students_count' => 0,
             'distance_km' => 0,
@@ -1448,8 +1449,9 @@ class ApiV1ParentEndpointsTest extends TestCase
             ->assertJsonCount(1, 'data.drivers')
             ->assertJsonPath('data.drivers.0.schoolId', (string) $school->id)
             ->assertJsonPath('data.drivers.0.driverId', (string) $driver->id)
-            ->assertJsonPath('data.drivers.0.driverName', 'Captain Test Driver')
-            ->assertJsonPath('data.drivers.0.routeDescription', 'Route 15 - Northern Complex — Northern depot')
+            ->assertJsonPath('data.drivers.0.driverName', 'X Y Z W')
+            ->assertJsonPath('data.drivers.0.routeDescription', 'Baghdad / Karkh / Al-Jami\'a')
+            ->assertJsonPath('data.drivers.0.route.name', 'Baghdad / Karkh / Al-Jami\'a')
             ->assertJsonPath('data.drivers.0.ratingAvg', 4.8)
             ->assertJsonPath('data.drivers.0.ratingCount', 140)
             ->assertJsonPath('data.drivers.0.vehicleType', 'Bus (Toyota)')
@@ -1485,7 +1487,7 @@ class ApiV1ParentEndpointsTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.driver.driverId', (string) $driver->id)
             ->assertJsonPath('data.driver.schoolId', (string) $school->id)
-            ->assertJsonPath('data.driver.driverName', 'Captain Test Driver');
+            ->assertJsonPath('data.driver.driverName', 'X Y Z W');
 
         $showAutoKm = $this->getJson('/api/transport-lines/drivers/'.$driver->id)
             ->assertOk()
