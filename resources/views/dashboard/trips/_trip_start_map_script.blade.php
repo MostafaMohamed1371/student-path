@@ -310,6 +310,48 @@
 
     window.tripMapSyncRoutePath = syncRoutePathFields;
 
+    function coordsValid(lat, lng) {
+        return lat !== null && lng !== null
+            && lat >= -90 && lat <= 90
+            && lng >= -180 && lng <= 180;
+    }
+
+    function applyCoordsFromInputs(reverseGeocode) {
+        const startLat = parseCoord(latInput.value);
+        const startLng = parseCoord(lngInput.value);
+        if (!coordsValid(startLat, startLng)) {
+            return;
+        }
+
+        startMarker.setLatLng([startLat, startLng]);
+        latInput.value = Number(startLat).toFixed(7);
+        lngInput.value = Number(startLng).toFixed(7);
+
+        if (reverseGeocode) {
+            fillAddressFromMap(startLat, startLng);
+        } else {
+            syncRoutePathFields();
+        }
+    }
+
+    let coordInputTimer = null;
+
+    function onCoordInput() {
+        clearTimeout(coordInputTimer);
+        coordInputTimer = setTimeout(function () {
+            applyCoordsFromInputs(false);
+        }, 400);
+    }
+
+    latInput.addEventListener('input', onCoordInput);
+    lngInput.addEventListener('input', onCoordInput);
+    latInput.addEventListener('change', function () {
+        applyCoordsFromInputs(true);
+    });
+    lngInput.addEventListener('change', function () {
+        applyCoordsFromInputs(true);
+    });
+
     map.on('click', function (event) {
         setStartLocation(event.latlng.lat, event.latlng.lng, true);
         fillAddressFromMap(event.latlng.lat, event.latlng.lng);

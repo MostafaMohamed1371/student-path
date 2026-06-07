@@ -66,11 +66,11 @@
                 </div>
                 <label>
                     <span>{{ __('dashboard.latitude') }}</span>
-                    <input id="trip_form_start_latitude" name="start_latitude" type="number" step="0.0000001" value="{{ old('start_latitude') }}" readonly>
+                    <input id="trip_form_start_latitude" name="start_latitude" type="number" step="0.0000001" min="-90" max="90" value="{{ old('start_latitude') }}" placeholder="33.3128000">
                 </label>
                 <label>
                     <span>{{ __('dashboard.longitude') }}</span>
-                    <input id="trip_form_start_longitude" name="start_longitude" type="number" step="0.0000001" value="{{ old('start_longitude') }}" readonly>
+                    <input id="trip_form_start_longitude" name="start_longitude" type="number" step="0.0000001" min="-180" max="180" value="{{ old('start_longitude') }}" placeholder="44.3615000">
                 </label>
 
                 <label style="grid-column:1 / -1;">

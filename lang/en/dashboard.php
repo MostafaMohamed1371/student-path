@@ -374,7 +374,7 @@ return [
     'trip_route_path_placeholder' => 'Pick the trip start on the map',
     'trip_start_on_map' => 'Trip start (map)',
     'trip_start_address_placeholder' => 'Click the map or an orange marker to set the start',
-    'trip_map_help' => 'Green = school. Blue = trip start. Orange = suggested points from driver addresses. Click the map or an orange marker to set the start; route path and distance update automatically.',
+    'trip_map_help' => 'Green = school. Blue = trip start. Orange = suggested points from driver addresses. Click the map, pick an orange marker, or type latitude/longitude; route path and distance update automatically.',
     'trip_location_start_to_end' => 'Start: :start → School: :end',
     'trip_location_start_only' => 'Start: :start',
     'trip_location_end_only' => 'School: :end',
