@@ -11,6 +11,7 @@ use App\Models\Guardian;
 use App\Models\School;
 use App\Models\Student;
 use App\Models\TransportRoute;
+use App\Models\TripHistory;
 use App\Models\User;
 use App\Services\Drivers\DriverServiceAreaStudentMatcher;
 use App\Services\Routes\RouteAssignmentPlanner;
@@ -127,6 +128,25 @@ class TransportLinesDriverController extends Controller
                     }
                 })->orWhereHas('serviceAreas.neighborhoods', function (Builder $neighborhoodQuery): void {
                     $neighborhoodQuery->whereNotNull('latitude')->whereNotNull('longitude');
+                })->orWhereExists(function ($sub) use ($tripType, $filterStudent): void {
+                    $sub->selectRaw('1')
+                        ->from((new TripHistory)->getTable())
+                        ->whereColumn('trip_histories.driver_id', 'drivers.id')
+                        ->whereNotNull('route_title')
+                        ->where('route_title', '!=', '');
+
+                    if ($tripType !== '') {
+                        $sub->where('trip_type', $tripType);
+
+                        return;
+                    }
+
+                    if ($filterStudent !== null) {
+                        $shiftTripTypes = $this->tripTypesForStudentShift($filterStudent);
+                        if ($shiftTripTypes !== []) {
+                            $sub->whereIn('trip_type', $shiftTripTypes);
+                        }
+                    }
                 });
             });
         }
@@ -191,7 +211,11 @@ class TransportLinesDriverController extends Controller
 
         $reservedByDriver = $this->cardBuilder->reservedCountsByDriverId($drivers);
 
-        $routeBySchoolAndBus = $this->cardBuilder->latestTripRouteMetaForDrivers($schoolIds, $drivers);
+        $routeBySchoolAndBus = $this->cardBuilder->latestTripRouteMetaForDrivers(
+            $schoolIds,
+            $drivers,
+            $tripType !== '' ? $tripType : null,
+        );
         $transportRoutesByDriver = $this->cardBuilder->activeTransportRoutesByDriverId(
             $drivers,
             $tripType !== '' ? $tripType : null,
@@ -298,6 +322,7 @@ class TransportLinesDriverController extends Controller
         $tripRouteMetaByDriver = $this->cardBuilder->latestTripRouteMetaForDrivers(
             [(int) $driver->school_id],
             collect([$driver]),
+            $tripType !== '' ? $tripType : null,
         );
         $transportRoutes = $this->cardBuilder->activeTransportRoutesByDriverId(
             collect([$driver]),

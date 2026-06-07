@@ -1426,6 +1426,7 @@ class ApiV1ParentEndpointsTest extends TestCase
             'school_id' => $school->id,
             'driver_id' => $driver->id,
             'bus_number' => 'TL-100',
+            'trip_type' => \App\Enums\TripType::MORNING_PICKUP->value,
             'route_title' => 'Baghdad / Karkh / Al-Jami\'a',
             'location' => 'Campus',
             'students_count' => 0,
@@ -1435,6 +1436,8 @@ class ApiV1ParentEndpointsTest extends TestCase
             'status' => 'PRESENT',
             'students_preview' => null,
         ]);
+
+        $trip = TripHistory::query()->where('driver_id', $driver->id)->first();
 
         TripRequest::query()->create([
             'user_id' => $parent->id,
@@ -1455,6 +1458,8 @@ class ApiV1ParentEndpointsTest extends TestCase
             ->assertJsonPath('data.drivers.0.driverId', (string) $driver->id)
             ->assertJsonPath('data.drivers.0.driverName', 'X Y Z W')
             ->assertJsonPath('data.drivers.0.routeDescription', 'Baghdad / Karkh / Al-Jami\'a')
+            ->assertJsonPath('data.drivers.0.route.tripId', (string) $trip->id)
+            ->assertJsonPath('data.drivers.0.route.routeId', (string) $trip->id)
             ->assertJsonPath('data.drivers.0.route.name', 'Baghdad / Karkh / Al-Jami\'a')
             ->assertJsonPath('data.drivers.0.ratingAvg', 4.8)
             ->assertJsonPath('data.drivers.0.ratingCount', 140)
@@ -2134,6 +2139,7 @@ class ApiV1ParentEndpointsTest extends TestCase
             'school_id' => $school->id,
             'driver_id' => $matchingDriver->id,
             'bus_number' => 'SA-M',
+            'trip_type' => \App\Enums\TripType::MORNING_PICKUP->value,
             'route_title' => 'Baghdad / Karkh / Near stop',
             'start_address' => 'Near stop',
             'start_latitude' => 33.311,
@@ -2144,6 +2150,8 @@ class ApiV1ParentEndpointsTest extends TestCase
             'status' => 'PRESENT',
         ]);
 
+        $trip = TripHistory::query()->where('driver_id', $matchingDriver->id)->first();
+
         Sanctum::actingAs($parent);
 
         $this->getJson('/api/transport-lines/drivers?student_id='.$student->id)
@@ -2151,7 +2159,12 @@ class ApiV1ParentEndpointsTest extends TestCase
             ->assertJsonCount(1, 'data.drivers')
             ->assertJsonPath('data.drivers.0.driverId', (string) $matchingDriver->id)
             ->assertJsonPath('data.drivers.0.matchesStudentRoute', true)
-            ->assertJsonPath('data.drivers.0.routeDescription', 'Baghdad / Karkh / Near stop');
+            ->assertJsonPath('data.drivers.0.routeDescription', 'Baghdad / Karkh / Near stop')
+            ->assertJsonPath('data.drivers.0.route.tripId', (string) $trip->id)
+            ->assertJsonPath('data.drivers.0.route.routeId', (string) $trip->id)
+            ->assertJsonPath('data.drivers.0.route.name', 'Baghdad / Karkh / Near stop')
+            ->assertJsonPath('data.drivers.0.route.startAddress', 'Near stop')
+            ->assertJsonPath('data.drivers.0.route.startLatitude', 33.311);
 
         $this->getJson('/api/transport-lines/drivers?student_id='.$student->id.'&matches_route_only=1')
             ->assertOk()

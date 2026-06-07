@@ -49,28 +49,47 @@ final class TransportDriverCardBuilder
      * @param  list<int>  $schoolIds
      * @param  Collection<int, Driver>  $drivers
      * @return array<int, array{
+     *     trip_id: int,
+     *     school_id: int,
+     *     trip_type: string|null,
      *     route_title: string,
      *     start_address: string|null,
      *     start_latitude: float|null,
      *     start_longitude: float|null
      * }>
      */
-    public function latestTripRouteMetaForDrivers(array $schoolIds, Collection $drivers): array
+    public function latestTripRouteMetaForDrivers(array $schoolIds, Collection $drivers, ?string $tripType = null): array
     {
         if ($drivers->isEmpty()) {
             return [];
         }
 
+        $tripType = trim((string) ($tripType ?? ''));
+
         $driverIds = $drivers->pluck('id')->filter()->map(fn ($id): int => (int) $id)->values()->all();
         $out = [];
 
         if ($driverIds !== []) {
-            $rows = TripHistory::query()
+            $query = TripHistory::query()
                 ->whereIn('driver_id', $driverIds)
                 ->whereNotNull('route_title')
                 ->where('route_title', '!=', '')
-                ->orderByDesc('start_time')
-                ->get(['driver_id', 'route_title', 'start_address', 'start_latitude', 'start_longitude']);
+                ->orderByDesc('start_time');
+
+            if ($tripType !== '') {
+                $query->where('trip_type', $tripType);
+            }
+
+            $rows = $query->get([
+                'id',
+                'driver_id',
+                'school_id',
+                'trip_type',
+                'route_title',
+                'start_address',
+                'start_latitude',
+                'start_longitude',
+            ]);
 
             foreach ($rows as $row) {
                 $driverId = (int) $row->driver_id;
@@ -92,13 +111,28 @@ final class TransportDriverCardBuilder
             return $out;
         }
 
-        $rows = TripHistory::query()
+        $fallbackQuery = TripHistory::query()
             ->whereIn('school_id', $schoolIds)
             ->whereIn('bus_number', $numbers)
             ->whereNotNull('route_title')
             ->where('route_title', '!=', '')
-            ->orderByDesc('start_time')
-            ->get(['driver_id', 'school_id', 'bus_number', 'route_title', 'start_address', 'start_latitude', 'start_longitude']);
+            ->orderByDesc('start_time');
+
+        if ($tripType !== '') {
+            $fallbackQuery->where('trip_type', $tripType);
+        }
+
+        $rows = $fallbackQuery->get([
+            'id',
+            'driver_id',
+            'school_id',
+            'bus_number',
+            'trip_type',
+            'route_title',
+            'start_address',
+            'start_latitude',
+            'start_longitude',
+        ]);
 
         $bySchoolBus = [];
         foreach ($rows as $row) {
@@ -277,12 +311,12 @@ final class TransportDriverCardBuilder
         $latestTripRoute = $tripRouteMetaByDriver[(int) $driver->id] ?? null;
         $routeDescription = $this->resolveRouteDescription($driver, $bus, $latestTripRoute, $transportRoute);
 
+        $school = $driver->relationLoaded('school')
+            ? $driver->school
+            : School::query()->find($driver->school_id);
+
         $matchesStudentRoute = null;
         if ($studentForRouteMatch !== null) {
-            $school = $driver->relationLoaded('school')
-                ? $driver->school
-                : School::query()->find($driver->school_id);
-
             if ($school instanceof School
                 && $this->serviceAreaStudentMatcher->studentMatchesDriverServiceAreas(
                     $studentForRouteMatch,
@@ -305,9 +339,7 @@ final class TransportDriverCardBuilder
             'driverName' => $this->driverDisplayName($driver),
             'profileImageUrl' => $this->normalizePublicAssetUrl($user?->image),
             'routeDescription' => $routeDescription,
-            'route' => $transportRoute !== null
-                ? $this->formatTransportRoute($transportRoute, $latestTripRoute)
-                : null,
+            'route' => $this->formatRouteForDriverCard($latestTripRoute, $transportRoute, $school instanceof School ? $school : null),
             'matchesStudentRoute' => $matchesStudentRoute,
             'ratingAvg' => $ratingAvg,
             'ratingCount' => $ratingCount,
@@ -325,6 +357,55 @@ final class TransportDriverCardBuilder
                 : null,
             'currency' => 'IQD',
         ];
+    }
+
+    /**
+     * Route payload for transport-lines cards: latest assigned trip first, transport route fallback.
+     *
+     * @param  array{
+     *     trip_id: int,
+     *     school_id: int,
+     *     trip_type: string|null,
+     *     route_title: string,
+     *     start_address: string|null,
+     *     start_latitude: float|null,
+     *     start_longitude: float|null
+     * }|null  $latestTripRoute
+     * @return array<string, mixed>|null
+     */
+    public function formatRouteForDriverCard(?array $latestTripRoute, ?TransportRoute $transportRoute, ?School $school): ?array
+    {
+        if ($latestTripRoute !== null) {
+            if (! $school instanceof School && ($latestTripRoute['school_id'] ?? 0) > 0) {
+                $school = School::query()->find((int) $latestTripRoute['school_id']);
+            }
+
+            $name = trim((string) ($latestTripRoute['route_title'] ?? ''));
+
+            return [
+                'routeId' => (string) ($latestTripRoute['trip_id'] ?? 0),
+                'tripId' => (string) ($latestTripRoute['trip_id'] ?? 0),
+                'transportRouteId' => $transportRoute !== null ? (string) $transportRoute->id : null,
+                'name' => $name !== '' ? $name : null,
+                'tripType' => $latestTripRoute['trip_type'] ?? $transportRoute?->trip_type,
+                'startAddress' => $latestTripRoute['start_address'] ?? null,
+                'startLatitude' => $latestTripRoute['start_latitude'] ?? null,
+                'startLongitude' => $latestTripRoute['start_longitude'] ?? null,
+                'schoolAddress' => $school?->address,
+                'schoolLatitude' => $school?->latitude !== null ? (float) $school->latitude : null,
+                'schoolLongitude' => $school?->longitude !== null ? (float) $school->longitude : null,
+            ];
+        }
+
+        if ($transportRoute !== null) {
+            $route = $this->formatTransportRoute($transportRoute, null);
+            $route['tripId'] = null;
+            $route['transportRouteId'] = $route['routeId'];
+
+            return $route;
+        }
+
+        return null;
     }
 
     /**
@@ -420,6 +501,9 @@ final class TransportDriverCardBuilder
 
     /**
      * @return array{
+     *     trip_id: int,
+     *     school_id: int,
+     *     trip_type: string|null,
      *     route_title: string,
      *     start_address: string|null,
      *     start_latitude: float|null,
@@ -429,6 +513,11 @@ final class TransportDriverCardBuilder
     private function tripRouteMetaFromRow(TripHistory $row): array
     {
         return [
+            'trip_id' => (int) $row->id,
+            'school_id' => (int) $row->school_id,
+            'trip_type' => is_string($row->trip_type) && trim($row->trip_type) !== ''
+                ? trim($row->trip_type)
+                : null,
             'route_title' => trim((string) $row->route_title),
             'start_address' => is_string($row->start_address) && trim($row->start_address) !== ''
                 ? trim($row->start_address)
