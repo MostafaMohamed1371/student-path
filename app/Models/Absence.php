@@ -10,10 +10,14 @@ class Absence extends Model
     protected $fillable = [
         'user_id',
         'student_id',
+        'driver_id',
+        'transport_route_id',
         'start_date',
         'end_date',
         'reason',
         'notes',
+        'driver_notified_at',
+        'school_notified_at',
     ];
 
     protected function casts(): array
@@ -21,6 +25,8 @@ class Absence extends Model
         return [
             'start_date' => 'date',
             'end_date' => 'date',
+            'driver_notified_at' => 'datetime',
+            'school_notified_at' => 'datetime',
         ];
     }
 
@@ -32,5 +38,15 @@ class Absence extends Model
     public function student(): BelongsTo
     {
         return $this->belongsTo(Student::class);
+    }
+
+    public function driver(): BelongsTo
+    {
+        return $this->belongsTo(Driver::class);
+    }
+
+    public function transportRoute(): BelongsTo
+    {
+        return $this->belongsTo(TransportRoute::class);
     }
 }

@@ -49,4 +49,9 @@ class MetaController extends Controller
             ])->values()->all()
         );
     }
+
+    public function absenceReasons(): JsonResponse
+    {
+        return $this->parentSuccess(\App\Enums\AbsenceReason::metaList());
+    }
 }

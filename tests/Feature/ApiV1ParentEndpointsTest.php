@@ -783,13 +783,45 @@ class ApiV1ParentEndpointsTest extends TestCase
             'status' => 'active',
         ]);
         $user = User::factory()->create(['guardian_id' => $guardian->id, 'school_id' => $school->id]);
+        $driverUser = User::factory()->create(['phone' => '9647908000005']);
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'D',
+            'father_name' => 'A',
+            'grandfather_name' => 'B',
+            'last_name' => 'C',
+            'age' => 35,
+            'id_card_number' => 'IDC-ABS-LIST',
+            'license_number' => 'LIC-ABS-LIST',
+            'primary_phone' => '7770000005',
+            'emergency_phone' => '7770000006',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+        $route = \App\Models\TransportRoute::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'name' => 'Route Abs List',
+            'trip_type' => \App\Enums\TripType::MORNING_PICKUP->value,
+            'shift_period' => 'MORNING',
+            'start_address' => 'Depot',
+            'start_latitude' => 33.3,
+            'start_longitude' => 44.3,
+            'status' => 'active',
+        ]);
+        \App\Models\TransportRouteStudent::query()->create([
+            'transport_route_id' => $route->id,
+            'student_id' => $student->id,
+            'sort_order' => 0,
+        ]);
         Sanctum::actingAs($user);
 
         $this->postJson('/api/absences', [
             'student_id' => $student->id,
             'start_date' => '2026-05-01',
             'end_date' => '2026-05-03',
-            'reason' => 'Travel',
+            'reason' => 'travel',
         ])
             ->assertStatus(201);
 
@@ -797,7 +829,10 @@ class ApiV1ParentEndpointsTest extends TestCase
         $this->assertSame(1, $list['pagination']['total']);
         $id = $list['items'][0]['id'];
 
-        $this->getJson('/api/absences/'.$id)->assertOk()->assertJsonPath('data.reason', 'Travel');
+        $this->getJson('/api/absences/'.$id)->assertOk()
+            ->assertJsonPath('data.reason', 'travel')
+            ->assertJsonPath('data.reason_label_en', 'Travel')
+            ->assertJsonPath('data.driver_id', $driver->id);
     }
 
     public function test_v1_notifications_unread_and_mark_read(): void
@@ -966,19 +1001,51 @@ class ApiV1ParentEndpointsTest extends TestCase
             'status' => 'active',
         ]);
         $user = User::factory()->create(['guardian_id' => $guardian->id, 'school_id' => $school->id]);
+        $driverUser = User::factory()->create(['phone' => '9647908000064']);
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'D',
+            'father_name' => 'U',
+            'grandfather_name' => 'P',
+            'last_name' => 'D',
+            'age' => 35,
+            'id_card_number' => 'IDC-ABS-UPD',
+            'license_number' => 'LIC-ABS-UPD',
+            'primary_phone' => '7770000064',
+            'emergency_phone' => '7770000065',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+        $route = \App\Models\TransportRoute::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'name' => 'Route Abs Upd',
+            'trip_type' => \App\Enums\TripType::MORNING_PICKUP->value,
+            'shift_period' => 'MORNING',
+            'start_address' => 'Depot',
+            'start_latitude' => 33.3,
+            'start_longitude' => 44.3,
+            'status' => 'active',
+        ]);
+        \App\Models\TransportRouteStudent::query()->create([
+            'transport_route_id' => $route->id,
+            'student_id' => $student->id,
+            'sort_order' => 0,
+        ]);
         Sanctum::actingAs($user);
 
         $this->postJson('/api/absences', [
             'student_id' => $student->id,
             'start_date' => '2026-05-01',
             'end_date' => '2026-05-03',
-            'reason' => 'Old',
+            'reason' => 'other',
         ])->assertStatus(201);
 
         $abs = Absence::query()->firstOrFail();
-        $this->patchJson('/api/absences/'.$abs->id, ['reason' => 'New reason'])
+        $this->patchJson('/api/absences/'.$abs->id, ['reason' => 'medical'])
             ->assertOk()
-            ->assertJsonPath('data.reason', 'New reason');
+            ->assertJsonPath('data.reason', 'medical');
 
         $this->deleteJson('/api/absences/'.$abs->id)->assertOk();
         $this->assertDatabaseMissing('absences', ['id' => $abs->id]);

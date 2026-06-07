@@ -15,7 +15,8 @@ use App\Http\Controllers\Web\DashboardProfileController;
 use App\Http\Controllers\Web\DashboardReportsController;
 use App\Http\Controllers\Web\DashboardRouteController;
 use App\Http\Controllers\Web\DashboardSchoolController;
-use App\Http\Controllers\Web\DashboardStudentController;
+use App\Http\Controllers\Web\DashboardStudentAttendanceController;
+use App\Http\Controllers\Web\DashboardStudentDailyTimelineController;
 use App\Http\Controllers\Web\DashboardSupportComplaintController;
 use App\Http\Controllers\Web\DashboardTripController;
 use App\Http\Controllers\Web\DashboardTripRequestController;
@@ -156,6 +157,9 @@ Route::middleware('auth')->group(function (): void {
     Route::put('/dashboard/trip-requests/{trip_request}/status', [DashboardTripRequestController::class, 'updateStatus'])->name('dashboard.trip_requests.update_status');
     Route::put('/dashboard/trip-requests/{trip_request}', [DashboardTripRequestController::class, 'update'])->name('dashboard.trip_requests.update');
     Route::delete('/dashboard/trip-requests/{trip_request}', [DashboardTripRequestController::class, 'destroy'])->name('dashboard.trip_requests.destroy');
+
+    Route::get('/dashboard/students/{student}/attendance-schedule', [DashboardStudentAttendanceController::class, 'show'])->name('dashboard.students.attendance_schedule');
+    Route::get('/dashboard/students/{student}/daily-timeline', [DashboardStudentDailyTimelineController::class, 'show'])->name('dashboard.students.daily_timeline');
 
     Route::get('/dashboard/absences', [DashboardAbsenceController::class, 'index'])->name('dashboard.absences.index');
     Route::get('/dashboard/absences/create', [DashboardAbsenceController::class, 'create'])->name('dashboard.absences.create');

@@ -4,6 +4,9 @@
 
 @section('content')
     @php($title = __('dashboard.add_absence'))
+    @php
+        use App\Enums\AbsenceReason;
+    @endphp
     @component('dashboard.partials.shell', ['title' => $title])
         <p style="color: var(--text-muted); margin: 0 0 16px;">{{ __('dashboard.absence_create_hint') }}</p>
         <section class="card">
@@ -27,7 +30,12 @@
                 @error('end_date')<p style="color:#c00;">{{ $message }}</p>@enderror
 
                 <label class="field-label">{{ __('dashboard.absence_reason') }}</label>
-                <input type="text" name="reason" class="field-like" value="{{ old('reason') }}" required maxlength="255" style="width:100%;max-width:520px;margin-bottom:12px;">
+                <select name="reason" class="field-like" required style="width:100%;max-width:420px;margin-bottom:12px;">
+                    <option value="">—</option>
+                    @foreach (AbsenceReason::cases() as $reasonOption)
+                        <option value="{{ $reasonOption->value }}" @selected(old('reason') === $reasonOption->value)>{{ $reasonOption->labelEn() }}</option>
+                    @endforeach
+                </select>
                 @error('reason')<p style="color:#c00;">{{ $message }}</p>@enderror
 
                 <label class="field-label">{{ __('dashboard.table_col_notes') }}</label>

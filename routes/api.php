@@ -29,7 +29,8 @@ use App\Http\Controllers\Api\V1\NotificationPreferenceController as V1Notificati
 use App\Http\Controllers\Api\V1\NotificationsContractController as V1NotificationsContractController;
 use App\Http\Controllers\Api\V1\OrderController as V1OrderController;
 use App\Http\Controllers\Api\V1\ParentStudentController as V1ParentStudentController;
-use App\Http\Controllers\Api\V1\PlacesController as V1PlacesController;
+use App\Http\Controllers\Api\V1\StudentAttendanceController as V1StudentAttendanceController;
+use App\Http\Controllers\Api\V1\StudentDailyTimelineController as V1StudentDailyTimelineController;
 use App\Http\Controllers\Api\V1\ProfileController as V1ProfileController;
 use App\Http\Controllers\Api\V1\QiCardWalletPaymentController as V1QiCardWalletPaymentController;
 use App\Http\Controllers\Api\V1\TrackingInfoController as V1TrackingInfoController;
@@ -159,9 +160,12 @@ Route::middleware('auth:sanctum')->group(function (): void {
 
     Route::get('meta/schools', [V1MetaController::class, 'schools']);
     Route::get('meta/grades', [V1MetaController::class, 'grades']);
+    Route::get('meta/absence-reasons', [V1MetaController::class, 'absenceReasons']);
 
     Route::get('students', [V1ParentStudentController::class, 'index']);
     Route::post('students', [V1ParentStudentController::class, 'store']);
+    Route::get('students/{student}/attendance-schedule', [V1StudentAttendanceController::class, 'schedule']);
+    Route::get('students/{student}/daily-timeline', [V1StudentDailyTimelineController::class, 'show']);
     Route::get('students/{student}', [V1ParentStudentController::class, 'show']);
     Route::put('students/{student}', [V1ParentStudentController::class, 'update']);
     Route::patch('students/{student}', [V1ParentStudentController::class, 'update']);

@@ -8,6 +8,7 @@ Companion artifacts:
 
 - PDF traceability checklist: [`PARENT_APP_API_PDF_CHECKLIST.md`](PARENT_APP_API_PDF_CHECKLIST.md)
 - Postman: [`postman/V1-Parent-Transport.postman_collection.json`](../postman/V1-Parent-Transport.postman_collection.json)
+- Absences & schedule (focused): [`postman/Absences.postman_collection.json`](../postman/Absences.postman_collection.json) — guide: [`docs/ABSENCES_POSTMAN.md`](ABSENCES_POSTMAN.md)
 
 ---
 
@@ -131,10 +132,13 @@ Implemented by `Api\V1\ProfileController`, which **delegates** to `UserProfileCo
 | PUT, PATCH | `/api/trip-requests/{trip_request}` | Only while `status` is `pending`. Body: optional `student_id`, `trip_history_id`, `notes` (same scoping rules as create). |
 | POST | `/api/trip-requests/{trip_request}/cancel` | Sets `cancelled` + `cancelled_at`. |
 | DELETE | `/api/trip-requests/{trip_request}` | Only while `pending` (hard delete). Cancelled/completed → **422**. |
-| POST | `/api/absences` | Body: `student_id`, `start_date`, `end_date`, `reason`, optional `notes`. |
-| GET | `/api/absences` | Query: optional `student_id`, `from`, `to`, `per_page`. |
-| GET | `/api/absences/{absence}` | |
-| PUT, PATCH | `/api/absences/{absence}` | Owner only; `end_date` must be ≥ `start_date` after merge. |
+| GET | `/api/students/{student}/attendance-schedule` | Query: optional `year`, `month`, `recent_limit`. Monthly summary (with colors), `status_legend`, calendar (`status`, `status_color`, `status_icon`), recent events. Colors: present `#00796B`, absent `#D32F2F`, late `#5D4037`. |
+| GET | `/api/students/{student}/daily-timeline` | Query: optional `date` (default today). **Daily trip timeline** — 4 milestones with `status`, `status_color`, `status_background_color`, scheduled/actual times. Parent absence marks milestones **absent** (red). |
+| GET | `/api/meta/absence-reasons` | Picker options: `code` (`medical`, `travel`, `family`, `other`), `label_en`, `label_ar`. |
+| POST | `/api/absences` | Body: `student_id`, `start_date`, `end_date`, `reason` (enum code from meta), optional `notes`. **Requires** student on an active transport route with an active driver; resolves `driver_id` / `transport_route_id`, notifies driver + school staff, marks matching trip roster rows absent. **422** if not subscribed. |
+| GET | `/api/absences` | Parent: own absences. **Driver**: absences where `driver_id` matches linked driver. Query: optional `student_id`, `date`, `from`, `to`, `per_page`. |
+| GET | `/api/absences/{absence}` | Parent owner or assigned driver. |
+| PUT, PATCH | `/api/absences/{absence}` | Owner only; `reason` must be enum code; `end_date` must be ≥ `start_date` after merge. |
 | DELETE | `/api/absences/{absence}` | Owner only. |
 | GET | `/api/profile` | Delegates to `UserProfileController::show`. |
 | PUT | `/api/profile` | Same payload rules as `/api/user/profile` (via `UpdateUserProfileRequest`). |
@@ -229,6 +233,8 @@ The authenticated web UI under **`/dashboard`** mirrors much of the same domain 
 
 - **`/dashboard/trip-requests`** — full **CRUD** (list, create, show, edit, delete when **`pending`**, plus **`PUT …/status`** for **`accepted`** / **`rejected`**). On **accepted**, backend auto-creates a `trip_histories` row and links it to `trip_requests.trip_history_id`. Scoped by student’s `school_id` for staff. Parent **`POST /api/trip-requests/.../cancel`** only works from **`pending`**.
 - **`/dashboard/absences`** — full **CRUD** for absences tied to students in scope (parent `user_id` is resolved from the student’s guardian).
+- **`/dashboard/students/{student}/attendance-schedule`** — monthly attendance calendar (present / absent / late) mirroring the parent mobile screen.
+- **`/dashboard/students/{student}/daily-timeline`** — daily 4-milestone trip timeline mirroring the parent mobile screen.
 - **`/dashboard/support-complaints`** — full **CRUD** for complaints in user scope (same rules as payments/notifications); categories must match **`config/mobile_legacy_api`**.
 
 Overview counts on **`/dashboard`** include trip requests, absences, and complaints in scope.

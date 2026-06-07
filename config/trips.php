@@ -62,6 +62,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Parent daily timeline fallbacks (when no trip row exists yet for the day)
+    |--------------------------------------------------------------------------
+    |
+    | Used by GET /api/students/{student}/daily-timeline — HH:MM on the requested date.
+    |
+    */
+    'default_daily_timeline' => [
+        'morning_pickup' => env('TRIP_DEFAULT_MORNING_PICKUP', '07:15'),
+        'morning_school_arrival' => env('TRIP_DEFAULT_MORNING_SCHOOL_ARRIVAL', '07:45'),
+        'evening_pickup' => env('TRIP_DEFAULT_EVENING_PICKUP', '15:30'),
+        'evening_home_arrival' => env('TRIP_DEFAULT_EVENING_HOME_ARRIVAL', '16:15'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Automatic trip status sync
     |--------------------------------------------------------------------------
     |

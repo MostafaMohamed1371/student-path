@@ -1,0 +1,740 @@
+{
+    "info": {
+        "name": "Student Path — Absences API",
+        "description": "## Setup\n\n1. Set `base_url` (e.g. `http://localhost:8000`).\n2. Run **Auth → verify-otp (guardian)** to fill `token`.\n3. Set `student_id` from **Parent — Students → GET /api/students** (student must be on an **active transport route** with an active driver).\n4. Call **Meta → GET /api/meta/absence-reasons** for picker codes: `medical`, `travel`, `family`, `other`.\n5. **Parent — Attendance schedule** → `GET /api/students/{id}/attendance-schedule` for the mobile calendar screen.\n6. **Enable arrival alerts** — run folder in order (daily timeline button: تفعيل تنبيهات الوصول).\n\n**Full guide:** `docs/ABSENCES_POSTMAN.md`\n\n## Parent flow\n\n`POST /api/absences` resolves the **subscribed driver** (student → transport route → driver), notifies driver + school staff, and marks matching trip roster rows absent.\n\n**422** if the student has no active route subscription (`student_id` validation error).\n\n## Driver flow\n\nLogin with **verify-otp (driver)** → `driver_token`. **GET /api/absences** returns absences where `driver_id` matches the linked driver.\n\n## Response fields (create / show)\n\n`id`, `student_id`, `driver_id`, `transport_route_id`, `start_date`, `end_date`, `reason`, `reason_code`, `reason_label_en`, `reason_label_ar`, `notes`, `driver_notified`, `driver_notified_at`, `school_notified`, `school_notified_at`, optional nested `student`, `driver`.\n\nSee `docs/API_V1_PARENT_TRANSPORT.md`.",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:8000"
+        },
+        {
+            "key": "token",
+            "value": ""
+        },
+        {
+            "key": "driver_token",
+            "value": ""
+        },
+        {
+            "key": "student_id",
+            "value": "1"
+        },
+        {
+            "key": "absence_id",
+            "value": "1"
+        },
+        {
+            "key": "absence_reason",
+            "value": "travel"
+        },
+        {
+            "key": "absence_start_date",
+            "value": "2026-06-06"
+        },
+        {
+            "key": "absence_end_date",
+            "value": "2026-06-06"
+        },
+        {
+            "key": "schedule_year",
+            "value": "2026"
+        },
+        {
+            "key": "schedule_month",
+            "value": "6"
+        },
+        {
+            "key": "timeline_date",
+            "value": "2026-06-06"
+        },
+        {
+            "key": "trip_id",
+            "value": "TRP-1"
+        },
+        {
+            "key": "fcm_token",
+            "value": "sample_fcm_token_replace_with_device_token_from_firebase"
+        }
+    ],
+    "item": [
+        {
+            "name": "Auth",
+            "description": "OTP login only. Phone must exist in `users`. Use `type_user`: `guardian` for parent, `driver` for driver.",
+            "item": [
+                {
+                    "name": "POST /api/auth/send-otp (guardian)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/auth/send-otp",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"phone\": \"7701234567\",\n  \"type_user\": \"guardian\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "POST /api/auth/verify-otp (guardian)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "  try {",
+                                    "    const j = pm.response.json();",
+                                    "    const t = j.data && (j.data.token || j.data.access_token);",
+                                    "    if (t) { pm.collectionVariables.set('token', t); }",
+                                    "  } catch (e) {}",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/auth/verify-otp",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"phone\": \"7701234567\",\n  \"code\": \"1234\",\n  \"type_user\": \"guardian\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "POST /api/auth/send-otp (driver)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/auth/send-otp",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"phone\": \"7709876543\",\n  \"type_user\": \"driver\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "POST /api/auth/verify-otp (driver)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "  try {",
+                                    "    const j = pm.response.json();",
+                                    "    const t = j.data && (j.data.token || j.data.access_token);",
+                                    "    if (t) { pm.collectionVariables.set('driver_token', t); }",
+                                    "  } catch (e) {}",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/auth/verify-otp",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"phone\": \"7709876543\",\n  \"code\": \"1234\",\n  \"type_user\": \"driver\"\n}"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Meta",
+            "item": [
+                {
+                    "name": "GET /api/meta/absence-reasons",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/meta/absence-reasons"
+                    },
+                    "description": "Returns `[{ code, label_en, label_ar }, ...]` for the mobile reason picker. Use `code` in POST/PATCH body (`medical`, `travel`, `family`, `other`)."
+                }
+            ]
+        },
+        {
+            "name": "Parent — Students",
+            "description": "Pick `student_id` from the list. Student must be assigned to an active transport route.",
+            "item": [
+                {
+                    "name": "GET /api/students",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "  try {",
+                                    "    const j = pm.response.json();",
+                                    "    const items = j.data && (j.data.items || j.data);",
+                                    "    if (Array.isArray(items) && items.length && items[0].id) {",
+                                    "      pm.collectionVariables.set('student_id', String(items[0].id));",
+                                    "    }",
+                                    "  } catch (e) {}",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/students"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Parent — Attendance schedule",
+            "description": "Mobile screen: جدول الحضور و الغياب — monthly summary, calendar statuses, recent absences & delays.",
+            "item": [
+                {
+                    "name": "GET /api/students/{id}/attendance-schedule",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/students/{{student_id}}/attendance-schedule?year={{schedule_year}}&month={{schedule_month}}&recent_limit=10"
+                    },
+                    "description": "Returns `summary` (counts + `present_color` / `absence_color` / `late_color`), `status_legend`, `calendar[]` (date + status + `status_color` + `status_icon`), `recent_events[]` (with `color` + `icon`). Colors: present `#00796B`, absent `#D32F2F`, late `#5D4037`."
+                },
+                {
+                    "name": "GET /api/students/{id}/attendance-schedule (current month)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/students/{{student_id}}/attendance-schedule"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Parent — Daily timeline",
+            "description": "Mobile screen: الجدول الزمني — 4 milestones with status colors (green completed/boarded, grey scheduled, red absent).",
+            "item": [
+                {
+                    "name": "GET /api/students/{id}/daily-timeline",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/students/{{student_id}}/daily-timeline?date={{timeline_date}}"
+                    },
+                    "description": "Returns student header + 4 milestones: morning_pickup_home, morning_arrive_school, evening_pickup_school, evening_arrive_home. Each has status, status_color, status_background_color, scheduled/actual times. Absence today marks all milestones absent (#D32F2F)."
+                },
+                {
+                    "name": "GET /api/students/{id}/daily-timeline (today)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/students/{{student_id}}/daily-timeline"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Parent — Absences",
+            "description": "Bearer: `token`. Parent can only manage own absences. Report requires subscribed driver.",
+            "item": [
+                {
+                    "name": "POST /api/absences (report)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 201) {",
+                                    "  try {",
+                                    "    const j = pm.response.json();",
+                                    "    if (j.data && j.data.id) {",
+                                    "      pm.collectionVariables.set('absence_id', String(j.data.id));",
+                                    "    }",
+                                    "  } catch (e) {}",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/absences",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"student_id\": {{student_id}},\n  \"start_date\": \"{{absence_start_date}}\",\n  \"end_date\": \"{{absence_end_date}}\",\n  \"reason\": \"{{absence_reason}}\",\n  \"notes\": \"Family trip — notify driver and school.\"\n}"
+                        }
+                    },
+                    "description": "Reason must be enum code from meta (`medical`, `travel`, `family`, `other`). Resolves subscribed driver, sends in-app notifications, marks trip students absent."
+                },
+                {
+                    "name": "GET /api/absences (all mine)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/absences?per_page=20"
+                    }
+                },
+                {
+                    "name": "GET /api/absences (by student)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/absences?student_id={{student_id}}&per_page=20"
+                    }
+                },
+                {
+                    "name": "GET /api/absences (by date range)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/absences?from={{absence_start_date}}&to={{absence_end_date}}&student_id={{student_id}}"
+                    }
+                },
+                {
+                    "name": "GET /api/absences (single day)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/absences?date={{absence_start_date}}&student_id={{student_id}}"
+                    }
+                },
+                {
+                    "name": "GET /api/absences/{id}",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/absences/{{absence_id}}"
+                    }
+                },
+                {
+                    "name": "PUT /api/absences/{id}",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/absences/{{absence_id}}",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"start_date\": \"{{absence_start_date}}\",\n  \"end_date\": \"{{absence_end_date}}\",\n  \"reason\": \"medical\",\n  \"notes\": \"Updated via PUT.\"\n}"
+                        }
+                    },
+                    "description": "Owner only. Does not re-notify driver or re-apply trip roster."
+                },
+                {
+                    "name": "PATCH /api/absences/{id}",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/absences/{{absence_id}}",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"reason\": \"family\",\n  \"notes\": \"Updated via PATCH.\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /api/absences/{id}",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/absences/{{absence_id}}"
+                    },
+                    "description": "Owner only."
+                }
+            ]
+        },
+        {
+            "name": "Enable arrival alerts",
+            "description": "Mobile button **تفعيل تنبيهات الوصول** (daily timeline). Run requests **1 → 4 in order** after **Auth → verify-otp (guardian)**.\n\n1. Resolve today's active `trip_id` for the student.\n2. Register FCM device token.\n3. Enable `tripNotifications.busArrival` (and related trip toggles).\n4. Subscribe to the trip FCM topic for live arrival pushes.\n\nSet collection variable `fcm_token` from Firebase SDK before step 2. Requires an active trip for the student.",
+            "item": [
+                {
+                    "name": "1. GET /api/trips/active (student → sets trip_id)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "  try {",
+                                    "    const j = pm.response.json();",
+                                    "    let trip = j.data && j.data.trip;",
+                                    "    if (!trip && j.data && Array.isArray(j.data.active) && j.data.active.length) {",
+                                    "      trip = j.data.active[0].trip;",
+                                    "    }",
+                                    "    let id = trip && trip.id;",
+                                    "    if (id !== undefined && id !== null && id !== '') {",
+                                    "      id = String(id);",
+                                    "      if (!id.startsWith('TRP-')) { id = 'TRP-' + id; }",
+                                    "      pm.collectionVariables.set('trip_id', id);",
+                                    "    }",
+                                    "  } catch (e) {}",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/trips/active?student_id={{student_id}}"
+                    }
+                },
+                {
+                    "name": "2. POST /api/user/fcm-token",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/user/fcm-token",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"token\": \"{{fcm_token}}\",\n  \"platform\": \"android\",\n  \"device_id\": \"postman-absences-collection\"\n}"
+                        }
+                    },
+                    "description": "Register device for push. Replace `fcm_token` collection variable with the real Firebase registration token from the mobile app."
+                },
+                {
+                    "name": "3. PUT /api/user/settings/notifications",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/user/settings/notifications",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"tripNotifications\": {\n    \"busMovement\": true,\n    \"busArrival\": true,\n    \"returnTrip\": true,\n    \"driverDelay\": true,\n    \"sos\": true\n  }\n}"
+                        }
+                    },
+                    "description": "Enables arrival-related pushes. `TRIP_STUDENT_ARRIVED` maps to `busArrival` in server config."
+                },
+                {
+                    "name": "4. POST /api/trip-tracking/topics/subscribe",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/trip-tracking/topics/subscribe",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"trip_id\": \"{{trip_id}}\",\n  \"token\": \"{{fcm_token}}\"\n}"
+                        }
+                    },
+                    "description": "Subscribes the device to the trip topic (`trip_{id}`). Uses `trip_id` from step 1 and `fcm_token` from step 2."
+                }
+            ]
+        },
+        {
+            "name": "Driver — Absences",
+            "description": "Bearer: `driver_token`. Lists absences assigned to the logged-in driver.",
+            "item": [
+                {
+                    "name": "GET /api/absences (driver — all assigned)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{driver_token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/absences?per_page=20"
+                    }
+                },
+                {
+                    "name": "GET /api/absences (driver — by date)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{driver_token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/absences?date={{absence_start_date}}"
+                    }
+                },
+                {
+                    "name": "GET /api/absences/{id} (driver)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{driver_token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/absences/{{absence_id}}"
+                    },
+                    "description": "Allowed when `absence.driver_id` matches the driver's linked account."
+                },
+                {
+                    "name": "GET /api/in-app-notifications (driver — absence alerts)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{driver_token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/in-app-notifications?unread_only=1&per_page=20"
+                    },
+                    "description": "After parent reports absence, driver receives notification with `data.type`: `ABSENCE`."
+                }
+            ]
+        }
+    ]
+}

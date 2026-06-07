@@ -4,6 +4,9 @@
 
 @section('content')
     @php($title = __('dashboard.edit_absence').' #'.$absence->id)
+    @php
+        use App\Enums\AbsenceReason;
+    @endphp
     @component('dashboard.partials.shell', ['title' => $title])
         <p style="margin:0 0 12px;"><strong>{{ __('dashboard.table_col_student') }}:</strong> {{ $absence->student?->full_name }} (#{{ $absence->student_id }})</p>
         <p style="margin:0 0 16px;color:var(--text-muted);"><strong>{{ __('dashboard.table_col_user') }}:</strong> {{ $absence->user?->name }} ({{ $absence->user?->phone }})</p>
@@ -22,7 +25,11 @@
                 @error('end_date')<p style="color:#c00;">{{ $message }}</p>@enderror
 
                 <label class="field-label">{{ __('dashboard.absence_reason') }}</label>
-                <input type="text" name="reason" class="field-like" value="{{ old('reason', $absence->reason) }}" maxlength="255" style="width:100%;max-width:520px;margin-bottom:12px;">
+                <select name="reason" class="field-like" style="width:100%;max-width:420px;margin-bottom:12px;">
+                    @foreach (AbsenceReason::cases() as $reasonOption)
+                        <option value="{{ $reasonOption->value }}" @selected(old('reason', $absence->reason) === $reasonOption->value)>{{ $reasonOption->labelEn() }}</option>
+                    @endforeach
+                </select>
                 @error('reason')<p style="color:#c00;">{{ $message }}</p>@enderror
 
                 <label class="field-label">{{ __('dashboard.table_col_notes') }}</label>

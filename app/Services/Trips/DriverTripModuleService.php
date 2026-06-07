@@ -13,6 +13,7 @@ use App\Models\TripFeedback;
 use App\Models\TripHistory;
 use App\Models\TripHistoryStudent;
 use App\Models\User;
+use App\Services\Absences\AbsenceTripApplier;
 use App\Services\TransportLines\TransportDriverCardBuilder;
 use App\Support\Geo\Haversine;
 use Illuminate\Database\Eloquent\Builder;
@@ -27,6 +28,7 @@ final class DriverTripModuleService
         private readonly DriverShiftResolver $driverShiftResolver,
         private readonly TripNotificationService $tripNotifications,
         private readonly TripLocationTrackingService $locationTracking,
+        private readonly AbsenceTripApplier $absenceTripApplier,
     ) {}
 
     /**
@@ -1042,6 +1044,13 @@ final class DriverTripModuleService
     {
         foreach ($rows->sortBy(['sort_order', 'id']) as $ths) {
             $st = StudentTripStopStatus::tryFrom((string) $ths->status) ?? StudentTripStopStatus::IDLE;
+
+            if ($this->absenceTripApplier->isStudentAbsentOnDate((int) $ths->student_id)
+                && in_array($st, [StudentTripStopStatus::IDLE, StudentTripStopStatus::ON_WAY, StudentTripStopStatus::ARRIVED], true)
+            ) {
+                continue;
+            }
+
             if (! in_array($st, [StudentTripStopStatus::BOARDED, StudentTripStopStatus::ABSENT], true)) {
                 return (int) $ths->student_id;
             }
@@ -1067,6 +1076,13 @@ final class DriverTripModuleService
     {
         $st = StudentTripStopStatus::tryFrom((string) $ths->status) ?? StudentTripStopStatus::IDLE;
 
+        if ($student
+            && $this->absenceTripApplier->isStudentAbsentOnDate((int) $student->id)
+            && in_array($st, [StudentTripStopStatus::IDLE, StudentTripStopStatus::ON_WAY, StudentTripStopStatus::ARRIVED], true)
+        ) {
+            $st = StudentTripStopStatus::ABSENT;
+        }
+
         $img = null;
         if ($student) {
             $resource = (new StudentResource($student))->toArray(request());
@@ -1082,6 +1098,9 @@ final class DriverTripModuleService
             'id' => $this->externalStudentId((int) $ths->student_id),
             'name' => $student?->full_name ?? '',
             'status' => $st->value,
+            'parent_reported_absence' => $student
+                ? $this->absenceTripApplier->isStudentAbsentOnDate((int) $student->id)
+                : false,
             'img' => $img ?? '',
             'grade' => $student?->grade ?? '',
             'can_action' => $queueHeadId !== null && (int) $ths->student_id === (int) $queueHeadId,

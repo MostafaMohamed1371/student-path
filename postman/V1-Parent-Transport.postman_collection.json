@@ -591,6 +591,24 @@
                         ],
                         "url": "{{base_url}}/api/meta/grades"
                     }
+                },
+                {
+                    "name": "GET /api/meta/absence-reasons",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/meta/absence-reasons"
+                    },
+                    "description": "Picker codes: `medical`, `travel`, `family`, `other` with EN/AR labels."
                 }
             ]
         },
@@ -630,6 +648,42 @@
                         ],
                         "url": "{{base_url}}/api/students/{{student_id}}"
                     }
+                },
+                {
+                    "name": "GET /api/students/{id}/attendance-schedule",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/students/{{student_id}}/attendance-schedule?year=2026&month=4"
+                    },
+                    "description": "Monthly presence/absence/late summary + calendar + recent events (mobile attendance screen)."
+                },
+                {
+                    "name": "GET /api/students/{id}/daily-timeline",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/students/{{student_id}}/daily-timeline?date=2026-11-24"
+                    },
+                    "description": "Daily 4-milestone trip timeline (mobile الجدول الزمني screen)."
                 },
                 {
                     "name": "POST /api/students",
@@ -1083,6 +1137,7 @@
         },
         {
             "name": "Parent — Absences",
+            "description": "Student must be on an active transport route with an active driver. POST resolves `driver_id`, notifies driver + school, marks trip roster absent. See also `postman/Absences.postman_collection.json`.",
             "item": [
                 {
                     "name": "GET /api/absences",
@@ -1098,11 +1153,44 @@
                                 "value": "Bearer {{token}}"
                             }
                         ],
-                        "url": "{{base_url}}/api/absences?student_id={{student_id}}"
+                        "url": "{{base_url}}/api/absences?student_id={{student_id}}&per_page=20"
+                    }
+                },
+                {
+                    "name": "GET /api/absences (date filter)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/absences?date=2026-06-06&student_id={{student_id}}"
                     }
                 },
                 {
                     "name": "POST /api/absences",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 201) {",
+                                    "  try {",
+                                    "    const j = pm.response.json();",
+                                    "    if (j.data && j.data.id) { pm.collectionVariables.set('absence_id', String(j.data.id)); }",
+                                    "  } catch (e) {}",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ],
                     "request": {
                         "method": "POST",
                         "header": [
@@ -1122,9 +1210,10 @@
                         "url": "{{base_url}}/api/absences",
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n  \"student_id\": {{student_id}},\n  \"start_date\": \"2026-05-01\",\n  \"end_date\": \"2026-05-02\",\n  \"reason\": \"Travel\"\n}"
+                            "raw": "{\n  \"student_id\": {{student_id}},\n  \"start_date\": \"2026-06-06\",\n  \"end_date\": \"2026-06-06\",\n  \"reason\": \"travel\",\n  \"notes\": \"Family trip.\"\n}"
                         }
-                    }
+                    },
+                    "description": "Reason enum: `medical`, `travel`, `family`, `other` (from GET /api/meta/absence-reasons). 422 if student has no subscribed driver."
                 },
                 {
                     "name": "GET /api/absences/{id}",
@@ -1141,6 +1230,31 @@
                             }
                         ],
                         "url": "{{base_url}}/api/absences/{{absence_id}}"
+                    }
+                },
+                {
+                    "name": "PUT /api/absences/{id}",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": "{{base_url}}/api/absences/{{absence_id}}",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"start_date\": \"2026-06-06\",\n  \"end_date\": \"2026-06-07\",\n  \"reason\": \"medical\",\n  \"notes\": \"Updated.\"\n}"
+                        }
                     }
                 },
                 {
@@ -1164,7 +1278,7 @@
                         "url": "{{base_url}}/api/absences/{{absence_id}}",
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n  \"reason\": \"Updated reason\"\n}"
+                            "raw": "{\n  \"reason\": \"family\",\n  \"notes\": \"Patched.\"\n}"
                         }
                     }
                 },

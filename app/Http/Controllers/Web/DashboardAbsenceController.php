@@ -10,6 +10,7 @@ use App\Http\Requests\Web\UpdateDashboardAbsenceRequest;
 use App\Models\Absence;
 use App\Models\Student;
 use App\Models\User;
+use App\Services\Absences\AbsenceReporter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -25,7 +26,7 @@ class DashboardAbsenceController extends Controller
         $filters = $this->dashboardReportFilterContext($request, withShiftFilter: true, withStudentFilter: true);
 
         $query = Absence::query()
-            ->with(['user', 'student'])
+            ->with(['user', 'student', 'driver'])
             ->latest('absences.id');
         $this->applyDashboardReportFilters($query, $filters, 'student_relation');
         if ((int) $filters['filterStudentId'] > 0) {
@@ -51,7 +52,7 @@ class DashboardAbsenceController extends Controller
         return view('dashboard.absences.create', compact('students'));
     }
 
-    public function store(StoreDashboardAbsenceRequest $request): RedirectResponse
+    public function store(StoreDashboardAbsenceRequest $request, AbsenceReporter $reporter): RedirectResponse
     {
         $student = Student::query()
             ->tap(fn (Builder $q) => $this->constrainToScopingSchool($q))
@@ -65,15 +66,11 @@ class DashboardAbsenceController extends Controller
                 ->with('error', __('dashboard.absence_no_parent_user'));
         }
 
-        $validated = $request->validated();
-        Absence::query()->create([
-            'user_id' => $parentUser->id,
-            'student_id' => $student->id,
-            'start_date' => $validated['start_date'],
-            'end_date' => $validated['end_date'],
-            'reason' => $validated['reason'],
-            'notes' => $validated['notes'] ?? null,
-        ]);
+        try {
+            $reporter->reportFromDashboard($parentUser, $student, $request->validated());
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()->back()->withInput()->withErrors($e->errors());
+        }
 
         return redirect()->route('dashboard.absences.index')
             ->with('success', __('dashboard.absence_created'));
