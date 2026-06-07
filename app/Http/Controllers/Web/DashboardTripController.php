@@ -6,6 +6,7 @@ use App\Enums\StudentTripStopStatus;
 use App\Enums\TripType;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
+use App\Http\Controllers\Web\Concerns\ProvidesDashboardIraqLocationFilters;
 use App\Http\Controllers\Web\Concerns\ProvidesDashboardSchoolDriverFilters;
 use App\Models\Driver;
 use App\Models\School;
@@ -33,6 +34,7 @@ use Illuminate\View\View;
 class DashboardTripController extends Controller
 {
     use ManagesDashboardScoping;
+    use ProvidesDashboardIraqLocationFilters;
     use ProvidesDashboardSchoolDriverFilters;
 
     public function __construct(
@@ -52,10 +54,12 @@ class DashboardTripController extends Controller
             ->orderByDesc('start_time');
         $this->applyDashboardReportFilters($query, $filters, 'trip_history');
         $this->applyTripHistoryShiftFilter($query, $filters);
+        $locationFilters = $this->iraqLocationFilterContext($request);
+        $this->applyTripLocationFilter($query, $locationFilters);
 
         $trips = $query->paginate($this->dashboardListPerPage())->withQueryString();
 
-        return view('dashboard.trips.index', array_merge($filters, [
+        return view('dashboard.trips.index', array_merge($filters, $locationFilters, [
             'filterAction' => route('dashboard.trips.index'),
             'trips' => $trips,
         ]));

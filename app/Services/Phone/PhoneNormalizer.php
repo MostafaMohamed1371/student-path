@@ -21,6 +21,11 @@ final class PhoneNormalizer
             return '';
         }
 
+        if (str_starts_with($digits, self::COUNTRY_CALLING_CODE)
+            && strlen($digits) === strlen(self::COUNTRY_CALLING_CODE) + 10) {
+            return $digits;
+        }
+
         return self::COUNTRY_CALLING_CODE.$digits;
     }
 

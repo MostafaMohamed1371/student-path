@@ -7,6 +7,7 @@ use App\Models\District;
 use App\Models\Neighborhood;
 use App\Services\Drivers\DriverIraqLocationFilter;
 use App\Services\Routes\RouteIraqLocationFilter;
+use App\Services\Trips\TripIraqLocationFilter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -181,6 +182,20 @@ trait ProvidesDashboardIraqLocationFilters
     protected function applyDriverLocationFilter(Builder $query, array $filters): void
     {
         app(DriverIraqLocationFilter::class)->apply(
+            $query,
+            (int) ($filters['filterDistrictId'] ?? 0),
+            (int) ($filters['filterAreaId'] ?? 0),
+            (int) ($filters['filterNeighborhoodId'] ?? 0),
+        );
+    }
+
+    /**
+     * @param  Builder<\App\Models\TripHistory>  $query
+     * @param  array<string, mixed>  $filters
+     */
+    protected function applyTripLocationFilter(Builder $query, array $filters): void
+    {
+        app(TripIraqLocationFilter::class)->apply(
             $query,
             (int) ($filters['filterDistrictId'] ?? 0),
             (int) ($filters['filterAreaId'] ?? 0),

@@ -1862,12 +1862,13 @@ class ApiV1ParentEndpointsTest extends TestCase
         Sanctum::actingAs($parent);
         $this->getJson('/api/transport-lines/drivers?school_id='.$school->id.'&student_id='.$student->id)
             ->assertOk()
-            ->assertJsonPath('data.drivers.0.routeDescription', 'Morning — Sector 9 stop — Sector 9 stop');
+            ->assertJsonPath('data.drivers.0.routeDescription', 'Morning — Sector 9 stop');
 
         $driver->update(['route_description' => null]);
         $this->getJson('/api/transport-lines/drivers?school_id='.$school->id.'&student_id='.$student->id)
             ->assertOk()
-            ->assertJsonPath('data.drivers.0.routeDescription', 'Morning — Sector 9 stop — Sector 9 stop');
+            ->assertJsonPath('data.drivers.0.routeDescription', 'Bus Label Fallback')
+            ->assertJsonPath('data.drivers.0.route', null);
     }
 
     public function test_v1_transport_lines_drivers_matches_student_to_transport_route_corridor(): void
@@ -1972,6 +1973,20 @@ class ApiV1ParentEndpointsTest extends TestCase
             'start_longitude' => 44.105,
             'status' => 'active',
         ]);
+        TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $matchingDriver->id,
+            'bus_number' => 'M-1',
+            'trip_type' => \App\Enums\TripType::MORNING_PICKUP->value,
+            'route_title' => 'Morning Route A — Depot A',
+            'start_address' => 'Depot A',
+            'start_latitude' => 33.291,
+            'start_longitude' => 44.105,
+            'students_count' => 0,
+            'distance_km' => 1,
+            'start_time' => now()->subHour(),
+            'status' => 'PRESENT',
+        ]);
         \App\Models\TransportRoute::query()->create([
             'school_id' => $school->id,
             'driver_id' => $otherDriver->id,
@@ -1991,7 +2006,8 @@ class ApiV1ParentEndpointsTest extends TestCase
             ->assertJsonPath('data.drivers.0.driverId', (string) $matchingDriver->id)
             ->assertJsonPath('data.drivers.0.matchesStudentRoute', true)
             ->assertJsonPath('data.drivers.0.route.tripType', 'MORNING_PICKUP')
-            ->assertJsonPath('data.drivers.0.route.startAddress', 'Depot A');
+            ->assertJsonPath('data.drivers.0.route.startAddress', 'Depot A')
+            ->assertJsonPath('data.drivers.0.route.name', 'Morning Route A — Depot A');
 
         $this->getJson('/api/transport-lines/drivers?student_id='.$student->id.'&trip_type=MORNING_PICKUP&matches_route_only=1')
             ->assertOk()

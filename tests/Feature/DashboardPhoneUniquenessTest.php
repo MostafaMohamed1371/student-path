@@ -216,6 +216,47 @@ class DashboardPhoneUniquenessTest extends TestCase
         $this->assertSame('Updated address', $driver->fresh()->residential_address);
     }
 
+    public function test_user_update_allows_unchanged_phone_for_driver_linked_account(): void
+    {
+        $school = $this->createSchool();
+        $phone = '7900666444';
+
+        $admin = User::factory()->create([
+            'phone' => '9647900000007',
+            'password' => 'secret',
+            'is_admin' => true,
+            'school_id' => $school->id,
+        ]);
+
+        $this->actingAs($admin);
+
+        $this->post(route('dashboard.drivers.store'), $this->driverPayload($school->id, $phone))
+            ->assertRedirect(route('dashboard.drivers.index'));
+
+        $driver = Driver::query()->where('primary_phone', $phone)->firstOrFail();
+        $user = User::query()->where('phone', '964'.$phone)->firstOrFail();
+        $this->assertSame((int) $driver->user_id, (int) $user->id);
+
+        $this->put(route('dashboard.users.update', $user), [
+            'name' => 'Driver User Updated',
+            'school_id' => $school->id,
+            'phone' => $phone,
+            'city' => 'Basra',
+            'licence_number' => 'LIC-UPDATED',
+            'votes' => 3,
+            'rate' => 4.2,
+            'is_verified' => 1,
+            'is_admin' => 0,
+            'is_active' => 1,
+            'password' => '',
+        ])->assertRedirect(route('dashboard.users.index'));
+
+        $user->refresh();
+        $this->assertSame('Driver User Updated', $user->name);
+        $this->assertSame('Basra', $user->city);
+        $this->assertSame('964'.$phone, $user->phone);
+    }
+
     public function test_school_admin_phone_creates_school_account_type_user(): void
     {
         $admin = User::factory()->create([

@@ -2,10 +2,10 @@
 
 namespace App\Http\Requests\Web;
 
+use App\Enums\PhoneAccountType;
 use App\Http\Requests\Concerns\PreparesIraqPhoneInput;
 use App\Http\Requests\Concerns\ValidatesUniqueDashboardPhone;
 use App\Models\User;
-use App\Services\Phone\DashboardPhoneRegistry;
 use App\Services\Phone\PhoneRecordIdentity;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -46,22 +46,15 @@ class UpdateDashboardUserRequest extends FormRequest
     {
         /** @var User $user */
         $user = $this->route('user');
-        $user->loadMissing('driver');
-
-        $registry = app(DashboardPhoneRegistry::class);
-        $typeUser = clone $user;
-        $typeUser->is_admin = $this->has('is_admin') ? $this->boolean('is_admin') : (bool) $user->is_admin;
+        $type = $this->boolean('is_admin') ? PhoneAccountType::Admin : PhoneAccountType::School;
 
         $this->assertUniqueDashboardPhone(
             $validator,
             'phone',
-            $registry->accountTypeForUser($typeUser),
+            $type,
             new PhoneRecordIdentity(
                 userId: (int) $user->id,
                 schoolId: $user->school_id ? (int) $user->school_id : null,
-                driverId: $user->driver ? (int) $user->driver->id : null,
-                driverUserId: $user->driver ? (int) $user->id : null,
-                driverPhoneField: $user->driver ? 'primary_phone' : null,
             ),
             $user->phone,
         );
@@ -69,16 +62,10 @@ class UpdateDashboardUserRequest extends FormRequest
 
     protected function passedValidation(): void
     {
-        $merge = [];
-
-        foreach (['is_active', 'is_verified', 'is_admin'] as $field) {
-            if ($this->has($field)) {
-                $merge[$field] = $this->boolean($field);
-            }
-        }
-
-        if ($merge !== []) {
-            $this->merge($merge);
-        }
+        $this->merge([
+            'is_active' => $this->boolean('is_active'),
+            'is_verified' => $this->boolean('is_verified'),
+            'is_admin' => $this->boolean('is_admin'),
+        ]);
     }
 }

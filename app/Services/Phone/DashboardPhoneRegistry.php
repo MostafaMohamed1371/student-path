@@ -136,17 +136,13 @@ final class DashboardPhoneRegistry
 
     public function phonesMatch(mixed $left, mixed $right): bool
     {
-        $leftNational = $this->nationalDigits((string) $left);
-        $rightNational = $this->nationalDigits((string) $right);
-        if ($leftNational === '' || $rightNational === '') {
+        $leftCanonical = $this->canonical($this->nationalDigits((string) $left));
+        $rightCanonical = $this->canonical($this->nationalDigits((string) $right));
+        if ($leftCanonical === '' || $rightCanonical === '') {
             return false;
         }
 
-        if ($leftNational === $rightNational) {
-            return true;
-        }
-
-        return $this->canonical($leftNational) === $this->canonical($rightNational);
+        return $leftCanonical === $rightCanonical;
     }
 
     private function matchesStoredPhone(mixed $stored, string $national, string $canonical): bool
@@ -175,6 +171,7 @@ final class DashboardPhoneRegistry
         foreach ($this->occupanciesFor($national) as $occupancy) {
             if ($except !== null && (
                 $occupancy->isSameRecordAs($except)
+                || $this->isLinkedDriverOccupancyForUser($occupancy, $except)
                 || $this->isCompanionUserForExcept($occupancy, $except, $intendedType)
                 || $this->isGuardianPhoneAllowedAtAnotherSchool($occupancy, $except, $intendedType)
             )) {
@@ -218,6 +215,27 @@ final class DashboardPhoneRegistry
         }
 
         return PhoneAccountType::Student;
+    }
+
+    /**
+     * Driver login users share their phone with the linked driver row(s).
+     */
+    private function isLinkedDriverOccupancyForUser(
+        PhoneOccupancy $occupancy,
+        PhoneRecordIdentity $except,
+    ): bool {
+        if ($occupancy->entity !== 'driver' || $except->userId === null) {
+            return false;
+        }
+
+        if ($except->driverId !== null && $occupancy->entityId === $except->driverId) {
+            return true;
+        }
+
+        return Driver::query()
+            ->whereKey($occupancy->entityId)
+            ->where('user_id', $except->userId)
+            ->exists();
     }
 
     /**

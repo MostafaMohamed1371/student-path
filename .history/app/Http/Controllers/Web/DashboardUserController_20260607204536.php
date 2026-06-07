@@ -105,7 +105,21 @@ class DashboardUserController extends Controller
         abort_unless($this->isAdmin(), 403);
         $validated = $request->validated();
 
-        $payload = $this->changedUserUpdatePayload($user, $validated, $phoneNormalizer);
+        $payload = [
+            'name' => $validated['name'] ?? null,
+            'school_id' => $validated['school_id'],
+            'phone' => $phoneNormalizer->normalize($validated['phone']),
+            'phone_account_type' => ($validated['is_admin'] ?? false)
+                ? PhoneAccountType::Admin->value
+                : PhoneAccountType::School->value,
+            'city' => $validated['city'] ?? null,
+            'licence_number' => $validated['licence_number'] ?? null,
+            'votes' => $validated['votes'],
+            'rate' => $validated['rate'],
+            'is_verified' => $validated['is_verified'] ?? false,
+            'is_admin' => $validated['is_admin'] ?? false,
+            'is_active' => $validated['is_active'] ?? false,
+        ];
 
         if ($request->hasFile('image')) {
             $payload['image'] = $request->file('image')->store('profiles', 'public');
@@ -119,92 +133,9 @@ class DashboardUserController extends Controller
             $payload['password'] = $validated['password'];
         }
 
-        if ($payload !== []) {
-            $user->update($payload);
-        }
+        $user->update($payload);
 
         return redirect()->route('dashboard.users.index')->with('success', __('dashboard.user_updated'));
-    }
-
-    /**
-     * @param  array<string, mixed>  $validated
-     * @return array<string, mixed>
-     */
-    private function changedUserUpdatePayload(User $user, array $validated, PhoneNormalizer $phoneNormalizer): array
-    {
-        $payload = [];
-
-        $name = $this->nullableString($validated['name'] ?? null);
-        if ($name !== $user->name) {
-            $payload['name'] = $name;
-        }
-
-        $schoolId = (int) $validated['school_id'];
-        if ($schoolId !== (int) $user->school_id) {
-            $payload['school_id'] = $schoolId;
-        }
-
-        $phone = $phoneNormalizer->normalize($validated['phone']);
-        if ($phone !== $user->phone) {
-            $payload['phone'] = $phone;
-        }
-
-        $city = $this->nullableString($validated['city'] ?? null);
-        if ($city !== $user->city) {
-            $payload['city'] = $city;
-        }
-
-        $licenceNumber = $this->nullableString($validated['licence_number'] ?? null);
-        if ($licenceNumber !== $user->licence_number) {
-            $payload['licence_number'] = $licenceNumber;
-        }
-
-        $votes = (int) $validated['votes'];
-        if ($votes !== (int) $user->votes) {
-            $payload['votes'] = $votes;
-        }
-
-        $rate = (float) $validated['rate'];
-        if (abs($rate - (float) $user->rate) > 0.00001) {
-            $payload['rate'] = $rate;
-        }
-
-        if (array_key_exists('is_verified', $validated)) {
-            $isVerified = (bool) $validated['is_verified'];
-            if ($isVerified !== (bool) $user->is_verified) {
-                $payload['is_verified'] = $isVerified;
-            }
-        }
-
-        if (array_key_exists('is_admin', $validated)) {
-            $isAdmin = (bool) $validated['is_admin'];
-            if ($isAdmin !== (bool) $user->is_admin) {
-                $payload['is_admin'] = $isAdmin;
-                $payload['phone_account_type'] = $isAdmin
-                    ? PhoneAccountType::Admin->value
-                    : PhoneAccountType::School->value;
-            }
-        }
-
-        if (array_key_exists('is_active', $validated)) {
-            $isActive = (bool) $validated['is_active'];
-            if ($isActive !== (bool) $user->is_active) {
-                $payload['is_active'] = $isActive;
-            }
-        }
-
-        return $payload;
-    }
-
-    private function nullableString(mixed $value): ?string
-    {
-        if ($value === null) {
-            return null;
-        }
-
-        $value = trim((string) $value);
-
-        return $value === '' ? null : $value;
     }
 
     public function destroy(User $user): RedirectResponse
