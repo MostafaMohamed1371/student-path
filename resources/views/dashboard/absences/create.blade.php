@@ -3,9 +3,10 @@
 @section('title', __('dashboard.add_absence'))
 
 @section('content')
-    @php($title = __('dashboard.add_absence'))
     @php
         use App\Enums\AbsenceReason;
+
+        $title = __('dashboard.add_absence');
     @endphp
     @component('dashboard.partials.shell', ['title' => $title])
         <p style="color: var(--text-muted); margin: 0 0 16px;">{{ __('dashboard.absence_create_hint') }}</p>

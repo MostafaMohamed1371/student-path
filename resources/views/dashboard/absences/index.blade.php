@@ -3,9 +3,10 @@
 @section('title', __('dashboard.menu_absences'))
 
 @section('content')
-    @php($title = __('dashboard.menu_absences'))
     @php
         use App\Enums\AbsenceReason;
+
+        $title = __('dashboard.menu_absences');
     @endphp
     @component('dashboard.partials.shell', ['title' => $title])
         <p style="color: var(--text-muted); margin: 0 0 20px;">{{ __('dashboard.absences_page_intro') }}</p>

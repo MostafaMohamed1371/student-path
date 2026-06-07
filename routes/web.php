@@ -15,6 +15,7 @@ use App\Http\Controllers\Web\DashboardProfileController;
 use App\Http\Controllers\Web\DashboardReportsController;
 use App\Http\Controllers\Web\DashboardRouteController;
 use App\Http\Controllers\Web\DashboardSchoolController;
+use App\Http\Controllers\Web\DashboardStudentController;
 use App\Http\Controllers\Web\DashboardStudentAttendanceController;
 use App\Http\Controllers\Web\DashboardStudentDailyTimelineController;
 use App\Http\Controllers\Web\DashboardSupportComplaintController;

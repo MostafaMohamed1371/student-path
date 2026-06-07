@@ -3,9 +3,10 @@
 @section('title', __('dashboard.edit_absence'))
 
 @section('content')
-    @php($title = __('dashboard.edit_absence').' #'.$absence->id)
     @php
         use App\Enums\AbsenceReason;
+
+        $title = __('dashboard.edit_absence').' #'.$absence->id;
     @endphp
     @component('dashboard.partials.shell', ['title' => $title])
         <p style="margin:0 0 12px;"><strong>{{ __('dashboard.table_col_student') }}:</strong> {{ $absence->student?->full_name }} (#{{ $absence->student_id }})</p>
