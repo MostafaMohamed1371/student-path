@@ -28,6 +28,72 @@ final class ParentContext
         return null;
     }
 
+    /**
+     * All guardian roster rows for the same parent (one row per school).
+     *
+     * @return list<int>
+     */
+    public static function guardianIdsFor(User $user): array
+    {
+        $primary = self::guardian($user);
+        if (! $primary instanceof Guardian) {
+            return [];
+        }
+
+        $ids = collect([(int) $primary->id]);
+        $phoneVariants = self::phoneLookupVariants((string) $user->phone);
+        $phoneVariants = array_merge($phoneVariants, self::phoneLookupVariants((string) $primary->phone));
+        $phoneVariants = array_merge($phoneVariants, self::phoneLookupVariants((string) $primary->backup_phone));
+        $phoneVariants = array_values(array_unique(array_filter($phoneVariants)));
+
+        if ($phoneVariants !== []) {
+            $ids = $ids->merge(
+                Guardian::query()
+                    ->where(function ($query) use ($phoneVariants): void {
+                        $query->whereIn('phone', $phoneVariants)
+                            ->orWhereIn('backup_phone', $phoneVariants);
+                    })
+                    ->pluck('id')
+            );
+        }
+
+        $idCard = IdCardNumber::normalize($primary->id_card_number);
+        if ($idCard !== null) {
+            $ids = $ids->merge(
+                Guardian::query()->where('id_card_number', $idCard)->pluck('id')
+            );
+        }
+
+        return $ids
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /** @return list<string> */
+    private static function phoneLookupVariants(string $phone): array
+    {
+        $phone = trim($phone);
+        if ($phone === '') {
+            return [];
+        }
+
+        $variants = [$phone];
+
+        $national = self::iraqiNational10FromE164($phone);
+        if ($national !== null) {
+            $variants[] = $national;
+            $variants[] = '964'.$national;
+        }
+
+        if (preg_match('/^[1-9]\d{9}$/', $phone) === 1) {
+            $variants[] = '964'.$phone;
+        }
+
+        return array_values(array_unique($variants));
+    }
+
     private static function iraqiNational10FromE164(string $phone): ?string
     {
         if (str_starts_with($phone, '964') && strlen($phone) === 13) {
@@ -40,12 +106,15 @@ final class ParentContext
     /** @return list<int> */
     public static function studentIdsFor(User $user): array
     {
-        $guardian = self::guardian($user);
-        if (! $guardian) {
+        $guardianIds = self::guardianIdsFor($user);
+        if ($guardianIds === []) {
             return [];
         }
 
-        return Student::query()->where('guardian_id', $guardian->id)->pluck('id')->all();
+        return Student::query()
+            ->whereIn('guardian_id', $guardianIds)
+            ->pluck('id')
+            ->all();
     }
 
     /** @return Collection<int, Student> */

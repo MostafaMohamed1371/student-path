@@ -54,14 +54,20 @@ trait AppliesApiSchoolScoping
             $ids->push((int) $user->driver->school_id);
         }
 
-        $guardian = ParentContext::guardian($user);
-        if ($guardian instanceof Guardian) {
-            if ($guardian->school_id) {
-                $ids->push((int) $guardian->school_id);
+        $guardianIds = ParentContext::guardianIdsFor($user);
+        if ($guardianIds !== []) {
+            $guardianSchools = Guardian::query()
+                ->whereIn('id', $guardianIds)
+                ->pluck('school_id');
+
+            foreach ($guardianSchools as $sid) {
+                if ($sid !== null) {
+                    $ids->push((int) $sid);
+                }
             }
 
             $studentSchools = Student::query()
-                ->where('guardian_id', $guardian->id)
+                ->whereIn('guardian_id', $guardianIds)
                 ->pluck('school_id');
 
             foreach ($studentSchools as $sid) {

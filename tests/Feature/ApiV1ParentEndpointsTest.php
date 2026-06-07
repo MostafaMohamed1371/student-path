@@ -358,6 +358,71 @@ class ApiV1ParentEndpointsTest extends TestCase
             ->assertJsonPath('data.fullName', 'Child C');
     }
 
+    public function test_v1_parent_students_index_includes_children_across_school_guardian_rows(): void
+    {
+        $schoolA = $this->makeSchool('Parent School A');
+        $schoolB = $this->makeSchool('Parent School B');
+        $sharedPhone = '7300000100';
+        $sharedIdCard = 'PARENT-MULTI-001';
+
+        $guardianA = Guardian::query()->create([
+            'school_id' => $schoolA->id,
+            'full_name' => 'Cross School Parent',
+            'phone' => $sharedPhone,
+            'id_card_number' => $sharedIdCard,
+            'status' => 'active',
+        ]);
+        $guardianB = Guardian::query()->create([
+            'school_id' => $schoolB->id,
+            'full_name' => 'Cross School Parent',
+            'phone' => $sharedPhone,
+            'id_card_number' => $sharedIdCard,
+            'status' => 'active',
+        ]);
+
+        Student::query()->create([
+            'school_id' => $schoolA->id,
+            'guardian_id' => $guardianA->id,
+            'full_name' => 'Child School A',
+            'gender' => 'male',
+            'grade' => '1',
+            'student_phone' => '7400000101',
+            'guardian_name' => $guardianA->full_name,
+            'guardian_primary_phone' => $guardianA->phone,
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'status' => 'active',
+        ]);
+        Student::query()->create([
+            'school_id' => $schoolB->id,
+            'guardian_id' => $guardianB->id,
+            'full_name' => 'Child School B',
+            'gender' => 'female',
+            'grade' => '2',
+            'student_phone' => '7400000102',
+            'guardian_name' => $guardianB->full_name,
+            'guardian_primary_phone' => $guardianB->phone,
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'status' => 'active',
+        ]);
+
+        $parent = User::factory()->create([
+            'phone' => '964'.$sharedPhone,
+            'guardian_id' => $guardianA->id,
+            'school_id' => null,
+        ]);
+        Sanctum::actingAs($parent);
+
+        $this->getJson('/api/students')
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonFragment(['fullName' => 'Child School A'])
+            ->assertJsonFragment(['fullName' => 'Child School B']);
+    }
+
     public function test_v1_school_staff_can_create_student_via_parent_students_endpoint(): void
     {
         $school = $this->makeSchool('Add Student School');
