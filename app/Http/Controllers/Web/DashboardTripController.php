@@ -15,6 +15,7 @@ use App\Models\TripHistory;
 use App\Models\TripHistoryStudent;
 use App\Models\TransportRoute;
 use App\Services\Drivers\DriverServiceAreaTripFormatter;
+use App\Services\Push\TripTrackingAuthorization;
 use App\Services\Routes\RouteAssignmentPlanner;
 use App\Services\Trips\DriverShiftResolver;
 use App\Services\Trips\DriverTripModuleService;
@@ -887,7 +888,7 @@ class DashboardTripController extends Controller
             return;
         }
 
-        $returnAttributes = $this->applyTripRouteFieldsFromRequest($request, $returnAttributes, $schoolId);
+        // Return trip path/times are planned from school dismissal → driver pickup start.
         TripHistory::query()->create($returnAttributes);
     }
 

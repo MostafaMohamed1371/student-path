@@ -25,6 +25,9 @@ class DashboardTripPickupReturnPairTest extends TestCase
             'address' => 'School Ave',
             'latitude' => 33.32,
             'longitude' => 44.37,
+            'shift_period' => 'MORNING',
+            'work_time_from' => '07:30',
+            'work_time_to' => '14:00',
             'status' => 'active',
         ]);
 
@@ -89,10 +92,13 @@ class DashboardTripPickupReturnPairTest extends TestCase
             ->where('trip_type', TripType::MORNING_RETURN->value)
             ->firstOrFail();
 
+        $schoolDismissal = $start->copy()->setTime(14, 0);
+
         $this->assertSame((int) $driver->id, (int) $return->driver_id);
-        $this->assertTrue($return->start_time?->equalTo($end));
-        $this->assertTrue($return->end_time?->equalTo($end->copy()->addMinutes(45)));
+        $this->assertTrue($return->start_time?->equalTo($schoolDismissal));
+        $this->assertTrue($return->end_time?->equalTo($schoolDismissal->copy()->addMinutes(45)));
         $this->assertSame('School Ave', $return->start_address);
+        $this->assertStringContainsString('Depot', (string) $return->location);
         $this->assertNotSame((int) $pickup->id, (int) $return->id);
     }
 

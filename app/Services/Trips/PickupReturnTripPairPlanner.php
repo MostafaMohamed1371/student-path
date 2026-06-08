@@ -6,10 +6,15 @@ use App\Enums\TripType;
 use App\Models\School;
 use App\Models\TripHistory;
 use App\Support\Geo\Haversine;
+use App\Support\SchoolWorkSchedule;
 use Illuminate\Support\Carbon;
 
 final class PickupReturnTripPairPlanner
 {
+    public function __construct(
+        private readonly SchoolWorkSchedule $schoolWorkSchedule,
+    ) {}
+
     /**
      * @param  array<string, mixed>  $pickupAttributes
      * @return array<string, mixed>|null
@@ -28,9 +33,11 @@ final class PickupReturnTripPairPlanner
             return null;
         }
 
-        $returnStart = $pickupEnd->copy();
-        $durationMinutes = max(1, $pickupStart->diffInMinutes($pickupEnd));
-        $returnEnd = $returnStart->copy()->addMinutes($durationMinutes);
+        $travelMinutes = max(1, $pickupStart->diffInMinutes($pickupEnd));
+
+        $returnStart = $this->schoolWorkSchedule->dismissalTimeForPickupReturn($school, $pickupType, $pickupStart)
+            ?? $pickupEnd->copy();
+        $returnEnd = $returnStart->copy()->addMinutes($travelMinutes);
 
         $pickupStartAddress = trim((string) ($pickupAttributes['start_address'] ?? ''));
         $schoolAddress = trim((string) ($school->address ?? ''));
@@ -67,6 +74,7 @@ final class PickupReturnTripPairPlanner
             'trip_type' => $returnType->value,
             'bus_number' => (string) ($pickupAttributes['bus_number'] ?? ''),
             'route_title' => $this->returnRouteTitle($pickupRouteTitle, $returnType),
+            // Return path: school (pickup destination) → driver pickup start point.
             'location' => $this->locationLabel($schoolAddress, $pickupStartAddress),
             'start_address' => $schoolAddress !== '' ? $schoolAddress : null,
             'start_latitude' => $schoolLat,
@@ -83,7 +91,7 @@ final class PickupReturnTripPairPlanner
 
     public function returnTripExistsForPickup(TripHistory $pickupTrip, string $returnTripType): bool
     {
-        if ($pickupTrip->end_time === null || $pickupTrip->driver_id === null) {
+        if ($pickupTrip->start_time === null || $pickupTrip->driver_id === null) {
             return false;
         }
 
@@ -91,7 +99,7 @@ final class PickupReturnTripPairPlanner
             ->where('driver_id', (int) $pickupTrip->driver_id)
             ->where('school_id', (int) $pickupTrip->school_id)
             ->where('trip_type', $returnTripType)
-            ->whereDate('start_time', $pickupTrip->end_time->toDateString())
+            ->whereDate('start_time', $pickupTrip->start_time->toDateString())
             ->exists();
     }
 
