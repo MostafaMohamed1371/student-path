@@ -99,19 +99,25 @@ class DriverRouteTripFullLifecycleTest extends TestCase
         $this->post(route('dashboard.routes.store'), [
             'school_id' => $school->id,
             'trip_type' => TripType::MORNING_PICKUP->value,
-            'driver_id' => $driver->id,
             'start_address' => 'Depot Start',
             'start_latitude' => 33.311,
             'start_longitude' => 44.361,
             'status' => 'active',
         ])->assertRedirect();
 
-        $route = TransportRoute::query()->where('driver_id', $driver->id)->first();
+        $route = TransportRoute::query()->where('school_id', $school->id)->first();
         $this->assertNotNull($route);
+
+        $this->post(route('dashboard.routes.assign_driver', $route), [
+            'driver_id' => $driver->id,
+        ])->assertRedirect();
         $this->assertDatabaseHas('transport_route_students', [
             'transport_route_id' => $route->id,
             'student_id' => $student->id,
         ]);
+
+        $pickupStart = now()->subMinutes(5);
+        $pickupEnd = $pickupStart->copy()->addMinutes(40);
 
         $this->post(route('dashboard.trips.store'), [
             'school_id' => $school->id,
@@ -122,11 +128,15 @@ class DriverRouteTripFullLifecycleTest extends TestCase
             'location' => '',
             'students_count' => 0,
             'distance_km' => 0,
-            'start_time' => now()->subMinutes(5)->format('Y-m-d\TH:i'),
+            'start_time' => $pickupStart->format('Y-m-d\TH:i'),
+            'end_time' => $pickupEnd->format('Y-m-d\TH:i'),
             'status' => 'ACTIVE',
         ])->assertRedirect();
 
-        $trip = TripHistory::query()->where('driver_id', $driver->id)->first();
+        $trip = TripHistory::query()
+            ->where('driver_id', $driver->id)
+            ->where('trip_type', TripType::MORNING_PICKUP->value)
+            ->first();
         $this->assertNotNull($trip);
         $this->assertSame((int) $driver->id, (int) $trip->driver_id);
 
@@ -300,6 +310,9 @@ class DriverRouteTripFullLifecycleTest extends TestCase
         $admin = User::factory()->create(['is_admin' => true]);
         $this->actingAs($admin);
 
+        $tripStart = now();
+        $tripEnd = $tripStart->copy()->addMinutes(30);
+
         $this->post(route('dashboard.trips.store'), [
             'school_id' => $school->id,
             'driver_id' => $driver->id,
@@ -307,7 +320,8 @@ class DriverRouteTripFullLifecycleTest extends TestCase
             'bus_number' => 'B-REQ',
             'students_count' => 0,
             'distance_km' => 1,
-            'start_time' => now()->format('Y-m-d\TH:i'),
+            'start_time' => $tripStart->format('Y-m-d\TH:i'),
+            'end_time' => $tripEnd->format('Y-m-d\TH:i'),
             'status' => 'ACTIVE',
         ])->assertRedirect();
 
@@ -317,7 +331,8 @@ class DriverRouteTripFullLifecycleTest extends TestCase
             'bus_number' => 'B-REQ',
             'students_count' => 0,
             'distance_km' => 1,
-            'start_time' => now()->format('Y-m-d\TH:i'),
+            'start_time' => $tripStart->format('Y-m-d\TH:i'),
+            'end_time' => $tripEnd->format('Y-m-d\TH:i'),
             'status' => 'ACTIVE',
         ])->assertSessionHasErrors('driver_id');
     }

@@ -16,6 +16,12 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
     'latitude',
     'longitude',
     'status',
+    'work_days',
+    'shift_period',
+    'work_time_from',
+    'work_time_to',
+    'evening_work_time_from',
+    'evening_work_time_to',
     'principal_name',
     'admin_phone',
     'authorized_person_name',
@@ -30,6 +36,7 @@ class School extends Model
         return [
             'latitude' => 'float',
             'longitude' => 'float',
+            'work_days' => 'array',
         ];
     }
 

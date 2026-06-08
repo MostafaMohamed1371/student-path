@@ -264,11 +264,43 @@ class WebDashboardReportsTest extends TestCase
             'status' => 'active',
         ]);
         $parent = User::factory()->create(['guardian_id' => $guardian->id, 'school_id' => $school->id]);
+        $driverUser = User::factory()->create();
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'Driver',
+            'father_name' => 'TR',
+            'grandfather_name' => 'X',
+            'last_name' => 'One',
+            'age' => 35,
+            'id_card_number' => 'IDC-TR-ACC',
+            'license_number' => 'LIC-TR-ACC',
+            'primary_phone' => '7770000099',
+            'emergency_phone' => '7770001099',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+            'shift_period' => 'MORNING',
+        ]);
+        $scheduledTrip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => 'MORNING_PICKUP',
+            'bus_number' => 'BUS-TR',
+            'route_title' => 'Morning route',
+            'location' => 'Route',
+            'students_count' => 0,
+            'distance_km' => 1,
+            'start_time' => now(),
+            'status' => 'ACTIVE',
+            'students_preview' => [],
+        ]);
         $req = TripRequest::query()->create([
             'user_id' => $parent->id,
             'student_id' => $student->id,
+            'driver_id' => $driver->id,
             'trip_history_id' => null,
             'status' => 'pending',
+            'present_type' => 'صباح',
             'notes' => 'Need a seat',
         ]);
 
@@ -283,6 +315,8 @@ class WebDashboardReportsTest extends TestCase
         $this->assertSame('accepted', $fresh->status);
         $this->assertNotNull($fresh->trip_history_id);
         $this->assertDatabaseHas('trip_histories', ['id' => $fresh->trip_history_id]);
+        $this->assertSame((int) $scheduledTrip->id, (int) $fresh->trip_history_id);
+        $this->assertSame(1, TripHistory::query()->count());
         $this->assertSame(1, TripHistory::query()->whereKey($fresh->trip_history_id)->value('students_count'));
     }
 

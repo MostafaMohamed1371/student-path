@@ -46,6 +46,15 @@
     </div>
 
     <div>
+        <label class="field-label" for="shift_period">{{ __('dashboard.shift_period') }}</label>
+        <select class="input" id="shift_period" name="shift_period" required>
+            <option value="MORNING" @selected(old('shift_period', $driver?->shift_period ?? 'MORNING') === 'MORNING')>{{ __('dashboard.shift_period_morning') }}</option>
+            <option value="EVENING" @selected(old('shift_period', $driver?->shift_period ?? 'MORNING') === 'EVENING')>{{ __('dashboard.shift_period_evening') }}</option>
+            <option value="BOTH" @selected(old('shift_period', $driver?->shift_period ?? 'MORNING') === 'BOTH')>{{ __('dashboard.shift_period_both') }}</option>
+        </select>
+    </div>
+
+    <div>
         <label class="field-label" for="first_name">{{ __('dashboard.first_name') }}</label>
         <input class="input" id="first_name" name="first_name" value="{{ old('first_name', $driver->first_name ?? '') }}" required />
     </div>

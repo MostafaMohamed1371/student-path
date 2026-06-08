@@ -1267,6 +1267,20 @@ class ApiV1ParentEndpointsTest extends TestCase
             'status' => 'active',
         ]);
 
+        $scheduledTrip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => 'MORNING_PICKUP',
+            'bus_number' => 'BUS-DRQ',
+            'route_title' => 'Driver request route',
+            'location' => 'Route',
+            'students_count' => 0,
+            'distance_km' => 1,
+            'start_time' => now(),
+            'status' => 'ACTIVE',
+            'students_preview' => [],
+        ]);
+
         $req = TripRequest::query()->create([
             'user_id' => $parent->id,
             'student_id' => $student->id,
@@ -1290,8 +1304,7 @@ class ApiV1ParentEndpointsTest extends TestCase
             ->assertJsonPath('data.status', 'accepted');
 
         $accepted = $req->fresh();
-        $this->assertNotNull($accepted->trip_history_id);
-        $this->assertDatabaseHas('trip_histories', ['id' => $accepted->trip_history_id]);
+        $this->assertSame((int) $scheduledTrip->id, (int) $accepted->trip_history_id);
 
         $req2 = TripRequest::query()->create([
             'user_id' => $parent->id,
@@ -1307,8 +1320,8 @@ class ApiV1ParentEndpointsTest extends TestCase
             ->assertJsonPath('data.status', 'accepted');
 
         $fresh = $req2->fresh();
-        $this->assertNotNull($fresh->trip_history_id);
-        $this->assertDatabaseHas('trip_histories', ['id' => $fresh->trip_history_id]);
+        $this->assertSame((int) $scheduledTrip->id, (int) $fresh->trip_history_id);
+        $this->assertSame(1, TripHistory::query()->count());
     }
 
     public function test_v1_profile_delete(): void
@@ -1669,6 +1682,20 @@ class ApiV1ParentEndpointsTest extends TestCase
             'status' => 'active',
         ]);
 
+        $scheduledTrip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => 'EVENING_PICKUP',
+            'bus_number' => 'ORD-1',
+            'route_title' => 'Evening route',
+            'location' => 'Route',
+            'students_count' => 0,
+            'distance_km' => 1,
+            'start_time' => now(),
+            'status' => 'ACTIVE',
+            'students_preview' => [],
+        ]);
+
         Sanctum::actingAs($parent);
         $this->postJson('/api/trip-requests', [
             'student_id' => $student->id,
@@ -1703,7 +1730,8 @@ class ApiV1ParentEndpointsTest extends TestCase
             'id' => $tripRequest->id,
             'status' => 'accepted',
         ]);
-        $this->assertNotNull($tripRequest->fresh()->trip_history_id);
+        $this->assertSame((int) $scheduledTrip->id, (int) $tripRequest->fresh()->trip_history_id);
+        $this->assertSame(1, TripHistory::query()->count());
     }
 
     public function test_v1_trip_request_auto_assigns_driver_by_shift_period(): void

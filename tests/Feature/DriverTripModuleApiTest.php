@@ -1804,6 +1804,20 @@ class DriverTripModuleApiTest extends TestCase
             'status' => 'active',
         ]);
 
+        TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => 'MORNING_PICKUP',
+            'bus_number' => 'LC-1',
+            'route_title' => 'Lifecycle morning route',
+            'location' => 'Route',
+            'students_count' => 0,
+            'distance_km' => 1,
+            'start_time' => now(),
+            'status' => 'ACTIVE',
+            'students_preview' => [],
+        ]);
+
         Sanctum::actingAs($parentUser);
         $this->postJson('/api/trip-requests', [
             'student_id' => $student->id,
@@ -1823,7 +1837,7 @@ class DriverTripModuleApiTest extends TestCase
             ->assertJsonPath('data.orders.0.id', $requestRow->id)
             ->assertJsonPath('data.orders.0.status', 'pending');
 
-        // Driver accepts request -> trip is scheduled/created as ACTIVE.
+        // Driver accepts request -> links to the scheduled trip (no duplicate trip row).
         $this->putJson('/api/orders/'.$requestRow->id, [
             'status' => 'accepted',
             'order_id' => (string) $requestRow->id,
@@ -1833,6 +1847,7 @@ class DriverTripModuleApiTest extends TestCase
 
         $accepted = $requestRow->fresh();
         $this->assertNotNull($accepted->trip_history_id);
+        $this->assertSame(1, TripHistory::query()->count());
         $trip = TripHistory::query()->findOrFail((int) $accepted->trip_history_id);
         $tripPublicId = 'TRP-'.$trip->id;
         $studentPublicId = 'ST-'.str_pad((string) $student->id, 3, '0', STR_PAD_LEFT);

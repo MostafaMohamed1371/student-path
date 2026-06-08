@@ -112,6 +112,7 @@ class UpdateDashboardDriverRequest extends FormRequest
             'rating_avg' => ['nullable', 'numeric', 'min:0', 'max:5'],
             'rating_count' => ['nullable', 'integer', 'min:0', 'max:999999'],
             'bus_id' => ['nullable', 'integer', 'exists:buses,id'],
+            'shift_period' => ['required', 'string', 'in:MORNING,EVENING,BOTH'],
         ];
     }
 

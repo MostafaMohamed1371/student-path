@@ -8,6 +8,9 @@
         <nav class="sidebar-nav">
             <a href="{{ route('dashboard') }}" class="sidebar-link {{ request()->routeIs('dashboard') ? 'is-active' : '' }}">{{ __('dashboard.menu_overview') }}</a>
             <a href="{{ route('dashboard.schools.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.schools.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_schools') }}</a>
+            @if(auth()->user()?->school_id && !auth()->user()?->is_admin)
+                <a href="{{ route('dashboard.school_work_schedule.show') }}" class="sidebar-link {{ request()->routeIs('dashboard.school_work_schedule.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_school_work_schedule') }}</a>
+            @endif
             <a href="{{ route('dashboard.students.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.students.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_students') }}</a>
             <a href="{{ route('dashboard.guardians.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.guardians.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_guardians') }}</a>
             <a href="{{ route('dashboard.drivers.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.drivers.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_drivers') }}</a>

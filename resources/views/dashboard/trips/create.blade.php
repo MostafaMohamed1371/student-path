@@ -84,7 +84,11 @@
                     <input id="trip_form_distance_km" type="number" step="0.01" min="0" name="distance_km" value="{{ old('distance_km', 0) }}" required readonly>
                 </label>
                 <label><span>{{ __('dashboard.trip_start_time') }}</span><input type="datetime-local" name="start_time" value="{{ old('start_time') }}" required></label>
-                <label><span>{{ __('dashboard.trip_end_time') }}</span><input type="datetime-local" name="end_time" value="{{ old('end_time') }}"></label>
+                <label>
+                    <span>{{ __('dashboard.trip_end_time') }}</span>
+                    <input type="datetime-local" name="end_time" id="trip_form_end_time" value="{{ old('end_time') }}">
+                </label>
+                <p class="help" id="trip_form_pickup_end_help" style="grid-column:1 / -1;margin:0;display:none;">{{ __('dashboard.trip_pickup_end_time_help') }}</p>
                 <label>
                     <span>{{ __('dashboard.trip_status') }}</span>
                     <select name="status" required>
@@ -110,4 +114,25 @@
         'exceptTripId' => $exceptTripId ?? null,
     ])
     @include('dashboard.trips._trip_start_map_script')
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const tripTypeSelect = document.getElementById('trip_form_trip_type');
+        const endTimeInput = document.getElementById('trip_form_end_time');
+        const pickupHelp = document.getElementById('trip_form_pickup_end_help');
+        if (!tripTypeSelect || !endTimeInput) {
+            return;
+        }
+
+        function syncPickupEndTimeField() {
+            const isPickup = tripTypeSelect.value === 'MORNING_PICKUP' || tripTypeSelect.value === 'EVENING_PICKUP';
+            endTimeInput.required = isPickup;
+            if (pickupHelp) {
+                pickupHelp.style.display = isPickup ? 'block' : 'none';
+            }
+        }
+
+        tripTypeSelect.addEventListener('change', syncPickupEndTimeField);
+        syncPickupEndTimeField();
+    });
+    </script>
 @endsection

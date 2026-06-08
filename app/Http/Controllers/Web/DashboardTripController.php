@@ -21,9 +21,11 @@ use App\Services\Trips\DriverTripModuleService;
 use App\Services\Trips\StudentShiftFilter;
 use App\Services\Trips\TripStudentAvailability;
 use App\Services\Trips\TripLocationTrackingService;
+use App\Services\Trips\PickupReturnTripPairPlanner;
 use App\Services\Trips\TripTransportRouteApplier;
 use App\Support\Geo\Haversine;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -213,12 +215,22 @@ class DashboardTripController extends Controller
             (int) $validated['school_id'],
         );
 
-        $validated = $this->applyTripRouteFieldsFromRequest($request, $validated, (int) $validated['school_id']);
+        $schoolId = (int) $validated['school_id'];
+        $validated = $this->applyTripRouteFieldsFromRequest($request, $validated, $schoolId);
         $this->assertTripHasDriver($validated);
+        $this->assertPickupTripHasEndTime($validated);
         $validated['students_count'] = 0;
         $validated['students_preview'] = [];
 
-        $trip = TripHistory::query()->create($validated);
+        $school = School::query()->findOrFail($schoolId);
+        $pairPlanner = app(PickupReturnTripPairPlanner::class);
+
+        $trip = DB::transaction(function () use ($validated, $request, $schoolId, $school, $pairPlanner): TripHistory {
+            $trip = TripHistory::query()->create($validated);
+            $this->createPairedReturnTripIfNeeded($trip, $validated, $request, $school, $schoolId, $pairPlanner);
+
+            return $trip;
+        });
 
         return redirect()
             ->route('dashboard.trips.assign_students', [
@@ -577,7 +589,12 @@ class DashboardTripController extends Controller
             'students_count' => [$required, 'integer', 'min:0'],
             'distance_km' => [$required, 'numeric', 'min:0'],
             'start_time' => [$required, 'date'],
-            'end_time' => ['nullable', 'date', 'after_or_equal:start_time'],
+            'end_time' => [
+                $forCreate && ! $partial ? 'required_if:trip_type,MORNING_PICKUP,EVENING_PICKUP' : 'nullable',
+                'nullable',
+                'date',
+                'after_or_equal:start_time',
+            ],
             'status' => [$required, 'in:'.$statusValues],
             'note' => ['nullable', 'string'],
             'student_ids' => [$partial ? 'sometimes' : 'nullable', 'array'],
@@ -828,6 +845,50 @@ class DashboardTripController extends Controller
                 'driver_id' => [__('dashboard.trip_driver_required')],
             ]);
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     */
+    private function assertPickupTripHasEndTime(array $validated): void
+    {
+        $tripType = trim((string) ($validated['trip_type'] ?? ''));
+        if (! TripType::isPickup($tripType)) {
+            return;
+        }
+
+        if (filled($validated['end_time'] ?? null)) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'end_time' => [__('dashboard.trip_pickup_end_time_required')],
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $pickupValidated
+     */
+    private function createPairedReturnTripIfNeeded(
+        TripHistory $pickupTrip,
+        array $pickupValidated,
+        Request $request,
+        School $school,
+        int $schoolId,
+        PickupReturnTripPairPlanner $pairPlanner,
+    ): void {
+        $returnAttributes = $pairPlanner->returnTripAttributesFromPickup($pickupValidated, $school);
+        if ($returnAttributes === null) {
+            return;
+        }
+
+        $returnTripType = (string) $returnAttributes['trip_type'];
+        if ($pairPlanner->returnTripExistsForPickup($pickupTrip, $returnTripType)) {
+            return;
+        }
+
+        $returnAttributes = $this->applyTripRouteFieldsFromRequest($request, $returnAttributes, $schoolId);
+        TripHistory::query()->create($returnAttributes);
     }
 
     /**

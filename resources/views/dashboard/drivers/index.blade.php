@@ -47,6 +47,8 @@
                                     {{ __('dashboard.shift_period_morning') }}
                                 @elseif($driver->shift_period === 'EVENING')
                                     {{ __('dashboard.shift_period_evening') }}
+                                @elseif($driver->shift_period === 'BOTH')
+                                    {{ __('dashboard.shift_period_both') }}
                                 @else
                                     —
                                 @endif

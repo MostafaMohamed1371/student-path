@@ -60,6 +60,7 @@ class DashboardDriverBusAssignmentTest extends TestCase
             'emergency_phone' => '7900555101',
             'residential_address' => 'Baghdad',
             'status' => 'active',
+            'shift_period' => 'MORNING',
         ])->assertRedirect(route('dashboard.drivers.index'));
 
         $driver = Driver::query()->where('id_card_number', 'DRV-BUS-1')->firstOrFail();
@@ -67,5 +68,59 @@ class DashboardDriverBusAssignmentTest extends TestCase
 
         $this->assertSame((int) $driver->id, (int) $bus->driver_id);
         $this->assertSame((int) $driver->user_id, (int) $bus->user_id);
+        $this->assertSame('MORNING', $driver->shift_period);
+    }
+
+    public function test_driver_shift_period_can_be_set_on_create_and_update(): void
+    {
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'Shift School',
+            'province' => 'P',
+            'district' => 'D',
+            'address' => 'A',
+            'status' => 'active',
+        ]);
+
+        $admin = User::factory()->create(['is_admin' => true]);
+        $this->actingAs($admin);
+
+        $this->post(route('dashboard.drivers.store'), [
+            'school_id' => $school->id,
+            'first_name' => 'Sami',
+            'father_name' => 'Hassan',
+            'grandfather_name' => 'Omar',
+            'last_name' => 'Karim',
+            'age' => 35,
+            'id_card_number' => 'DRV-SHIFT-1',
+            'license_number' => 'LIC-SHIFT-1',
+            'primary_phone' => '7900555200',
+            'emergency_phone' => '7900555201',
+            'residential_address' => 'Baghdad',
+            'status' => 'active',
+            'shift_period' => 'EVENING',
+        ])->assertRedirect(route('dashboard.drivers.index'));
+
+        $driver = Driver::query()->where('id_card_number', 'DRV-SHIFT-1')->firstOrFail();
+        $this->assertSame('EVENING', $driver->shift_period);
+
+        $this->put(route('dashboard.drivers.update', $driver), [
+            'school_id' => $school->id,
+            'first_name' => 'Sami',
+            'father_name' => 'Hassan',
+            'grandfather_name' => 'Omar',
+            'last_name' => 'Karim',
+            'age' => 35,
+            'id_card_number' => 'DRV-SHIFT-1',
+            'license_number' => 'LIC-SHIFT-1',
+            'primary_phone' => '7900555200',
+            'emergency_phone' => '7900555201',
+            'residential_address' => 'Baghdad',
+            'status' => 'active',
+            'shift_period' => 'BOTH',
+        ])->assertRedirect(route('dashboard.drivers.index'));
+
+        $driver->refresh();
+        $this->assertSame('BOTH', $driver->shift_period);
     }
 }

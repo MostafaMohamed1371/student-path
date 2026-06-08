@@ -122,7 +122,7 @@ class DashboardDriverController extends Controller
         );
         $this->syncDriverProfileImage($user, $request->file('profile_image'));
 
-        $driverData = Arr::except($validated, ['route_description', 'shift_period']);
+        $driverData = Arr::except($validated, ['route_description']);
 
         $driver = Driver::query()->create([
             ...$driverData,
@@ -176,7 +176,7 @@ class DashboardDriverController extends Controller
         );
         $this->syncDriverProfileImage($user, $request->file('profile_image'));
 
-        $payload = Arr::except($validated, ['route_description', 'shift_period']);
+        $payload = Arr::except($validated, ['route_description']);
         $payload['user_id'] = $user->id;
         $payload['id_card_image'] = $this->replaceFile($request->file('id_card_image'), $driver->id_card_image, 'drivers');
         $payload['license_image'] = $this->replaceFile($request->file('license_image'), $driver->license_image, 'drivers');

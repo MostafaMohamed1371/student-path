@@ -328,6 +328,7 @@ class DashboardPhoneUniquenessTest extends TestCase
             'emergency_phone' => '7900999888',
             'residential_address' => 'Address',
             'status' => 'active',
+            'shift_period' => 'MORNING',
         ];
     }
 }

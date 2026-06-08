@@ -324,7 +324,7 @@ final class NominatimReverseGeocoder
         }
 
         return implode(', ', $unique);
-    }
+18    }
 
     /**
      * @param  list<mixed>  $values

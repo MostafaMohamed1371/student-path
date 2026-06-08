@@ -15,6 +15,7 @@ use App\Http\Controllers\Web\DashboardProfileController;
 use App\Http\Controllers\Web\DashboardReportsController;
 use App\Http\Controllers\Web\DashboardRouteController;
 use App\Http\Controllers\Web\DashboardSchoolController;
+use App\Http\Controllers\Web\DashboardSchoolWorkScheduleController;
 use App\Http\Controllers\Web\DashboardStudentController;
 use App\Http\Controllers\Web\DashboardStudentAttendanceController;
 use App\Http\Controllers\Web\DashboardStudentDailyTimelineController;
@@ -74,6 +75,9 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/dashboard/schools/{school}/edit', [DashboardSchoolController::class, 'edit'])->name('dashboard.schools.edit');
     Route::put('/dashboard/schools/{school}', [DashboardSchoolController::class, 'update'])->name('dashboard.schools.update');
     Route::delete('/dashboard/schools/{school}', [DashboardSchoolController::class, 'destroy'])->name('dashboard.schools.destroy');
+
+    Route::get('/dashboard/school-work-schedule', [DashboardSchoolWorkScheduleController::class, 'show'])->name('dashboard.school_work_schedule.show');
+    Route::put('/dashboard/school-work-schedule', [DashboardSchoolWorkScheduleController::class, 'update'])->name('dashboard.school_work_schedule.update');
 
     Route::get('/dashboard/drivers', [DashboardDriverController::class, 'index'])->name('dashboard.drivers.index');
     Route::get('/dashboard/drivers/form-options', [DashboardDriverController::class, 'formOptions'])->name('dashboard.drivers.form_options');
