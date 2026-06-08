@@ -3,7 +3,7 @@
     const url = @json($formOptionsUrl ?? '');
     const schoolSelect = document.getElementById('trip_assign_school_id');
     const driverSelect = document.getElementById('trip_assign_driver_id');
-    const tripSelect = document.getElementById('trip_assign_trip_id');
+    const tripSelect = document.getElementById('trip_assign_trip_ids');
     const studentsSelect = document.getElementById('trip_assign_student_ids');
     const summary = document.getElementById('trip_assign_trip_summary');
     const filterHint = document.getElementById('trip_assign_students_filter_hint');
@@ -12,13 +12,20 @@
         return;
     }
 
-    const placeholderTrip = @json(__('dashboard.trip_assign_select_trip_placeholder'));
-    const placeholderDriver = @json(__('dashboard.trip_assign_filter_all_drivers'));
     const routeFilterHint = @json(__('dashboard.trip_students_route_filter_help'));
     const selectTripFirst = @json(__('dashboard.trip_assign_select_trip_placeholder'));
+    const tripTypeLabel = @json(__('dashboard.trip_field_type'));
+    const tripStartLabel = @json(__('dashboard.trip_start_time'));
+    const studentsCountLabel = @json(__('dashboard.students_count'));
 
     function schoolId() {
         return String(schoolSelect.value || '');
+    }
+
+    function selectedTripIds() {
+        return Array.from(tripSelect.selectedOptions).map(function (o) {
+            return parseInt(o.value, 10);
+        }).filter(function (n) { return !isNaN(n); });
     }
 
     function selectedStudentIds() {
@@ -27,18 +34,14 @@
         }).filter(function (n) { return !isNaN(n); });
     }
 
-    function setTripOptions(items, keepValue) {
-        const prev = keepValue ? String(tripSelect.value || '') : '';
+    function setTripOptions(items, keepSelection) {
+        const selected = new Set(keepSelection ? selectedTripIds().map(String) : []);
         tripSelect.innerHTML = '';
-        const empty = document.createElement('option');
-        empty.value = '';
-        empty.textContent = placeholderTrip;
-        tripSelect.appendChild(empty);
         items.forEach(function (row) {
             const opt = document.createElement('option');
             opt.value = String(row.id);
             opt.textContent = row.label;
-            if (prev && prev === opt.value) {
+            if (selected.has(opt.value)) {
                 opt.selected = true;
             }
             tripSelect.appendChild(opt);
@@ -53,7 +56,7 @@
         driverSelect.innerHTML = '';
         const empty = document.createElement('option');
         empty.value = '';
-        empty.textContent = placeholderDriver;
+        empty.textContent = @json(__('dashboard.trip_assign_filter_all_drivers'));
         driverSelect.appendChild(empty);
         items.forEach(function (row) {
             const opt = document.createElement('option');
@@ -81,21 +84,25 @@
         studentsSelect.disabled = items.length === 0;
     }
 
-    function updateSummary(trip) {
+    function updateSummary(trips) {
         if (!summary) {
             return;
         }
-        if (!trip) {
+        if (!trips || trips.length === 0) {
             summary.style.display = 'none';
             summary.innerHTML = '';
             return;
         }
         summary.style.display = 'block';
-        summary.innerHTML =
-            '<p style="margin:0 0 6px;"><strong>{{ __('dashboard.trip_field_type') }}:</strong> ' + (trip.trip_type || '—') + '</p>' +
-            '<p style="margin:0 0 6px;"><strong>{{ __('dashboard.route_title') }}:</strong> ' + (trip.route_title || '—') + '</p>' +
-            '<p style="margin:0 0 6px;"><strong>{{ __('dashboard.trip_start_time') }}:</strong> ' + (trip.start_time || '—') + '</p>' +
-            '<p style="margin:0;"><strong>{{ __('dashboard.students_count') }}:</strong> ' + (trip.students_count ?? 0) + '</p>';
+        summary.innerHTML = trips.map(function (trip, index) {
+            const border = index < trips.length - 1 ? 'border-bottom:1px solid #e2e8f0;padding-bottom:12px;margin-bottom:12px;' : '';
+            return '<div style="' + border + '">' +
+                '<p style="margin:0 0 6px;"><strong>#' + trip.id + '</strong> — ' + (trip.route_title || '—') + '</p>' +
+                '<p style="margin:0 0 6px;"><strong>' + tripTypeLabel + ':</strong> ' + (trip.trip_type || '—') + '</p>' +
+                '<p style="margin:0 0 6px;"><strong>' + tripStartLabel + ':</strong> ' + (trip.start_time || '—') + '</p>' +
+                '<p style="margin:0;"><strong>' + studentsCountLabel + ':</strong> ' + (trip.students_count ?? 0) + '</p>' +
+                '</div>';
+        }).join('');
     }
 
     async function refresh() {
@@ -104,7 +111,7 @@
             setDriverOptions([], false);
             setTripOptions([], false);
             setStudentOptions([], []);
-            updateSummary(null);
+            updateSummary([]);
             if (filterHint) {
                 filterHint.style.display = 'none';
             }
@@ -116,10 +123,9 @@
         if (driverId) {
             params.set('driver_id', driverId);
         }
-        const tripId = String(tripSelect.value || '');
-        if (tripId) {
-            params.set('trip_id', tripId);
-        }
+        selectedTripIds().forEach(function (id) {
+            params.append('trip_ids[]', String(id));
+        });
         selectedStudentIds().forEach(function (id) {
             params.append('include_student_ids[]', String(id));
         });
@@ -134,9 +140,9 @@
             const data = await res.json();
             setDriverOptions(data.drivers || [], true);
             setTripOptions(data.trips || [], true);
-            updateSummary(data.trip || null);
+            updateSummary(data.selected_trips || []);
 
-            if (tripId) {
+            if (selectedTripIds().length > 0) {
                 setStudentOptions(data.students || [], data.selected_student_ids || selectedStudentIds());
                 if (filterHint) {
                     if (data.route_filter_active && data.corridor_max_km) {
@@ -163,13 +169,17 @@
             if (driverSelect) {
                 driverSelect.value = '';
             }
-            tripSelect.value = '';
+            Array.from(tripSelect.options).forEach(function (opt) {
+                opt.selected = false;
+            });
             refresh();
         });
     }
     if (driverSelect) {
         driverSelect.addEventListener('change', function () {
-            tripSelect.value = '';
+            Array.from(tripSelect.options).forEach(function (opt) {
+                opt.selected = false;
+            });
             refresh();
         });
     }
@@ -180,6 +190,9 @@
         form.addEventListener('submit', function () {
             if (studentsSelect.disabled) {
                 studentsSelect.disabled = false;
+            }
+            if (tripSelect.disabled) {
+                tripSelect.disabled = false;
             }
         });
     }

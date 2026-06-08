@@ -11,21 +11,24 @@ use Illuminate\Validation\ValidationException;
 final class TripStudentAvailability
 {
     /**
+     * @param  int|list<int>|null  $exceptTripIds
      * @return list<int>
      */
-    public function studentIdsOnActiveTrips(int $schoolId, ?int $exceptTripId = null): array
+    public function studentIdsOnActiveTrips(int $schoolId, int|array|null $exceptTripIds = null): array
     {
         if ($schoolId <= 0) {
             return [];
         }
+
+        $except = $this->normalizeExceptTripIds($exceptTripIds);
 
         $query = TripHistoryStudent::query()
             ->join('trip_histories', 'trip_histories.id', '=', 'trip_history_students.trip_history_id')
             ->where('trip_histories.school_id', $schoolId)
             ->where('trip_histories.status', 'ACTIVE');
 
-        if ($exceptTripId !== null && $exceptTripId > 0) {
-            $query->where('trip_histories.id', '!=', $exceptTripId);
+        if ($except !== []) {
+            $query->whereNotIn('trip_histories.id', $except);
         }
 
         return $query
@@ -38,15 +41,16 @@ final class TripStudentAvailability
 
     /**
      * @param  list<int|string>  $studentIds
+     * @param  int|list<int>|null  $exceptTripIds
      */
-    public function assertStudentsAvailableForTrip(array $studentIds, int $schoolId, ?int $exceptTripId = null): void
+    public function assertStudentsAvailableForTrip(array $studentIds, int $schoolId, int|array|null $exceptTripIds = null): void
     {
         $unique = array_values(array_unique(array_map(static fn ($v): int => (int) $v, $studentIds)));
         if ($unique === []) {
             return;
         }
 
-        $booked = $this->studentIdsOnActiveTrips($schoolId, $exceptTripId);
+        $booked = $this->studentIdsOnActiveTrips($schoolId, $exceptTripIds);
         $conflicts = array_values(array_intersect($unique, $booked));
         if ($conflicts === []) {
             return;
@@ -55,5 +59,23 @@ final class TripStudentAvailability
         throw ValidationException::withMessages([
             'student_ids' => [__('dashboard.trip_students_already_assigned')],
         ]);
+    }
+
+    /**
+     * @param  int|list<int>|null  $exceptTripIds
+     * @return list<int>
+     */
+    private function normalizeExceptTripIds(int|array|null $exceptTripIds): array
+    {
+        if ($exceptTripIds === null) {
+            return [];
+        }
+
+        $ids = is_array($exceptTripIds) ? $exceptTripIds : [$exceptTripIds];
+
+        return array_values(array_unique(array_filter(
+            array_map(static fn ($v): int => (int) $v, $ids),
+            static fn (int $id): bool => $id > 0,
+        )));
     }
 }

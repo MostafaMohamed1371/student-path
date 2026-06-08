@@ -275,42 +275,31 @@ class DashboardTripController extends Controller
 
         $schoolId = (int) $request->query('school_id', old('school_id', auth()->user()?->scopingSchoolId() ?? $schools->first()?->id ?? 0));
         $driverId = (int) $request->query('driver_id', 0);
-        $tripId = (int) $request->query('trip_id', 0);
+        $tripIds = $this->tripIdsFromAssignRequest($request);
 
         $drivers = $schoolId > 0 ? $this->driversForTripForm($schoolId, null) : collect();
         $trips = $schoolId > 0 ? $this->tripsForAssignForm($schoolId, $driverId > 0 ? $driverId : null) : collect();
 
-        $trip = null;
-        $students = collect();
-        $selectedStudentIds = [];
-        if ($tripId > 0) {
-            $trip = TripHistory::query()->with(['driver', 'school'])->find($tripId);
-            if ($trip && $this->tripHistoryVisible($trip)) {
-                $schoolId = (int) $trip->school_id;
-                $selectedStudentIds = $trip->tripHistoryStudents()->pluck('student_id')->map(fn ($id): int => (int) $id)->all();
-                $students = $this->studentsForTripForm(
-                    $schoolId,
-                    is_string($trip->trip_type) ? $trip->trip_type : null,
-                    $selectedStudentIds,
-                    (int) $trip->id,
-                    $trip->driver_id !== null ? (int) $trip->driver_id : null,
-                );
-            } else {
-                $trip = null;
-                $tripId = 0;
-            }
+        $selectedTrips = $this->resolveSelectedTripsForAssign($tripIds, $schoolId);
+        if ($selectedTrips->isNotEmpty()) {
+            $schoolId = (int) $selectedTrips->first()->school_id;
         }
+
+        $selectedStudentIds = $this->assignedStudentIdsOnTrips($selectedTrips);
+        $students = $selectedTrips->isNotEmpty()
+            ? $this->studentsForMultipleTripsForm($schoolId, $selectedTrips, $selectedStudentIds)
+            : collect();
 
         return view('dashboard.trips.assign_students', [
             'schools' => $schools,
             'drivers' => $drivers,
             'trips' => $trips,
-            'trip' => $trip,
+            'selectedTrips' => $selectedTrips,
             'students' => $students,
             'selectedStudentIds' => $selectedStudentIds,
             'schoolId' => $schoolId,
             'driverId' => $driverId,
-            'tripId' => $tripId,
+            'tripIds' => $selectedTrips->pluck('id')->map(fn ($id): int => (int) $id)->all(),
             'formOptionsUrl' => route('dashboard.trips.assign_students.form_options'),
         ]);
     }
@@ -323,6 +312,8 @@ class DashboardTripController extends Controller
             'school_id' => ['required', 'integer', 'exists:schools,id'],
             'driver_id' => ['nullable', 'integer', 'exists:drivers,id'],
             'trip_id' => ['nullable', 'integer', 'exists:trip_histories,id'],
+            'trip_ids' => ['nullable', 'array'],
+            'trip_ids.*' => ['integer', 'exists:trip_histories,id'],
             'include_student_ids' => ['nullable', 'array'],
             'include_student_ids.*' => ['integer'],
         ]);
@@ -335,7 +326,7 @@ class DashboardTripController extends Controller
             $this->assertDriverBelongsToSchool($driverId, $schoolId);
         }
 
-        $tripId = isset($validated['trip_id']) ? (int) $validated['trip_id'] : 0;
+        $tripIds = $this->tripIdsFromValidatedAssignInput($validated);
         $includeIds = array_map('intval', $validated['include_student_ids'] ?? []);
 
         $drivers = $this->driversForTripForm($schoolId, null)
@@ -353,44 +344,41 @@ class DashboardTripController extends Controller
 
         $students = [];
         $selectedStudentIds = [];
-        $tripPayload = null;
+        $selectedTripsPayload = [];
         $routeFilterActive = false;
         $corridorMaxKm = null;
 
-        if ($tripId > 0) {
-            $trip = TripHistory::query()->with('driver')->find($tripId);
-            if ($trip && $this->tripHistoryVisible($trip) && (int) $trip->school_id === $schoolId) {
+        $selectedTrips = $this->resolveSelectedTripsForAssign($tripIds, $schoolId);
+        if ($selectedTrips->isNotEmpty()) {
+            $includeIds = array_values(array_unique(array_merge(
+                $includeIds,
+                $this->assignedStudentIdsOnTrips($selectedTrips),
+            )));
+
+            $students = $this->studentsForMultipleTripsForm($schoolId, $selectedTrips, $includeIds)
+                ->map(fn (Student $s): array => $this->studentOptionRow($s))
+                ->values()
+                ->all();
+
+            $selectedStudentIds = $this->assignedStudentIdsOnTrips($selectedTrips);
+
+            foreach ($selectedTrips as $trip) {
                 $tripType = is_string($trip->trip_type) && $trip->trip_type !== '' ? $trip->trip_type : null;
                 $tripDriverId = $trip->driver_id !== null ? (int) $trip->driver_id : null;
-                $selectedStudentIds = $trip->tripHistoryStudents()->pluck('student_id')->map(fn ($id): int => (int) $id)->all();
-                $includeIds = array_values(array_unique(array_merge($includeIds, $selectedStudentIds)));
-
-                $students = $this->studentsForTripForm($schoolId, $tripType, $includeIds, $tripId, $tripDriverId)
-                    ->map(fn (Student $s): array => $this->studentOptionRow($s))
-                    ->values()
-                    ->all();
-
                 $activeRoute = $this->transportRouteForDriver($schoolId, $tripType, $tripDriverId);
-                $routeFilterActive = $activeRoute !== null;
-                $corridorMaxKm = $routeFilterActive
-                    ? round((float) config('routes.corridor_max_meters', 3000) / 1000, 1)
-                    : null;
+                if ($activeRoute !== null) {
+                    $routeFilterActive = true;
+                    $corridorMaxKm = round((float) config('routes.corridor_max_meters', 3000) / 1000, 1);
+                }
 
-                $tripPayload = [
-                    'id' => (int) $trip->id,
-                    'trip_type' => $trip->trip_type,
-                    'driver_id' => $trip->driver_id,
-                    'route_title' => $trip->route_title,
-                    'start_time' => $trip->start_time?->format('Y-m-d H:i'),
-                    'students_count' => (int) $trip->students_count,
-                ];
+                $selectedTripsPayload[] = $this->tripSummaryPayload($trip);
             }
         }
 
         return response()->json([
             'drivers' => $drivers,
             'trips' => $trips,
-            'trip' => $tripPayload,
+            'selected_trips' => $selectedTripsPayload,
             'students' => $students,
             'selected_student_ids' => $selectedStudentIds,
             'route_filter_active' => $routeFilterActive,
@@ -403,35 +391,71 @@ class DashboardTripController extends Controller
         $this->abortUnlessCanMutateSchoolRoster();
 
         $validated = $request->validate([
-            'trip_id' => ['required', 'integer', 'exists:trip_histories,id'],
+            'trip_id' => ['nullable', 'integer', 'exists:trip_histories,id'],
+            'trip_ids' => ['nullable', 'array', 'min:1'],
+            'trip_ids.*' => ['integer', 'exists:trip_histories,id'],
             'student_ids' => ['nullable', 'array'],
             'student_ids.*' => ['integer', 'exists:students,id'],
         ]);
 
-        $trip = TripHistory::query()->findOrFail((int) $validated['trip_id']);
-        abort_unless($this->tripHistoryVisible($trip), 404);
-        $this->abortUnlessCanMutateSchoolRosterForSchool((int) $trip->school_id);
-
-        if (in_array(strtoupper((string) $trip->status), ['CANCELLED', 'COMPLETED'], true)) {
+        $tripIds = $this->tripIdsFromValidatedAssignInput($validated);
+        if ($tripIds === []) {
             throw ValidationException::withMessages([
-                'trip_id' => [__('dashboard.trip_assign_students_closed_trip')],
+                'trip_ids' => [__('dashboard.trip_assign_select_trip_placeholder')],
             ]);
         }
 
+        $selectedTrips = TripHistory::query()
+            ->whereIn('id', $tripIds)
+            ->get()
+            ->sortBy(fn (TripHistory $trip): int => array_search((int) $trip->id, $tripIds, true))
+            ->values();
+
+        if ($selectedTrips->count() !== count($tripIds)) {
+            abort(404);
+        }
+
+        foreach ($selectedTrips as $trip) {
+            abort_unless($this->tripHistoryVisible($trip), 404);
+            $this->abortUnlessCanMutateSchoolRosterForSchool((int) $trip->school_id);
+
+            if (in_array(strtoupper((string) $trip->status), ['CANCELLED', 'COMPLETED'], true)) {
+                throw ValidationException::withMessages([
+                    'trip_ids' => [__('dashboard.trip_assign_students_closed_trip')],
+                ]);
+            }
+        }
+
+        $schoolIds = $selectedTrips->pluck('school_id')->map(fn ($id): int => (int) $id)->unique()->values();
+        if ($schoolIds->count() !== 1) {
+            throw ValidationException::withMessages([
+                'trip_ids' => [__('dashboard.trip_assign_trips_same_school')],
+            ]);
+        }
+
+        $schoolId = (int) $schoolIds->first();
         $studentIds = array_values(array_unique(array_map(
             static fn ($v): int => (int) $v,
             $validated['student_ids'] ?? [],
         )));
-        $this->syncTripStudentsForSchool($trip, $studentIds, (int) $trip->school_id);
 
+        foreach ($selectedTrips as $trip) {
+            $this->syncTripStudentsForSchool($trip, $studentIds, $schoolId, $tripIds);
+        }
+
+        $tripCount = $selectedTrips->count();
         $message = count($studentIds) > 0
-            ? __('dashboard.trip_students_assigned', ['count' => count($studentIds)])
-            : __('dashboard.trip_students_cleared');
+            ? ($tripCount > 1
+                ? __('dashboard.trip_students_assigned_multiple', ['count' => count($studentIds), 'trips' => $tripCount])
+                : __('dashboard.trip_students_assigned', ['count' => count($studentIds)]))
+            : ($tripCount > 1
+                ? __('dashboard.trip_students_cleared_multiple', ['trips' => $tripCount])
+                : __('dashboard.trip_students_cleared'));
 
         return redirect()
             ->route('dashboard.trips.assign_students', [
-                'school_id' => $trip->school_id,
-                'trip_id' => $trip->id,
+                'school_id' => $schoolId,
+                'trip_ids' => $tripIds,
             ])
             ->with('success', $message);
     }
@@ -755,9 +779,14 @@ class DashboardTripController extends Controller
 
     /**
      * @param  list<int|string>  $studentIds
+     * @param  int|list<int>|null  $exceptTripIds
      */
-    private function syncTripStudentsForSchool(TripHistory $trip, array $studentIds, int $schoolId): void
-    {
+    private function syncTripStudentsForSchool(
+        TripHistory $trip,
+        array $studentIds,
+        int $schoolId,
+        int|array|null $exceptTripIds = null,
+    ): void {
         $unique = array_values(array_unique(array_map(static fn ($v): int => (int) $v, $studentIds)));
 
         if ($unique === []) {
@@ -772,7 +801,8 @@ class DashboardTripController extends Controller
 
         $tripType = is_string($trip->trip_type) && $trip->trip_type !== '' ? $trip->trip_type : null;
 
-        $this->tripStudentAvailability->assertStudentsAvailableForTrip($unique, $schoolId, (int) $trip->id);
+        $except = $exceptTripIds ?? (int) $trip->id;
+        $this->tripStudentAvailability->assertStudentsAvailableForTrip($unique, $schoolId, $except);
 
         $previouslyOnTrip = $trip->tripHistoryStudents()
             ->pluck('student_id')
@@ -893,6 +923,143 @@ class DashboardTripController extends Controller
     }
 
     /**
+     * @return list<int>
+     */
+    private function tripIdsFromAssignRequest(Request $request): array
+    {
+        $tripIds = array_map('intval', (array) $request->query('trip_ids', []));
+        $tripIds = array_values(array_unique(array_filter($tripIds, static fn (int $id): bool => $id > 0)));
+
+        if ($tripIds !== []) {
+            return $tripIds;
+        }
+
+        $tripId = (int) $request->query('trip_id', 0);
+
+        return $tripId > 0 ? [$tripId] : [];
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return list<int>
+     */
+    private function tripIdsFromValidatedAssignInput(array $validated): array
+    {
+        $tripIds = array_map('intval', $validated['trip_ids'] ?? []);
+        $tripIds = array_values(array_unique(array_filter($tripIds, static fn (int $id): bool => $id > 0)));
+
+        if ($tripIds !== []) {
+            return $tripIds;
+        }
+
+        $tripId = (int) ($validated['trip_id'] ?? 0);
+
+        return $tripId > 0 ? [$tripId] : [];
+    }
+
+    /**
+     * @param  list<int>  $tripIds
+     * @return Collection<int, TripHistory>
+     */
+    private function resolveSelectedTripsForAssign(array $tripIds, int $schoolId): Collection
+    {
+        if ($tripIds === []) {
+            return collect();
+        }
+
+        return TripHistory::query()
+            ->with(['driver', 'school'])
+            ->whereIn('id', $tripIds)
+            ->get()
+            ->filter(fn (TripHistory $trip): bool => $this->tripHistoryVisible($trip)
+                && ($schoolId <= 0 || (int) $trip->school_id === $schoolId))
+            ->sortBy(fn (TripHistory $trip): int => array_search((int) $trip->id, $tripIds, true))
+            ->values();
+    }
+
+    /**
+     * @param  Collection<int, TripHistory>  $trips
+     * @return list<int>
+     */
+    private function assignedStudentIdsOnTrips(Collection $trips): array
+    {
+        if ($trips->isEmpty()) {
+            return [];
+        }
+
+        $sets = $trips->map(
+            fn (TripHistory $trip): array => $trip->tripHistoryStudents()
+                ->pluck('student_id')
+                ->map(fn ($id): int => (int) $id)
+                ->all(),
+        )->all();
+
+        return array_values(array_intersect(...$sets));
+    }
+
+    /**
+     * @param  Collection<int, TripHistory>  $trips
+     * @param  list<int>  $includeStudentIds
+     * @return Collection<int, Student>
+     */
+    private function studentsForMultipleTripsForm(int $schoolId, Collection $trips, array $includeStudentIds = []): Collection
+    {
+        if ($trips->isEmpty()) {
+            return collect();
+        }
+
+        $exceptTripIds = $trips->pluck('id')->map(fn ($id): int => (int) $id)->all();
+        $rows = null;
+
+        foreach ($trips as $trip) {
+            $onTrip = $trip->tripHistoryStudents()
+                ->pluck('student_id')
+                ->map(fn ($id): int => (int) $id)
+                ->all();
+            $include = array_values(array_unique(array_merge($includeStudentIds, $onTrip)));
+
+            $forTrip = $this->studentsForTripForm(
+                $schoolId,
+                is_string($trip->trip_type) ? $trip->trip_type : null,
+                $include,
+                $exceptTripIds,
+                $trip->driver_id !== null ? (int) $trip->driver_id : null,
+            );
+
+            if ($rows === null) {
+                $rows = $forTrip;
+            } else {
+                $allowedIds = $forTrip->pluck('id')->flip();
+                $rows = $rows->filter(fn (Student $student): bool => $allowedIds->has($student->id))->values();
+            }
+        }
+
+        return $rows ?? collect();
+    }
+
+    /**
+     * @return array{
+     *     id: int,
+     *     trip_type: string|null,
+     *     driver_id: int|null,
+     *     route_title: string|null,
+     *     start_time: string|null,
+     *     students_count: int
+     * }
+     */
+    private function tripSummaryPayload(TripHistory $trip): array
+    {
+        return [
+            'id' => (int) $trip->id,
+            'trip_type' => $trip->trip_type,
+            'driver_id' => $trip->driver_id,
+            'route_title' => $trip->route_title,
+            'start_time' => $trip->start_time?->format('Y-m-d H:i'),
+            'students_count' => (int) $trip->students_count,
+        ];
+    }
+
+    /**
      * @return Collection<int, TripHistory>
      */
     private function tripsForAssignForm(int $schoolId, ?int $driverId = null): Collection
@@ -978,14 +1145,14 @@ class DashboardTripController extends Controller
         int $schoolId,
         ?string $tripType,
         array $includeStudentIds = [],
-        ?int $exceptTripId = null,
+        int|array|null $exceptTripIds = null,
         ?int $driverId = null,
     ): Collection {
         if ($schoolId <= 0) {
             return collect();
         }
 
-        $bookedIds = $this->tripStudentAvailability->studentIdsOnActiveTrips($schoolId, $exceptTripId);
+        $bookedIds = $this->tripStudentAvailability->studentIdsOnActiveTrips($schoolId, $exceptTripIds);
 
         $query = Student::query()
             ->where('school_id', $schoolId)

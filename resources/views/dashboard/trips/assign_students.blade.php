@@ -40,11 +40,11 @@
                 </label>
 
                 <label style="grid-column:1 / -1;">
-                    <span>{{ __('dashboard.trip_assign_select_trip') }}</span>
-                    <select class="input" id="trip_assign_trip_id" name="trip_id" required>
-                        <option value="">{{ __('dashboard.trip_assign_select_trip_placeholder') }}</option>
+                    <span>{{ __('dashboard.trip_assign_select_trips') }}</span>
+                    <p style="margin:4px 0 8px;font-size:12px;color:#64748b;">{{ __('dashboard.trip_assign_select_trips_help') }}</p>
+                    <select class="input" id="trip_assign_trip_ids" name="trip_ids[]" multiple size="8" required style="width:100%;max-width:640px;">
                         @foreach($trips as $t)
-                            <option value="{{ $t->id }}" @selected((int) $tripId === (int) $t->id)>
+                            <option value="{{ $t->id }}" @selected(in_array((int) $t->id, $tripIds, true))>
                                 @php($start = $t->start_time?->format('Y-m-d H:i'))
                                 #{{ $t->id }} — {{ $t->route_title ?: __('dashboard.trip') }}@if($start) — {{ $start }}@endif
                             </option>
@@ -52,13 +52,15 @@
                     </select>
                 </label>
 
-                <div id="trip_assign_trip_summary" style="grid-column:1 / -1;display:{{ $trip ? 'block' : 'none' }};padding:12px;background:#f8fafc;border-radius:8px;">
-                    @if($trip)
-                        <p style="margin:0 0 6px;"><strong>{{ __('dashboard.trip_field_type') }}:</strong> {{ $trip->trip_type ?: '—' }}</p>
-                        <p style="margin:0 0 6px;"><strong>{{ __('dashboard.route_title') }}:</strong> {{ $trip->route_title ?: '—' }}</p>
-                        <p style="margin:0 0 6px;"><strong>{{ __('dashboard.trip_start_time') }}:</strong> {{ $trip->start_time }}</p>
-                        <p style="margin:0;"><strong>{{ __('dashboard.students_count') }}:</strong> {{ $trip->students_count }}</p>
-                    @endif
+                <div id="trip_assign_trip_summary" style="grid-column:1 / -1;display:{{ $selectedTrips->isNotEmpty() ? 'block' : 'none' }};padding:12px;background:#f8fafc;border-radius:8px;">
+                    @foreach($selectedTrips as $trip)
+                        <div style="margin-bottom:{{ $loop->last ? 0 : 12 }}px;padding-bottom:{{ $loop->last ? 0 : 12 }}px;{{ $loop->last ? '' : 'border-bottom:1px solid #e2e8f0;' }}">
+                            <p style="margin:0 0 6px;"><strong>#{{ $trip->id }}</strong> — {{ $trip->route_title ?: __('dashboard.trip') }}</p>
+                            <p style="margin:0 0 6px;"><strong>{{ __('dashboard.trip_field_type') }}:</strong> {{ $trip->trip_type ?: '—' }}</p>
+                            <p style="margin:0 0 6px;"><strong>{{ __('dashboard.trip_start_time') }}:</strong> {{ $trip->start_time }}</p>
+                            <p style="margin:0;"><strong>{{ __('dashboard.students_count') }}:</strong> {{ $trip->students_count }}</p>
+                        </div>
+                    @endforeach
                 </div>
 
                 <label style="grid-column:1 / -1;">

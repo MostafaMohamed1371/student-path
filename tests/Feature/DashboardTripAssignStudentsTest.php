@@ -129,10 +129,10 @@ class DashboardTripAssignStudentsTest extends TestCase
 
         $this->getJson(route('dashboard.trips.assign_students.form_options', [
             'school_id' => $school->id,
-            'trip_id' => $trip->id,
+            'trip_ids' => [$trip->id],
         ]))
             ->assertOk()
-            ->assertJsonPath('trip.id', $trip->id)
+            ->assertJsonPath('selected_trips.0.id', $trip->id)
             ->assertJsonFragment(['id' => $student->id]);
 
         $this->post(route('dashboard.trips.assign_students.store'), [
@@ -153,5 +153,106 @@ class DashboardTripAssignStudentsTest extends TestCase
 
         $this->assertSame(0, TripHistoryStudent::query()->where('trip_history_id', $trip->id)->count());
         $this->assertSame(0, $trip->fresh()->students_count);
+    }
+
+    public function test_assign_students_to_multiple_trips_at_once(): void
+    {
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'School Multi',
+            'province' => 'P',
+            'district' => 'D',
+            'address' => 'A',
+            'latitude' => 33.315,
+            'longitude' => 44.366,
+            'status' => 'active',
+        ]);
+
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'G',
+            'phone' => '7300000881',
+            'status' => 'active',
+        ]);
+
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'Multi Trip Student',
+            'gender' => 'male',
+            'grade' => 'G1',
+            'student_phone' => '7400000881',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'father',
+            'district_area' => 'Area',
+            'nearest_landmark' => 'LM',
+            'latitude' => 33.314,
+            'longitude' => 44.365,
+            'shift_period' => 'MORNING',
+            'status' => 'active',
+        ]);
+
+        $driverUser = User::factory()->create();
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'D',
+            'father_name' => 'D',
+            'grandfather_name' => 'D',
+            'last_name' => 'Multi',
+            'age' => 30,
+            'id_card_number' => 'IDC-MT',
+            'license_number' => 'LIC-MT',
+            'primary_phone' => '7770000881',
+            'emergency_phone' => '7770001881',
+            'residential_address' => 'Addr',
+            'shift_period' => 'MORNING',
+            'status' => 'active',
+        ]);
+
+        $pickupTrip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => TripType::MORNING_PICKUP->value,
+            'bus_number' => 'MT-1',
+            'route_title' => 'Pickup',
+            'location' => 'Loc',
+            'students_count' => 0,
+            'distance_km' => 1,
+            'start_time' => now()->addHour(),
+            'status' => 'PRESENT',
+            'students_preview' => [],
+        ]);
+
+        $returnTrip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => TripType::MORNING_RETURN->value,
+            'bus_number' => 'MT-1',
+            'route_title' => 'Return',
+            'location' => 'Loc',
+            'students_count' => 0,
+            'distance_km' => 1,
+            'start_time' => now()->addHours(8),
+            'status' => 'PRESENT',
+            'students_preview' => [],
+        ]);
+
+        $admin = User::factory()->create(['is_admin' => true]);
+        $this->actingAs($admin);
+
+        $this->post(route('dashboard.trips.assign_students.store'), [
+            'trip_ids' => [$pickupTrip->id, $returnTrip->id],
+            'student_ids' => [$student->id],
+        ])->assertRedirect();
+
+        foreach ([$pickupTrip, $returnTrip] as $trip) {
+            $this->assertDatabaseHas('trip_history_students', [
+                'trip_history_id' => $trip->id,
+                'student_id' => $student->id,
+            ]);
+            $this->assertSame(1, $trip->fresh()->students_count);
+        }
     }
 }
