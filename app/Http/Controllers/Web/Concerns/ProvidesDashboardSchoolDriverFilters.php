@@ -245,7 +245,10 @@ trait ProvidesDashboardSchoolDriverFilters
 
         if ($scope === 'bus_list') {
             if ($schoolId > 0) {
-                $query->whereHas('driver', fn (Builder $d) => $d->where('school_id', $schoolId));
+                $query->where(function (Builder $q) use ($schoolId): void {
+                    $q->where('school_id', $schoolId)
+                        ->orWhereHas('driver', fn (Builder $d) => $d->where('school_id', $schoolId));
+                });
             }
             if ($driverId > 0) {
                 $query->where('driver_id', $driverId);

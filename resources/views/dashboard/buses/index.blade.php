@@ -36,7 +36,7 @@
                             <td>{{ $bus->name }}</td>
                             <td>{{ $bus->number }}</td>
                             <td>{{ $bus->driver ? $bus->driver->first_name.' '.$bus->driver->last_name : '—' }}</td>
-                            <td>{{ $bus->driver?->school?->name_en ?: '—' }}</td>
+                            <td>{{ $bus->school?->name_en ?: $bus->driver?->school?->name_en ?: '—' }}</td>
                             <td>{{ $bus->city }}</td>
                             @if(auth()->user()?->canMutateSchoolRoster())
                             <td style="display:flex;gap:8px;">

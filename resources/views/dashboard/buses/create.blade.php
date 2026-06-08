@@ -14,6 +14,4 @@
             </form>
         </section>
     @endcomponent
-
-    @include('dashboard.buses._form_options_script', ['formOptionsUrl' => $formOptionsUrl])
 @endsection

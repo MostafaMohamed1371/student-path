@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Web;
 
 use App\Enums\PhoneAccountType;
+use App\Http\Requests\Concerns\ValidatesDriverBusAssignment;
 use App\Http\Requests\Concerns\ValidatesUniqueDashboardIdCard;
 use App\Http\Requests\Concerns\ValidatesUniqueDashboardPhone;
 use App\Models\Driver;
@@ -15,6 +16,7 @@ use Illuminate\Validation\Validator;
 
 class UpdateDashboardDriverRequest extends FormRequest
 {
+    use ValidatesDriverBusAssignment;
     use ValidatesUniqueDashboardIdCard;
     use ValidatesUniqueDashboardPhone;
     public function authorize(): bool
@@ -72,6 +74,8 @@ class UpdateDashboardDriverRequest extends FormRequest
                 ->all();
             $this->merge(['service_areas' => $rows]);
         }
+
+        $this->prepareDriverBusIdInput();
     }
 
     /** @return array<string, list<string|ValidationRule>> */
@@ -107,6 +111,7 @@ class UpdateDashboardDriverRequest extends FormRequest
             'non_conviction_certificate' => ['nullable', 'file', 'max:4096'],
             'rating_avg' => ['nullable', 'numeric', 'min:0', 'max:5'],
             'rating_count' => ['nullable', 'integer', 'min:0', 'max:999999'],
+            'bus_id' => ['nullable', 'integer', 'exists:buses,id'],
         ];
     }
 
@@ -133,5 +138,6 @@ class UpdateDashboardDriverRequest extends FormRequest
             'id_card_number',
             new IdCardRecordIdentity(driverId: (int) $driver->id),
         );
+        $this->assertDriverBusAvailable($validator);
     }
 }

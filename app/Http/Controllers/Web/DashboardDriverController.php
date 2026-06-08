@@ -3,18 +3,21 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Web\Concerns\AssignsDriverBus;
 use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
 use App\Http\Controllers\Web\Concerns\ProvidesDashboardIraqLocationFilters;
 use App\Http\Controllers\Web\Concerns\ProvidesDashboardSchoolDriverFilters;
 use App\Http\Controllers\Web\Concerns\SyncsDriverServiceAreas;
 use App\Http\Requests\Web\StoreDashboardDriverRequest;
 use App\Http\Requests\Web\UpdateDashboardDriverRequest;
+use App\Models\Bus;
 use App\Models\Driver;
 use App\Models\District;
 use App\Models\User;
 use App\Services\Phone\DashboardPhoneUserProvisioner;
 use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -24,6 +27,7 @@ use Illuminate\View\View;
 
 class DashboardDriverController extends Controller
 {
+    use AssignsDriverBus;
     use ManagesDashboardScoping;
     use ProvidesDashboardIraqLocationFilters;
     use ProvidesDashboardSchoolDriverFilters;
@@ -64,6 +68,35 @@ class DashboardDriverController extends Controller
             'schools' => $schools,
             'governorates' => District::query()->orderBy('sort_order')->orderBy('name')->get(),
             'serviceAreaRows' => $this->driverServiceAreaRowsForForm(null),
+            'availableBuses' => $this->busesForDriverForm(
+                (int) old('school_id', $schools->first()?->id ?? 0),
+            ),
+            'formOptionsUrl' => route('dashboard.drivers.form_options'),
+        ]);
+    }
+
+    public function formOptions(Request $request): JsonResponse
+    {
+        $this->abortUnlessCanMutateSchoolRoster();
+
+        $validated = $request->validate([
+            'school_id' => ['required', 'integer', 'exists:schools,id'],
+            'except_driver_id' => ['nullable', 'integer', 'exists:drivers,id'],
+        ]);
+
+        $schoolId = (int) $validated['school_id'];
+        $this->abortUnlessCanMutateSchoolRosterForSchool($schoolId);
+
+        $exceptDriverId = isset($validated['except_driver_id']) ? (int) $validated['except_driver_id'] : null;
+
+        return response()->json([
+            'buses' => $this->busesForDriverForm($schoolId, $exceptDriverId)
+                ->map(fn (Bus $bus): array => [
+                    'id' => (int) $bus->id,
+                    'label' => trim($bus->number.' — '.$bus->name),
+                ])
+                ->values()
+                ->all(),
         ]);
     }
 
@@ -72,7 +105,8 @@ class DashboardDriverController extends Controller
         $this->abortUnlessCanMutateSchoolRoster();
         $validated = $this->enforceRosterSchoolIdForStaff($request->validated());
         $serviceAreas = $validated['service_areas'] ?? [];
-        unset($validated['service_areas'], $validated['district_id'], $validated['area_id'], $validated['neighborhood_ids'], $validated['neighborhood_id'], $validated['monthly_subscription_price']);
+        $busId = isset($validated['bus_id']) ? (int) $validated['bus_id'] : null;
+        unset($validated['service_areas'], $validated['district_id'], $validated['area_id'], $validated['neighborhood_ids'], $validated['neighborhood_id'], $validated['monthly_subscription_price'], $validated['bus_id']);
         $this->abortUnlessCanMutateSchoolRosterForSchool((int) $validated['school_id']);
         $ratingAvg = Arr::pull($validated, 'rating_avg');
         $ratingCount = Arr::pull($validated, 'rating_count');
@@ -98,6 +132,7 @@ class DashboardDriverController extends Controller
             'non_conviction_certificate' => $this->storeFile($request->file('non_conviction_certificate'), 'drivers'),
         ]);
         $this->syncDriverServiceAreas($driver, $serviceAreas);
+        $this->syncDriverBusAssignment($driver, $busId);
 
         return redirect()->route('dashboard.drivers.index')->with('success', __('dashboard.driver_created'));
     }
@@ -105,7 +140,7 @@ class DashboardDriverController extends Controller
     public function edit(Driver $driver): View
     {
         $this->abortUnlessCanMutateSchoolRosterForSchool((int) $driver->school_id);
-        $driver->loadMissing(['user', 'neighborhoods']);
+        $driver->loadMissing(['user', 'neighborhoods', 'bus']);
         $schools = $this->schoolsForRosterForm();
 
         return view('dashboard.drivers.edit', [
@@ -113,6 +148,11 @@ class DashboardDriverController extends Controller
             'schools' => $schools,
             'governorates' => District::query()->orderBy('sort_order')->orderBy('name')->get(),
             'serviceAreaRows' => $this->driverServiceAreaRowsForForm($driver),
+            'availableBuses' => $this->busesForDriverForm(
+                (int) old('school_id', $driver->school_id),
+                (int) $driver->id,
+            ),
+            'formOptionsUrl' => route('dashboard.drivers.form_options'),
         ]);
     }
 
@@ -120,7 +160,8 @@ class DashboardDriverController extends Controller
     {
         $validated = $this->enforceRosterSchoolIdForStaff($request->validated());
         $serviceAreas = $validated['service_areas'] ?? [];
-        unset($validated['service_areas'], $validated['district_id'], $validated['area_id'], $validated['neighborhood_ids'], $validated['neighborhood_id'], $validated['monthly_subscription_price']);
+        $busId = isset($validated['bus_id']) ? (int) $validated['bus_id'] : null;
+        unset($validated['service_areas'], $validated['district_id'], $validated['area_id'], $validated['neighborhood_ids'], $validated['neighborhood_id'], $validated['monthly_subscription_price'], $validated['bus_id']);
         $this->abortUnlessCanMutateSchoolRosterForSchool((int) ($validated['school_id'] ?? $driver->school_id));
         $ratingAvg = Arr::pull($validated, 'rating_avg');
         $ratingCount = Arr::pull($validated, 'rating_count');
@@ -143,6 +184,7 @@ class DashboardDriverController extends Controller
 
         $driver->update($payload);
         $this->syncDriverServiceAreas($driver, $serviceAreas);
+        $this->syncDriverBusAssignment($driver, $busId);
 
         return redirect()->route('dashboard.drivers.index')->with('success', __('dashboard.driver_updated'));
     }

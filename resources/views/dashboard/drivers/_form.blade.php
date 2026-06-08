@@ -33,6 +33,19 @@
     <div></div>
 
     <div>
+        <label class="field-label" for="bus_id">{{ __('dashboard.bus') }}</label>
+        <select class="input" id="bus_id" name="bus_id">
+            <option value="">{{ __('dashboard.driver_select_bus') }}</option>
+            @foreach(($availableBuses ?? collect()) as $busOption)
+                <option value="{{ $busOption->id }}" @selected((string) old('bus_id', $driver?->bus?->id ?? '') === (string) $busOption->id)>
+                    {{ $busOption->number }} — {{ $busOption->name }}
+                </option>
+            @endforeach
+        </select>
+        <p class="help">{{ __('dashboard.driver_bus_assignment_help') }}</p>
+    </div>
+
+    <div>
         <label class="field-label" for="first_name">{{ __('dashboard.first_name') }}</label>
         <input class="input" id="first_name" name="first_name" value="{{ old('first_name', $driver->first_name ?? '') }}" required />
     </div>

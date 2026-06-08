@@ -68,7 +68,10 @@ trait ManagesDashboardScoping
 
             return;
         }
-        $query->whereHas('driver', fn (Builder $q) => $q->where('school_id', $id));
+        $query->where(function (Builder $q) use ($id): void {
+            $q->where('school_id', $id)
+                ->orWhereHas('driver', fn (Builder $d) => $d->where('school_id', $id));
+        });
     }
 
     /** Global admin or user with {@see User::$school_id} (school staff). */

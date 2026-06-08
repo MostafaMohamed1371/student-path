@@ -25,7 +25,7 @@ class DashboardBusController extends Controller
         $filters = $this->dashboardReportFilterContext($request);
 
         $query = Bus::query()
-            ->with('driver.school')
+            ->with(['driver.school', 'school'])
             ->latest('id');
         $this->applyDashboardReportFilters($query, $filters, 'bus_list');
 
@@ -46,12 +46,8 @@ class DashboardBusController extends Controller
                 ->with('error', __('dashboard.no_schools'));
         }
 
-        $schoolId = (int) old('school_id', $schools->first()?->id ?? 0);
-
         return view('dashboard.buses.create', [
             'schools' => $schools,
-            'drivers' => $this->driversForBusForm($schoolId > 0 ? $schoolId : null),
-            'formOptionsUrl' => route('dashboard.buses.form_options'),
         ]);
     }
 
@@ -59,10 +55,10 @@ class DashboardBusController extends Controller
     {
         abort_unless($this->busVisible($bus), 404);
         $this->abortUnlessCanMutateSchoolRoster();
-        $bus->loadMissing('driver');
+        $bus->loadMissing(['driver', 'school']);
 
         $schools = $this->schoolsForRosterForm();
-        $schoolId = (int) old('school_id', $bus->driver?->school_id ?? $schools->first()?->id ?? 0);
+        $schoolId = (int) old('school_id', $bus->school_id ?? $bus->driver?->school_id ?? $schools->first()?->id ?? 0);
 
         return view('dashboard.buses.edit', [
             'bus' => $bus,
@@ -99,15 +95,12 @@ class DashboardBusController extends Controller
         $this->abortUnlessCanMutateSchoolRoster();
         $this->normalizeBusOptionalFields($request);
         $validated = $request->validate($this->rules());
-        $this->assertDriverBelongsToScopingSchool((int) $validated['driver_id']);
+        $this->abortUnlessCanMutateSchoolRosterForSchool((int) $validated['school_id']);
 
         $validated['annual_status'] = $request->boolean('annual_status');
         $validated['insurance'] = $request->boolean('insurance');
-        if (! $this->mergeDriverUserIdInto($validated)) {
-            return back()->withInput()->withErrors([
-                'driver_id' => __('dashboard.driver_missing_user_account'),
-            ]);
-        }
+        $validated['user_id'] = null;
+        $validated['driver_id'] = null;
 
         Bus::query()->create($validated);
 
@@ -120,14 +113,22 @@ class DashboardBusController extends Controller
         $this->abortUnlessCanMutateSchoolRoster();
         $this->normalizeBusOptionalFields($request);
         $validated = $request->validate($this->rules($bus->id));
-        $this->assertDriverBelongsToScopingSchool((int) $validated['driver_id']);
+        $this->abortUnlessCanMutateSchoolRosterForSchool((int) $validated['school_id']);
 
         $validated['annual_status'] = $request->boolean('annual_status');
         $validated['insurance'] = $request->boolean('insurance');
-        if (! $this->mergeDriverUserIdInto($validated)) {
-            return back()->withInput()->withErrors([
-                'driver_id' => __('dashboard.driver_missing_user_account'),
-            ]);
+
+        $driverId = isset($validated['driver_id']) ? (int) $validated['driver_id'] : 0;
+        if ($driverId > 0) {
+            $this->assertDriverBelongsToScopingSchool($driverId);
+            if (! $this->mergeDriverUserIdInto($validated)) {
+                return back()->withInput()->withErrors([
+                    'driver_id' => __('dashboard.driver_missing_user_account'),
+                ]);
+            }
+        } else {
+            $validated['driver_id'] = null;
+            $validated['user_id'] = null;
         }
 
         $bus->update($validated);
@@ -144,15 +145,11 @@ class DashboardBusController extends Controller
         return redirect()->route('dashboard.buses.index')->with('success', __('dashboard.bus_deleted'));
     }
 
+    /** @return array<string, mixed> */
     private function rules(?int $busId = null): array
     {
-        return [
-            'driver_id' => [
-                'required',
-                'integer',
-                Rule::exists('drivers', 'id')->where(fn ($query) => $query->whereNotNull('user_id')),
-                Rule::unique('buses', 'driver_id')->ignore($busId),
-            ],
+        $rules = [
+            'school_id' => ['required', 'integer', 'exists:schools,id'],
             'name' => ['required', 'string', 'max:255'],
             'type' => ['required', 'string', 'max:255'],
             'vehicle_model_year' => ['nullable', 'integer', 'min:1980', 'max:'.(date('Y') + 1)],
@@ -166,6 +163,17 @@ class DashboardBusController extends Controller
             'annual_status' => ['nullable', 'boolean'],
             'insurance' => ['nullable', 'boolean'],
         ];
+
+        if ($busId !== null) {
+            $rules['driver_id'] = [
+                'nullable',
+                'integer',
+                Rule::exists('drivers', 'id')->where(fn ($query) => $query->whereNotNull('user_id')),
+                Rule::unique('buses', 'driver_id')->ignore($busId),
+            ];
+        }
+
+        return $rules;
     }
 
     private function normalizeBusOptionalFields(Request $request): void
@@ -179,6 +187,10 @@ class DashboardBusController extends Controller
 
         if ($request->input('ac_status') === '') {
             $request->merge(['ac_status' => null]);
+        }
+
+        if ($request->input('driver_id') === '') {
+            $request->merge(['driver_id' => null]);
         }
     }
 
@@ -209,7 +221,7 @@ class DashboardBusController extends Controller
 
         $bus->loadMissing('driver');
 
-        return (int) ($bus->driver?->school_id ?? 0) === (int) $sid;
+        return (int) ($bus->school_id ?? $bus->driver?->school_id ?? 0) === (int) $sid;
     }
 
     private function assertDriverBelongsToScopingSchool(int $driverId): void
@@ -227,8 +239,6 @@ class DashboardBusController extends Controller
     }
 
     /**
-     * Drivers eligible for a new bus at the given school (no bus yet, or current bus on edit).
-     *
      * @return Collection<int, Driver>
      */
     private function driversForBusForm(?int $schoolId, ?int $exceptBusId = null): Collection
@@ -259,9 +269,7 @@ class DashboardBusController extends Controller
         return $query->get();
     }
 
-    /**
-     * @return array{id: int, label: string}
-     */
+    /** @return array{id: int, label: string} */
     private function driverOptionRow(Driver $driver): array
     {
         $name = trim(

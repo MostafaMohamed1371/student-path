@@ -14,8 +14,12 @@
                     'schools' => $schools,
                     'governorates' => $governorates ?? collect(),
                     'serviceAreaRows' => $serviceAreaRows ?? [],
+                    'availableBuses' => $availableBuses ?? collect(),
+                    'formOptionsUrl' => $formOptionsUrl ?? null,
                 ])
             </form>
         </section>
     @endcomponent
+
+    @include('dashboard.drivers._bus_form_options_script', ['formOptionsUrl' => $formOptionsUrl ?? null])
 @endsection

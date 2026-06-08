@@ -76,6 +76,7 @@ Route::middleware('auth')->group(function (): void {
     Route::delete('/dashboard/schools/{school}', [DashboardSchoolController::class, 'destroy'])->name('dashboard.schools.destroy');
 
     Route::get('/dashboard/drivers', [DashboardDriverController::class, 'index'])->name('dashboard.drivers.index');
+    Route::get('/dashboard/drivers/form-options', [DashboardDriverController::class, 'formOptions'])->name('dashboard.drivers.form_options');
     Route::get('/dashboard/drivers/create', [DashboardDriverController::class, 'create'])->name('dashboard.drivers.create');
     Route::post('/dashboard/drivers', [DashboardDriverController::class, 'store'])->name('dashboard.drivers.store');
     Route::get('/dashboard/drivers/{driver}/edit', [DashboardDriverController::class, 'edit'])->name('dashboard.drivers.edit');

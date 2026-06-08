@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Web;
 
 use App\Enums\PhoneAccountType;
+use App\Http\Requests\Concerns\ValidatesDriverBusAssignment;
 use App\Http\Requests\Concerns\ValidatesUniqueDashboardIdCard;
 use App\Http\Requests\Concerns\ValidatesUniqueDashboardPhone;
 use App\Support\IdCardNumber;
@@ -12,6 +13,7 @@ use Illuminate\Validation\Validator;
 
 class StoreDashboardDriverRequest extends FormRequest
 {
+    use ValidatesDriverBusAssignment;
     use ValidatesUniqueDashboardIdCard;
     use ValidatesUniqueDashboardPhone;
     public function authorize(): bool
@@ -75,6 +77,8 @@ class StoreDashboardDriverRequest extends FormRequest
                 ->all();
             $this->merge(['service_areas' => $rows]);
         }
+
+        $this->prepareDriverBusIdInput();
     }
 
     /** @return array<string, list<string|ValidationRule>> */
@@ -110,6 +114,7 @@ class StoreDashboardDriverRequest extends FormRequest
             'non_conviction_certificate' => ['nullable', 'file', 'max:4096'],
             'rating_avg' => ['nullable', 'numeric', 'min:0', 'max:5'],
             'rating_count' => ['nullable', 'integer', 'min:0', 'max:999999'],
+            'bus_id' => ['nullable', 'integer', 'exists:buses,id'],
         ];
     }
 
@@ -118,5 +123,6 @@ class StoreDashboardDriverRequest extends FormRequest
         $this->assertUniqueDashboardPhone($validator, 'primary_phone', PhoneAccountType::Driver);
         $this->assertUniqueDashboardPhone($validator, 'emergency_phone', PhoneAccountType::Driver);
         $this->assertUniqueDashboardIdCard($validator, 'id_card_number');
+        $this->assertDriverBusAvailable($validator);
     }
 }
