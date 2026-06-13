@@ -14,6 +14,8 @@ use App\Services\TransportLines\TransportDriverCardBuilder;
 use App\Services\Trips\TripRequestAcceptanceService;
 use App\Services\Trips\TripRequestConflictGuard;
 use App\Services\Trips\TripRequestCreator;
+use App\Services\Trips\TripRequestPairingService;
+use App\Services\Trips\TripRequestSlotKeyResolver;
 use App\Services\Trips\TripRequestSubmissionPlanner;
 use App\Support\ParentContext;
 use Illuminate\Http\JsonResponse;
@@ -31,6 +33,8 @@ class TripRequestController extends Controller
         private readonly TripRequestConflictGuard $tripRequestConflictGuard,
         private readonly TripRequestCreator $tripRequestCreator,
         private readonly TripRequestSubmissionPlanner $submissionPlanner,
+        private readonly TripRequestSlotKeyResolver $slotKeyResolver,
+        private readonly TripRequestPairingService $tripRequestPairingService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -134,11 +138,30 @@ class TripRequestController extends Controller
             ],
         );
 
+        $pairedRow = null;
+        $pairedCreated = false;
+        if ($created) {
+            [$pairedRow, $pairedCreated] = $this->tripRequestPairingService->createPendingReturnCompanion(
+                $request->user(),
+                $student,
+                $row,
+            );
+        }
+
         $loaded = $row->fresh()->load(['student.school', 'driver.user', 'driver.bus', 'tripHistory']);
         [$queryLat, $queryLng] = $this->queryCoordinates($request, $validated);
 
+        $payload = $this->tripRequestPayload($loaded, $request, $queryLat, $queryLng);
+        if ($pairedRow instanceof TripRequest) {
+            $payload['paired_trip_request'] = [
+                'id' => (int) $pairedRow->id,
+                'trip_slot' => $this->slotKeyResolver->slotKeyForRequest($pairedRow->fresh(['tripHistory'])),
+                'created' => $pairedCreated,
+            ];
+        }
+
         return $this->parentSuccess(
-            $this->tripRequestPayload($loaded, $request, $queryLat, $queryLng),
+            $payload,
             $created ? 'Trip request created' : 'Trip request already pending',
             $created ? 201 : 200,
         );
@@ -328,6 +351,7 @@ class TripRequestController extends Controller
             ];
 
         return array_merge($tripRequest->toArray(), [
+            'trip_slot' => $this->slotKeyResolver->slotKeyForRequest($tripRequest),
             'parentName' => $tripRequest->parentDisplayName(),
             'parentPhone' => $tripRequest->parentDisplayPhone(),
             'driverName' => $tripRequest->driver ? $tripRequest->driverDisplayName() : null,

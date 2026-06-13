@@ -39,7 +39,7 @@ class TripRequestSlotConflictTest extends TestCase
             'student_id' => $student->id,
             'driver_id' => $driver->id,
             'trip_history_id' => $returnTrip->id,
-        ])->assertStatus(201);
+        ])->assertOk();
 
         $this->assertNotSame((int) $pickup->json('data.id'), (int) $return->json('data.id'));
         $this->assertSame(

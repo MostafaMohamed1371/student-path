@@ -18,6 +18,7 @@ final class TripRequestAcceptanceService
         private readonly TripRequestSlotKeyResolver $slotKeyResolver,
         private readonly TripRequestNotificationService $notificationService,
         private readonly RouteAssignmentPlanner $routeAssignmentPlanner,
+        private readonly TripRequestPairingService $pairingService,
     ) {}
 
     /**
@@ -94,7 +95,14 @@ final class TripRequestAcceptanceService
         }
 
         $this->ensureStudentOnTrip($tripRequest, $trip);
+
+        $pairedTrip = $this->pairingService->ensureStudentOnPairedTripLeg($tripRequest, $trip);
+        if ($pairedTrip instanceof TripHistory) {
+            $this->ensureStudentOnTrip($tripRequest, $pairedTrip);
+        }
+
         $tripRequest->forceFill(['trip_history_id' => $trip->id])->save();
+        $this->pairingService->acceptPendingCompanionRequest($tripRequest->fresh(['tripHistory']), $trip);
 
         return $trip;
     }
