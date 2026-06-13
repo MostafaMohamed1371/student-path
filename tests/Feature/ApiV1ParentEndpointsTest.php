@@ -2322,6 +2322,112 @@ class ApiV1ParentEndpointsTest extends TestCase
             ->assertJsonPath('data.drivers.0.route.name', 'Morning Return — School to Sector 9');
     }
 
+    public function test_v1_transport_lines_drivers_excludes_service_area_only_when_trip_type_filter_set(): void
+    {
+        $school = $this->makeSchool('Service Area Return Filter School');
+        $school->update(['latitude' => 33.31, 'longitude' => 44.36, 'address' => 'School Campus']);
+
+        $governorate = District::query()->create(['name' => 'Baghdad', 'sort_order' => 1]);
+        $area = Area::query()->create(['district_id' => $governorate->id, 'name' => 'Karkh', 'sort_order' => 0]);
+        $nearNeighborhood = Neighborhood::query()->create([
+            'area_id' => $area->id,
+            'name' => 'Near stop',
+            'sort_order' => 0,
+            'latitude' => 33.311,
+            'longitude' => 44.361,
+        ]);
+
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'G SA Return Filter',
+            'phone' => '7300000699',
+            'status' => 'active',
+        ]);
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'Student SA Return Filter',
+            'gender' => 'male',
+            'grade' => '1',
+            'student_phone' => '7400000699',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'latitude' => 33.312,
+            'longitude' => 44.362,
+            'status' => 'active',
+            'shift_period' => 'MORNING',
+        ]);
+
+        $parent = User::factory()->create(['guardian_id' => $guardian->id, 'school_id' => $school->id]);
+
+        $serviceAreaDriver = Driver::query()->create([
+            'user_id' => User::factory()->create()->id,
+            'school_id' => $school->id,
+            'first_name' => 'Service',
+            'father_name' => 'Only',
+            'grandfather_name' => 'Return',
+            'last_name' => 'Driver',
+            'age' => 35,
+            'id_card_number' => 'IDC-SA-RET-F',
+            'license_number' => 'LIC-SA-RET-F',
+            'primary_phone' => '7770000691',
+            'emergency_phone' => '7770000692',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+            'shift_period' => 'MORNING',
+        ]);
+
+        Bus::query()->create([
+            'user_id' => User::factory()->create()->id,
+            'driver_id' => $serviceAreaDriver->id,
+            'name' => 'Ridy',
+            'number' => 'SA-RET-F',
+            'type' => 'Van',
+            'city' => 'Baghdad',
+            'capacity' => 12,
+            'color' => 'white',
+            'fuel_type' => 'diesel',
+            'status' => 'active',
+        ]);
+
+        $serviceArea = DriverServiceArea::query()->create([
+            'driver_id' => $serviceAreaDriver->id,
+            'district_id' => $governorate->id,
+            'area_id' => $area->id,
+            'sort_order' => 0,
+        ]);
+        $serviceArea->neighborhoods()->attach($nearNeighborhood->id);
+
+        TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $serviceAreaDriver->id,
+            'bus_number' => 'SA-RET-F',
+            'trip_type' => \App\Enums\TripType::MORNING_PICKUP->value,
+            'route_title' => 'Pickup only trip',
+            'start_address' => 'Near stop',
+            'start_latitude' => 33.311,
+            'start_longitude' => 44.361,
+            'students_count' => 0,
+            'distance_km' => 1,
+            'start_time' => now()->addHour(),
+            'status' => 'PRESENT',
+        ]);
+
+        Sanctum::actingAs($parent);
+
+        $this->getJson('/api/transport-lines/drivers?student_id='.$student->id)
+            ->assertOk()
+            ->assertJsonCount(1, 'data.drivers')
+            ->assertJsonPath('data.drivers.0.driverId', (string) $serviceAreaDriver->id);
+
+        $this->getJson('/api/transport-lines/drivers?student_id='.$student->id.'&trip_type=MORNING_RETURN')
+            ->assertOk()
+            ->assertJsonCount(0, 'data.drivers');
+    }
+
     private function makeSchool(string $nameEn): School
     {
         return School::query()->create([
