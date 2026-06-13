@@ -58,22 +58,8 @@
                             </td>
                             @if(auth()->user()?->canMutateSchoolRoster())
                             <td style="display:flex;gap:8px;flex-wrap:wrap;">
-                                @if($group->isMultiSchool())
-                                    @foreach($group->records as $record)
-                                        <a href="{{ route('dashboard.guardians.edit', $record) }}" class="btn-muted" style="text-decoration:none;">
-                                            {{ __('dashboard.edit') }}@if($record->school?->name_en) ({{ $record->school->name_en }})@endif
-                                        </a>
-                                    @endforeach
-                                @else
-                                    <a href="{{ route('dashboard.guardians.edit', $guardian) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.edit') }}</a>
-                                @endif
-                                @if($group->records->count() === 1)
-                                    <form method="post" action="{{ route('dashboard.guardians.destroy', $guardian) }}" onsubmit="return confirm('{{ __('dashboard.confirm_delete') }}')">
-                                        @csrf
-                                        @method('delete')
-                                        <button type="submit" class="btn-muted">{{ __('dashboard.delete') }}</button>
-                                    </form>
-                                @endif
+                                <a href="{{ route('dashboard.guardians.choose_edit', $guardian) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.edit') }}</a>
+                                <a href="{{ route('dashboard.guardians.choose_delete', $guardian) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.delete') }}</a>
                             </td>
                             @endif
                         </tr>

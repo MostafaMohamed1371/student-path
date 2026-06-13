@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\Guardian\GuardianHomeLocationSync;
 use App\Services\Guardian\GuardianIndexGrouper;
 use App\Services\Guardian\GuardianSchoolProvisioner;
+use Illuminate\Support\Collection;
 use App\Services\IdCard\DashboardIdCardRegistry;
 use App\Services\Phone\DashboardPhoneUserProvisioner;
 use App\Services\Phone\PhoneNormalizer;
@@ -192,6 +193,41 @@ class DashboardGuardianController extends Controller
             ->with('success', $message);
     }
 
+    public function chooseEditSchool(Guardian $guardian, GuardianIndexGrouper $indexGrouper): View|RedirectResponse
+    {
+        $records = $this->scopedGuardianRecords($guardian, $indexGrouper);
+
+        if ($records->count() <= 1) {
+            $target = $records->first() ?? $guardian;
+
+            return redirect()->route('dashboard.guardians.edit', $target);
+        }
+
+        return view('dashboard.guardians.choose_edit_school', [
+            'guardian' => $guardian,
+            'records' => $records,
+        ]);
+    }
+
+    public function chooseDeleteSchool(Guardian $guardian, GuardianIndexGrouper $indexGrouper): View|RedirectResponse
+    {
+        $records = $this->scopedGuardianRecords($guardian, $indexGrouper);
+
+        if ($records->count() <= 1) {
+            $target = $records->first() ?? $guardian;
+
+            return view('dashboard.guardians.confirm_delete_school', [
+                'guardian' => $guardian,
+                'record' => $target,
+            ]);
+        }
+
+        return view('dashboard.guardians.choose_delete_school', [
+            'guardian' => $guardian,
+            'records' => $records,
+        ]);
+    }
+
     public function edit(Guardian $guardian): View
     {
         $this->abortUnlessCanMutateSchoolRosterForSchool((int) $guardian->school_id);
@@ -285,5 +321,23 @@ class DashboardGuardianController extends Controller
             $district !== '' ? $district : null,
             $landmark !== '' ? $landmark : null,
         );
+    }
+
+    /**
+     * @return Collection<int, Guardian>
+     */
+    private function scopedGuardianRecords(Guardian $guardian, GuardianIndexGrouper $indexGrouper): Collection
+    {
+        $this->abortUnlessCanMutateSchoolRosterForSchool((int) $guardian->school_id);
+
+        $records = $indexGrouper->recordsForSameIdentity($guardian);
+        $scopedSchoolId = auth()->user()?->scopingSchoolId();
+        if ($scopedSchoolId !== null && (int) $scopedSchoolId > 0) {
+            $records = $records->filter(
+                fn (Guardian $record): bool => (int) $record->school_id === (int) $scopedSchoolId,
+            )->values();
+        }
+
+        return $records;
     }
 }

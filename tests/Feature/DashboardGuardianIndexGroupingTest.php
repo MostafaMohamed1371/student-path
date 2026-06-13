@@ -53,6 +53,20 @@ class DashboardGuardianIndexGroupingTest extends TestCase
             ->assertOk()
             ->assertSee('raafat gyg yuy', false)
             ->assertSee('taghreed, dkejniodjei', false)
-            ->assertSee('2 schools', false);
+            ->assertSee('2 schools', false)
+            ->assertDontSee('Edit (taghreed)', false);
+
+        $primary = Guardian::query()->where('school_id', $schoolA->id)->first();
+        $this->get(route('dashboard.guardians.choose_edit', $primary))
+            ->assertOk()
+            ->assertSee('Choose school to edit', false)
+            ->assertSee('taghreed', false)
+            ->assertSee('dkejniodjei', false);
+
+        $this->get(route('dashboard.guardians.choose_delete', $primary))
+            ->assertOk()
+            ->assertSee('Choose school to delete', false)
+            ->assertSee('taghreed', false)
+            ->assertSee('dkejniodjei', false);
     }
 }

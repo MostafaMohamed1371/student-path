@@ -63,6 +63,30 @@ final class GuardianIndexGrouper
     }
 
     /**
+     * @return Collection<int, Guardian>
+     */
+    public function recordsForSameIdentity(Guardian $guardian): Collection
+    {
+        $idCard = \App\Support\IdCardNumber::normalize($guardian->id_card_number);
+        $query = Guardian::query()
+            ->with('school')
+            ->withCount('students');
+
+        if ($idCard !== null && $idCard !== '') {
+            $query->where('id_card_number', $idCard);
+        } else {
+            $phone = preg_replace('/\D+/', '', (string) $guardian->phone) ?? '';
+            if ($phone !== '') {
+                $query->where('phone', $guardian->phone);
+            } else {
+                return collect([$guardian->loadMissing(['school'])->loadCount('students')]);
+            }
+        }
+
+        return $query->orderBy('id')->get();
+    }
+
+    /**
      * @param  list<Guardian>  $guardians
      */
     public function wrapSingleRecords(array $guardians): Collection

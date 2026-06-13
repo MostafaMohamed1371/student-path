@@ -100,6 +100,8 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/dashboard/guardians/create', [DashboardGuardianController::class, 'create'])->name('dashboard.guardians.create');
     Route::get('/dashboard/guardians/lookup-by-id-card', [DashboardGuardianController::class, 'lookupByIdCard'])->name('dashboard.guardians.lookup_by_id_card');
     Route::post('/dashboard/guardians', [DashboardGuardianController::class, 'store'])->name('dashboard.guardians.store');
+    Route::get('/dashboard/guardians/{guardian}/choose-edit', [DashboardGuardianController::class, 'chooseEditSchool'])->name('dashboard.guardians.choose_edit');
+    Route::get('/dashboard/guardians/{guardian}/choose-delete', [DashboardGuardianController::class, 'chooseDeleteSchool'])->name('dashboard.guardians.choose_delete');
     Route::get('/dashboard/guardians/{guardian}/edit', [DashboardGuardianController::class, 'edit'])->name('dashboard.guardians.edit');
     Route::put('/dashboard/guardians/{guardian}', [DashboardGuardianController::class, 'update'])->name('dashboard.guardians.update');
     Route::delete('/dashboard/guardians/{guardian}', [DashboardGuardianController::class, 'destroy'])->name('dashboard.guardians.destroy');
