@@ -219,14 +219,23 @@ class TransportLinesDriverController extends Controller
 
         $reservedByDriver = $this->cardBuilder->reservedCountsByDriverId($drivers);
 
+        $cardTripType = $tripType !== '' ? $tripType : null;
+        $cardTripTypes = null;
+        if ($cardTripType === null && $filterStudent !== null) {
+            $shiftTripTypes = $this->tripTypesForStudentShift($filterStudent);
+            $cardTripTypes = $shiftTripTypes !== [] ? $shiftTripTypes : null;
+        }
+
         $routeBySchoolAndBus = $this->cardBuilder->latestTripRouteMetaForDrivers(
             $schoolIds,
             $drivers,
-            $tripType !== '' ? $tripType : null,
+            $cardTripType,
+            $cardTripTypes,
         );
         $transportRoutesByDriver = $this->cardBuilder->activeTransportRoutesByDriverId(
             $drivers,
-            $tripType !== '' ? $tripType : null,
+            $cardTripType,
+            $cardTripTypes,
         );
 
         $studentsBySchoolForDistance = ParentContext::representativeStudentsWithLocationBySchool(
@@ -326,15 +335,24 @@ class TransportLinesDriverController extends Controller
             return $this->parentError('Invalid trip_type.', null, 422);
         }
 
+        $cardTripType = $tripType !== '' ? $tripType : null;
+        $cardTripTypes = null;
+        if ($cardTripType === null && $studentForDistance instanceof Student) {
+            $shiftTripTypes = $this->tripTypesForStudentShift($studentForDistance);
+            $cardTripTypes = $shiftTripTypes !== [] ? $shiftTripTypes : null;
+        }
+
         $reserved = $this->cardBuilder->reservedCountsByDriverId(collect([$driver]));
         $tripRouteMetaByDriver = $this->cardBuilder->latestTripRouteMetaForDrivers(
             [(int) $driver->school_id],
             collect([$driver]),
-            $tripType !== '' ? $tripType : null,
+            $cardTripType,
+            $cardTripTypes,
         );
         $transportRoutes = $this->cardBuilder->activeTransportRoutesByDriverId(
             collect([$driver]),
-            $tripType !== '' ? $tripType : null,
+            $cardTripType,
+            $cardTripTypes,
         );
         $transportRoute = $transportRoutes->get($driver->id);
 

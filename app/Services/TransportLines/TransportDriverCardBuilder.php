@@ -49,6 +49,7 @@ final class TransportDriverCardBuilder
      *
      * @param  list<int>  $schoolIds
      * @param  Collection<int, Driver>  $drivers
+     * @param  list<string>|null  $tripTypes  When $tripType is empty, limit to these types (pickup preferred on card).
      * @return array<int, array{
      *     trip_id: int,
      *     school_id: int,
@@ -59,8 +60,12 @@ final class TransportDriverCardBuilder
      *     start_longitude: float|null
      * }>
      */
-    public function latestTripRouteMetaForDrivers(array $schoolIds, Collection $drivers, ?string $tripType = null): array
-    {
+    public function latestTripRouteMetaForDrivers(
+        array $schoolIds,
+        Collection $drivers,
+        ?string $tripType = null,
+        ?array $tripTypes = null,
+    ): array {
         if ($drivers->isEmpty()) {
             return [];
         }
@@ -82,6 +87,8 @@ final class TransportDriverCardBuilder
 
             if ($tripType !== '') {
                 $query->where('trip_type', $tripType);
+            } elseif ($tripTypes !== null && $tripTypes !== []) {
+                $query->whereIn('trip_type', $tripTypes);
             }
 
             $rows = $query->get([
@@ -93,14 +100,15 @@ final class TransportDriverCardBuilder
                 'start_address',
                 'start_latitude',
                 'start_longitude',
+                'start_time',
             ]);
 
-            foreach ($rows as $row) {
-                $driverId = (int) $row->driver_id;
+            foreach ($rows->groupBy('driver_id') as $driverId => $driverRows) {
+                $driverId = (int) $driverId;
                 if ($driverId <= 0 || array_key_exists($driverId, $out)) {
                     continue;
                 }
-                $out[$driverId] = $this->tripRouteMetaFromRow($row);
+                $out[$driverId] = $this->tripRouteMetaFromRow($this->preferredTripRouteRow($driverRows));
             }
 
             $missingDriverIds = array_values(array_diff($driverIds, array_keys($out)));
@@ -114,6 +122,8 @@ final class TransportDriverCardBuilder
 
                 if ($tripType !== '') {
                     $pastQuery->where('trip_type', $tripType);
+                } elseif ($tripTypes !== null && $tripTypes !== []) {
+                    $pastQuery->whereIn('trip_type', $tripTypes);
                 }
 
                 foreach ($pastQuery->get([
@@ -125,12 +135,13 @@ final class TransportDriverCardBuilder
                     'start_address',
                     'start_latitude',
                     'start_longitude',
-                ]) as $row) {
-                    $driverId = (int) $row->driver_id;
+                    'start_time',
+                ])->groupBy('driver_id') as $driverId => $driverRows) {
+                    $driverId = (int) $driverId;
                     if ($driverId <= 0 || array_key_exists($driverId, $out)) {
                         continue;
                     }
-                    $out[$driverId] = $this->tripRouteMetaFromRow($row);
+                    $out[$driverId] = $this->tripRouteMetaFromRow($this->preferredTripRouteRow($driverRows));
                 }
             }
         }
@@ -158,6 +169,8 @@ final class TransportDriverCardBuilder
 
         if ($tripType !== '') {
             $fallbackQuery->where('trip_type', $tripType);
+        } elseif ($tripTypes !== null && $tripTypes !== []) {
+            $fallbackQuery->whereIn('trip_type', $tripTypes);
         }
 
         $rows = $fallbackQuery->get([
@@ -170,18 +183,15 @@ final class TransportDriverCardBuilder
             'start_address',
             'start_latitude',
             'start_longitude',
+            'start_time',
         ]);
 
         $bySchoolBus = [];
-        foreach ($rows as $row) {
-            $bn = (string) $row->bus_number;
-            if ($bn === '') {
+        foreach ($rows->groupBy(fn (TripHistory $row): string => (int) $row->school_id.'|'.(string) $row->bus_number) as $key => $busRows) {
+            if ($key === '0|' || str_ends_with($key, '|')) {
                 continue;
             }
-            $key = (int) $row->school_id.'|'.$bn;
-            if (! array_key_exists($key, $bySchoolBus)) {
-                $bySchoolBus[$key] = $this->tripRouteMetaFromRow($row);
-            }
+            $bySchoolBus[$key] = $this->tripRouteMetaFromRow($this->preferredTripRouteRow($busRows));
         }
 
         $pastFallbackQuery = TripHistory::query()
@@ -194,6 +204,8 @@ final class TransportDriverCardBuilder
 
         if ($tripType !== '') {
             $pastFallbackQuery->where('trip_type', $tripType);
+        } elseif ($tripTypes !== null && $tripTypes !== []) {
+            $pastFallbackQuery->whereIn('trip_type', $tripTypes);
         }
 
         foreach ($pastFallbackQuery->get([
@@ -206,15 +218,12 @@ final class TransportDriverCardBuilder
             'start_address',
             'start_latitude',
             'start_longitude',
-        ]) as $row) {
-            $bn = (string) $row->bus_number;
-            if ($bn === '') {
+            'start_time',
+        ])->groupBy(fn (TripHistory $row): string => (int) $row->school_id.'|'.(string) $row->bus_number) as $key => $busRows) {
+            if ($key === '0|' || str_ends_with($key, '|') || array_key_exists($key, $bySchoolBus)) {
                 continue;
             }
-            $key = (int) $row->school_id.'|'.$bn;
-            if (! array_key_exists($key, $bySchoolBus)) {
-                $bySchoolBus[$key] = $this->tripRouteMetaFromRow($row);
-            }
+            $bySchoolBus[$key] = $this->tripRouteMetaFromRow($this->preferredTripRouteRow($busRows));
         }
 
         foreach ($drivers as $driver) {
@@ -243,7 +252,7 @@ final class TransportDriverCardBuilder
      * @param  Collection<int, Driver>  $drivers
      * @return Collection<int, TransportRoute> keyed by driver_id
      */
-    public function activeTransportRoutesByDriverId(Collection $drivers, ?string $tripType = null): Collection
+    public function activeTransportRoutesByDriverId(Collection $drivers, ?string $tripType = null, ?array $tripTypes = null): Collection
     {
         if ($drivers->isEmpty()) {
             return collect();
@@ -264,9 +273,14 @@ final class TransportDriverCardBuilder
         $tripType = trim((string) ($tripType ?? ''));
         if ($tripType !== '') {
             $query->where('trip_type', $tripType);
+        } elseif ($tripTypes !== null && $tripTypes !== []) {
+            $query->whereIn('trip_type', $tripTypes);
         }
 
-        return $query->get()->keyBy('driver_id');
+        return $query->get()
+            ->groupBy('driver_id')
+            ->map(fn (Collection $routes): TransportRoute => $this->preferredTransportRoute($routes))
+            ->filter();
     }
 
     public function resolveViewerLatLng(?float $queryLat, ?float $queryLng, ?User $user): ?array
@@ -575,6 +589,29 @@ final class TransportDriverCardBuilder
             'start_latitude' => $row->start_latitude !== null ? (float) $row->start_latitude : null,
             'start_longitude' => $row->start_longitude !== null ? (float) $row->start_longitude : null,
         ];
+    }
+
+    /**
+     * @param  Collection<int, TripHistory>  $rows
+     */
+    private function preferredTripRouteRow(Collection $rows): TripHistory
+    {
+        return $rows->sortBy([
+            fn (TripHistory $row): int => TripType::isReturn((string) ($row->trip_type ?? '')) ? 1 : 0,
+            fn (TripHistory $row): string => (string) $row->start_time,
+            fn (TripHistory $row): int => (int) $row->id,
+        ])->first();
+    }
+
+    /**
+     * @param  Collection<int, TransportRoute>  $routes
+     */
+    private function preferredTransportRoute(Collection $routes): TransportRoute
+    {
+        return $routes->sortBy([
+            fn (TransportRoute $route): int => TripType::isReturn((string) ($route->trip_type ?? '')) ? 1 : 0,
+            fn (TransportRoute $route): int => (int) $route->id,
+        ])->first();
     }
 
     public function driverDisplayName(Driver $driver): string

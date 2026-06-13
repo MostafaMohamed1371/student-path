@@ -2322,6 +2322,116 @@ class ApiV1ParentEndpointsTest extends TestCase
             ->assertJsonPath('data.drivers.0.route.name', 'Morning Return — School to Sector 9');
     }
 
+    public function test_v1_transport_lines_drivers_prefers_pickup_trip_on_card_when_trip_type_not_sent(): void
+    {
+        $school = $this->makeSchool('Pickup Default Card School');
+        $school->update(['latitude' => 33.31, 'longitude' => 44.36, 'address' => 'School Campus']);
+
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'G Pickup Default',
+            'phone' => '7300000799',
+            'status' => 'active',
+        ]);
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'Student Pickup Default',
+            'gender' => 'male',
+            'grade' => '1',
+            'student_phone' => '7400000799',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'latitude' => 33.29,
+            'longitude' => 44.10,
+            'status' => 'active',
+            'shift_period' => 'MORNING',
+        ]);
+
+        $parent = User::factory()->create(['guardian_id' => $guardian->id, 'school_id' => $school->id]);
+
+        $driver = Driver::query()->create([
+            'user_id' => User::factory()->create()->id,
+            'school_id' => $school->id,
+            'first_name' => 'Both',
+            'father_name' => 'Trips',
+            'grandfather_name' => 'Driver',
+            'last_name' => 'Card',
+            'age' => 35,
+            'id_card_number' => 'IDC-BOTH',
+            'license_number' => 'LIC-BOTH',
+            'primary_phone' => '7770000791',
+            'emergency_phone' => '7770000792',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+            'shift_period' => 'MORNING',
+        ]);
+
+        Bus::query()->create([
+            'user_id' => User::factory()->create()->id,
+            'driver_id' => $driver->id,
+            'name' => 'Bus Both',
+            'number' => 'BOTH-1',
+            'type' => 'Van',
+            'city' => 'Baghdad',
+            'capacity' => 12,
+            'color' => 'white',
+            'fuel_type' => 'diesel',
+            'status' => 'active',
+        ]);
+
+        \App\Models\TransportRoute::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'name' => 'Morning Pickup Route',
+            'trip_type' => \App\Enums\TripType::MORNING_PICKUP->value,
+            'shift_period' => 'MORNING',
+            'start_address' => 'Depot near student',
+            'start_latitude' => 33.291,
+            'start_longitude' => 44.105,
+            'status' => 'active',
+        ]);
+
+        TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'bus_number' => 'BOTH-1',
+            'trip_type' => \App\Enums\TripType::MORNING_RETURN->value,
+            'route_title' => 'Baghdad / Karkh / Al-Dora - Morning return',
+            'start_address' => 'School Campus',
+            'start_latitude' => 33.31,
+            'start_longitude' => 44.36,
+            'students_count' => 0,
+            'distance_km' => 5,
+            'start_time' => now()->addHour(),
+            'status' => 'PRESENT',
+        ]);
+        TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'bus_number' => 'BOTH-1',
+            'trip_type' => \App\Enums\TripType::MORNING_PICKUP->value,
+            'route_title' => 'Morning Pickup Route — Depot near student',
+            'start_address' => 'Depot near student',
+            'start_latitude' => 33.291,
+            'start_longitude' => 44.105,
+            'students_count' => 0,
+            'distance_km' => 1,
+            'start_time' => now()->addHours(2),
+            'status' => 'PRESENT',
+        ]);
+
+        Sanctum::actingAs($parent);
+
+        $this->getJson('/api/transport-lines/drivers?student_id='.$student->id)
+            ->assertOk()
+            ->assertJsonPath('data.drivers.0.route.tripType', 'MORNING_PICKUP')
+            ->assertJsonPath('data.drivers.0.route.name', 'Morning Pickup Route — Depot near student');
+    }
+
     public function test_v1_transport_lines_drivers_excludes_service_area_only_without_route_or_trip(): void
     {
         $school = $this->makeSchool('Service Area Return Filter School');
