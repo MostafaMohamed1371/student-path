@@ -113,6 +113,7 @@ final class TripRequestAcceptanceService
             $student,
             $driverId,
             $tripType,
+            $trip,
         );
     }
 

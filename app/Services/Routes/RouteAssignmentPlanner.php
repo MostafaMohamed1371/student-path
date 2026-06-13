@@ -7,6 +7,7 @@ use App\Models\School;
 use App\Models\Student;
 use App\Models\TransportRoute;
 use App\Models\TransportRouteStudent;
+use App\Models\TripHistory;
 use App\Services\Trips\DriverShiftResolver;
 use App\Services\Trips\StudentShiftFilter;
 use App\Support\Geo\Haversine;
@@ -514,6 +515,7 @@ final class RouteAssignmentPlanner
         Student $student,
         int $driverId,
         string $tripType,
+        ?TripHistory $trip = null,
     ): ?TransportRouteStudent {
         $tripType = trim($tripType);
         if ($tripType === '' || $driverId <= 0) {
@@ -522,14 +524,7 @@ final class RouteAssignmentPlanner
 
         $student->loadMissing('transportRouteStudent');
 
-        $route = TransportRoute::query()
-            ->with('school')
-            ->where('driver_id', $driverId)
-            ->where('school_id', (int) $student->school_id)
-            ->where('trip_type', $tripType)
-            ->where('status', 'active')
-            ->first();
-
+        $route = $this->findOrCreateActiveRouteForDriverTrip($student, $driverId, $tripType, $trip);
         if (! $route instanceof TransportRoute) {
             return null;
         }
@@ -607,5 +602,58 @@ final class RouteAssignmentPlanner
             'shift_period' => $route->shift_period,
             'monthly_subscription_price' => $route->monthly_subscription_price,
         ])->save();
+    }
+
+    private function findOrCreateActiveRouteForDriverTrip(
+        Student $student,
+        int $driverId,
+        string $tripType,
+        ?TripHistory $trip,
+    ): ?TransportRoute {
+        $route = TransportRoute::query()
+            ->with('school')
+            ->where('driver_id', $driverId)
+            ->where('school_id', (int) $student->school_id)
+            ->where('trip_type', $tripType)
+            ->where('status', 'active')
+            ->first();
+
+        if ($route instanceof TransportRoute) {
+            return $route;
+        }
+
+        $route = TransportRoute::query()
+            ->where('driver_id', $driverId)
+            ->where('school_id', (int) $student->school_id)
+            ->where('status', 'active')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($route instanceof TransportRoute) {
+            return $route;
+        }
+
+        if (! $trip instanceof TripHistory) {
+            return null;
+        }
+
+        $driver = Driver::query()->find($driverId);
+        if (! $driver instanceof Driver || $driver->status !== 'active') {
+            return null;
+        }
+
+        $shift = $this->driverShiftResolver->fromTripType($tripType) ?? $driver->shift_period;
+
+        return TransportRoute::query()->create([
+            'school_id' => (int) $student->school_id,
+            'driver_id' => $driverId,
+            'name' => trim((string) ($trip->route_title ?? '')) !== ''
+                ? trim((string) $trip->route_title)
+                : 'Route '.$tripType,
+            'trip_type' => $tripType,
+            'shift_period' => $shift,
+            'start_address' => $trip->location,
+            'status' => 'active',
+        ]);
     }
 }

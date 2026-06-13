@@ -32,6 +32,8 @@ final class AbsenceReporter
             ]);
         }
 
+        $this->driverResolver->backfillSubscriptionIfNeeded($student);
+
         return $this->createAbsence(
             parentUser: $parentUser,
             student: $student,
@@ -78,6 +80,7 @@ final class AbsenceReporter
         ?string $notes,
         bool $requireSubscribedDriver,
     ): Absence {
+        $student->loadMissing('transportRouteStudent.transportRoute.driver');
         ['driver' => $driver, 'transport_route' => $route] = $this->driverResolver->resolveForStudent($student);
 
         if ($requireSubscribedDriver && $driver === null) {

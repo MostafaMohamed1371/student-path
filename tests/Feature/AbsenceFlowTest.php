@@ -14,6 +14,7 @@ use App\Models\TransportRoute;
 use App\Models\TransportRouteStudent;
 use App\Models\TripHistory;
 use App\Models\TripHistoryStudent;
+use App\Models\TripRequest;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -150,6 +151,101 @@ class AbsenceFlowTest extends TestCase
             'trip_history_id' => $trip->id,
             'student_id' => $student->id,
             'status' => StudentTripStopStatus::ABSENT->value,
+        ]);
+    }
+
+    public function test_parent_can_report_absence_after_accepted_trip_request_without_prior_route_subscription(): void
+    {
+        $school = $this->makeSchool('Trip Request Absence School');
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'G Trip Abs',
+            'phone' => '7300000102',
+            'status' => 'active',
+        ]);
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'S Trip Abs',
+            'gender' => 'male',
+            'grade' => '1',
+            'student_phone' => '7400000102',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'status' => 'active',
+            'shift_period' => 'MORNING',
+        ]);
+        $parent = User::factory()->create(['guardian_id' => $guardian->id, 'school_id' => $school->id]);
+
+        $driverUser = User::factory()->create(['phone' => '9647908100102']);
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'Driver',
+            'father_name' => 'Test',
+            'grandfather_name' => 'X',
+            'last_name' => 'One',
+            'age' => 35,
+            'id_card_number' => 'IDC-TR-ABS',
+            'license_number' => 'LIC-TR-ABS',
+            'primary_phone' => '7770000102',
+            'emergency_phone' => '7770000103',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+            'shift_period' => 'MORNING',
+        ]);
+
+        $trip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => TripType::MORNING_PICKUP->value,
+            'bus_number' => 'BUS-TR-ABS',
+            'route_title' => 'Pickup route',
+            'location' => 'Depot',
+            'students_count' => 1,
+            'distance_km' => 1,
+            'start_time' => now(),
+            'status' => 'ACTIVE',
+            'students_preview' => [],
+        ]);
+
+        TripHistoryStudent::query()->create([
+            'trip_history_id' => $trip->id,
+            'student_id' => $student->id,
+            'sort_order' => 0,
+            'status' => StudentTripStopStatus::IDLE->value,
+        ]);
+
+        TripRequest::query()->create([
+            'user_id' => $parent->id,
+            'student_id' => $student->id,
+            'driver_id' => $driver->id,
+            'trip_history_id' => $trip->id,
+            'status' => 'accepted',
+            'updated_at' => now(),
+        ]);
+
+        $this->assertDatabaseMissing('transport_route_students', [
+            'student_id' => $student->id,
+        ]);
+
+        Sanctum::actingAs($parent);
+
+        $this->postJson('/api/absences', [
+            'student_id' => $student->id,
+            'start_date' => now()->toDateString(),
+            'end_date' => now()->toDateString(),
+            'reason' => 'medical',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.driver_id', $driver->id);
+
+        $this->assertDatabaseHas('absences', [
+            'student_id' => $student->id,
+            'driver_id' => $driver->id,
         ]);
     }
 

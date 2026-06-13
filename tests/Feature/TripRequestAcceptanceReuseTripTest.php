@@ -278,6 +278,107 @@ class TripRequestAcceptanceReuseTripTest extends TestCase
             ->assertJsonPath('data.transport_route_id', $route->id);
     }
 
+    public function test_accepting_trip_request_creates_route_when_driver_has_no_transport_route(): void
+    {
+        $school = School::query()->create([
+            'name_ar' => 'مدرسة',
+            'name_en' => 'Auto Route School',
+            'province' => 'Baghdad',
+            'district' => '1',
+            'address' => 'School Ave',
+            'status' => 'active',
+        ]);
+
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'Guardian',
+            'phone' => '7300000399',
+            'status' => 'active',
+        ]);
+
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'Auto Route Student',
+            'gender' => 'male',
+            'grade' => '2',
+            'student_phone' => '7400000399',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'father',
+            'district_area' => 'Mansour',
+            'nearest_landmark' => 'Center',
+            'status' => 'active',
+            'shift_period' => 'MORNING',
+        ]);
+
+        $driverUser = User::factory()->create();
+        $driver = Driver::query()->create([
+            'school_id' => $school->id,
+            'user_id' => $driverUser->id,
+            'first_name' => 'Driver',
+            'father_name' => 'Test',
+            'grandfather_name' => 'X',
+            'last_name' => 'One',
+            'age' => 35,
+            'id_card_number' => 'AUTO-ROUTE-DRV',
+            'license_number' => 'AUTO-ROUTE-LIC',
+            'primary_phone' => '7900222399',
+            'emergency_phone' => '7900222398',
+            'residential_address' => 'Baghdad',
+            'status' => 'active',
+            'shift_period' => 'MORNING',
+        ]);
+
+        $existingTrip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => TripType::MORNING_PICKUP->value,
+            'bus_number' => '145',
+            'route_title' => 'Auto-created route title',
+            'location' => 'Depot to school',
+            'students_count' => 0,
+            'distance_km' => 3,
+            'start_time' => now()->setTime(7, 0),
+            'end_time' => now()->setTime(8, 0),
+            'status' => 'ACTIVE',
+            'students_preview' => [],
+        ]);
+
+        $parent = User::factory()->create([
+            'guardian_id' => $guardian->id,
+            'school_id' => $school->id,
+        ]);
+
+        $tripRequest = TripRequest::query()->create([
+            'user_id' => $parent->id,
+            'student_id' => $student->id,
+            'driver_id' => $driver->id,
+            'trip_history_id' => null,
+            'status' => 'pending',
+            'present_type' => 'صباح',
+        ]);
+
+        $this->assertDatabaseCount('transport_routes', 0);
+
+        $staff = User::factory()->create(['is_admin' => false, 'school_id' => $school->id]);
+        $this->actingAs($staff);
+
+        $this->put(route('dashboard.trip_requests.update_status', $tripRequest), [
+            'status' => 'accepted',
+        ])->assertRedirect(route('dashboard.trip_requests.show', $tripRequest));
+
+        $this->assertDatabaseCount('transport_routes', 1);
+        $this->assertDatabaseHas('transport_route_students', [
+            'student_id' => $student->id,
+        ]);
+        $this->assertDatabaseHas('transport_routes', [
+            'driver_id' => $driver->id,
+            'trip_type' => TripType::MORNING_PICKUP->value,
+            'name' => 'Auto-created route title',
+        ]);
+    }
+
     public function test_accepting_trip_request_uses_linked_trip_when_trip_history_id_is_set(): void
     {
         $school = School::query()->create([
