@@ -30,6 +30,11 @@ class StudentResource extends JsonResource
             'status' => $this->status,
             'guardianName' => $this->guardian?->full_name ?? $this->guardian_name,
             'guardianPhone' => $this->guardian?->phone ?? $this->guardian_primary_phone,
+            'school' => $this->whenLoaded('school', function () use ($request) {
+                return $this->school
+                    ? (new SchoolResource($this->school))->toArray($request)
+                    : null;
+            }),
         ];
     }
 

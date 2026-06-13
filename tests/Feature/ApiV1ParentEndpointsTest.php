@@ -355,11 +355,15 @@ class ApiV1ParentEndpointsTest extends TestCase
         $this->getJson('/api/students')
             ->assertOk()
             ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.fullName', 'Child C');
+            ->assertJsonPath('data.0.fullName', 'Child C')
+            ->assertJsonPath('data.0.school.schoolId', (string) $school->id)
+            ->assertJsonPath('data.0.school.schoolNameEn', 'Parent School');
 
         $this->getJson('/api/students/'.$student->id)
             ->assertOk()
-            ->assertJsonPath('data.fullName', 'Child C');
+            ->assertJsonPath('data.fullName', 'Child C')
+            ->assertJsonPath('data.school.schoolId', (string) $school->id)
+            ->assertJsonPath('data.school.schoolNameEn', 'Parent School');
     }
 
     public function test_v1_parent_students_index_includes_children_across_school_guardian_rows(): void
