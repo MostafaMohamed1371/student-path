@@ -1310,13 +1310,34 @@ class ApiV1ParentEndpointsTest extends TestCase
         $accepted = $req->fresh();
         $this->assertSame((int) $scheduledTrip->id, (int) $accepted->trip_history_id);
 
+        $parentNotification = \App\Models\InAppNotification::query()
+            ->where('user_id', $parent->id)
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($parentNotification);
+        $this->assertSame('TRIP_REQUEST_ACCEPTED', $parentNotification->data['type'] ?? null);
+
+        $returnTrip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => 'MORNING_RETURN',
+            'bus_number' => 'BUS-DRQ',
+            'route_title' => 'Driver return route',
+            'location' => 'Route',
+            'students_count' => 0,
+            'distance_km' => 1,
+            'start_time' => now(),
+            'status' => 'ACTIVE',
+            'students_preview' => [],
+        ]);
+
         $req2 = TripRequest::query()->create([
             'user_id' => $parent->id,
             'student_id' => $student->id,
             'driver_id' => $driver->id,
-            'trip_history_id' => null,
+            'trip_history_id' => $returnTrip->id,
             'status' => 'pending',
-            'notes' => 'Assigned to driver again',
+            'notes' => 'Return trip request',
         ]);
 
         $this->putJson('/api/trip-requests/'.$req2->id, ['status' => 'accepted'])
@@ -1324,8 +1345,8 @@ class ApiV1ParentEndpointsTest extends TestCase
             ->assertJsonPath('data.status', 'accepted');
 
         $fresh = $req2->fresh();
-        $this->assertSame((int) $scheduledTrip->id, (int) $fresh->trip_history_id);
-        $this->assertSame(1, TripHistory::query()->count());
+        $this->assertSame((int) $returnTrip->id, (int) $fresh->trip_history_id);
+        $this->assertSame(2, TripHistory::query()->count());
     }
 
     public function test_v1_profile_delete(): void

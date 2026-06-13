@@ -12,6 +12,7 @@ use App\Models\TripRequest;
 use App\Models\User;
 use App\Services\TransportLines\TransportDriverCardBuilder;
 use App\Services\Trips\TripRequestAcceptanceService;
+use App\Services\Trips\TripRequestConflictGuard;
 use App\Services\Trips\TripRequestCreator;
 use App\Services\Trips\TripRequestSubmissionPlanner;
 use App\Support\ParentContext;
@@ -27,6 +28,7 @@ class TripRequestController extends Controller
     public function __construct(
         private readonly TransportDriverCardBuilder $transportDriverCardBuilder,
         private readonly TripRequestAcceptanceService $tripRequestAcceptanceService,
+        private readonly TripRequestConflictGuard $tripRequestConflictGuard,
         private readonly TripRequestCreator $tripRequestCreator,
         private readonly TripRequestSubmissionPlanner $submissionPlanner,
     ) {}
@@ -182,15 +184,31 @@ class TripRequestController extends Controller
 
         $driver = $this->currentDriver($request);
         if ($driver && (int) $trip_request->driver_id === (int) $driver->id) {
-            if ($trip_request->status !== 'pending') {
-                return $this->parentError('Only pending trip requests can be updated.', null, 422);
-            }
-
             $validated = $request->validate([
                 'status' => ['required', 'string', 'in:accepted,rejected'],
             ]);
 
-            $this->tripRequestAcceptanceService->applyDriverDecision($trip_request, $validated['status']);
+            if ($trip_request->status !== 'pending') {
+                if ($validated['status'] === 'accepted'
+                    && $this->tripRequestConflictGuard->slotTakenByAnotherDriver($trip_request)) {
+                    return $this->parentError(
+                        __('dashboard.trip_request_slot_taken_by_another_driver'),
+                        ['status' => [__('dashboard.trip_request_slot_taken_by_another_driver')]],
+                        422,
+                    );
+                }
+
+                return $this->parentError('Only pending trip requests can be updated.', null, 422);
+            }
+
+            try {
+                $this->tripRequestAcceptanceService->applyDriverDecision($trip_request, $validated['status']);
+            } catch (ValidationException $e) {
+                $message = collect($e->errors())->flatten()->first()
+                    ?: __('dashboard.trip_request_only_pending_status');
+
+                return $this->parentError($message, $e->errors(), 422);
+            }
 
             return $this->parentSuccess(
                 $trip_request->fresh()->load(['student', 'driver', 'tripHistory']),

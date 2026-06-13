@@ -42,4 +42,55 @@ final class TripRequestNotificationService
             ],
         ]);
     }
+
+    public function notifyParentOfDriverDecision(TripRequest $tripRequest, string $status): void
+    {
+        if (! config('trips.notifications_enabled', true)) {
+            return;
+        }
+
+        if (! in_array($status, ['accepted', 'rejected'], true)) {
+            return;
+        }
+
+        $tripRequest->loadMissing(['user', 'driver', 'student', 'tripHistory']);
+
+        $parentUserId = (int) ($tripRequest->user_id ?? 0);
+        if ($parentUserId <= 0) {
+            return;
+        }
+
+        $studentName = trim((string) ($tripRequest->student?->full_name ?? ''));
+        if ($studentName === '') {
+            $studentName = 'الطالب';
+        }
+
+        $driverName = $tripRequest->driverDisplayName();
+        if ($driverName === '—') {
+            $driverName = 'السائق';
+        }
+
+        if ($status === 'accepted') {
+            $title = 'تم قبول طلب الرحلة';
+            $body = "قبل السائق {$driverName} طلب الرحلة للطالب {$studentName}.";
+            $type = 'TRIP_REQUEST_ACCEPTED';
+        } else {
+            $title = 'تم رفض طلب الرحلة';
+            $body = "رفض السائق {$driverName} طلب الرحلة للطالب {$studentName}.";
+            $type = 'TRIP_REQUEST_REJECTED';
+        }
+
+        InAppNotification::query()->create([
+            'user_id' => $parentUserId,
+            'title' => $title,
+            'body' => $body,
+            'data' => [
+                'type' => $type,
+                'trip_request_id' => $tripRequest->id,
+                'student_id' => $tripRequest->student_id,
+                'driver_id' => $tripRequest->driver_id,
+                'status' => $status,
+            ],
+        ]);
+    }
 }

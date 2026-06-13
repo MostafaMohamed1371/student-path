@@ -69,20 +69,29 @@ final class TripRequestConflictGuard
      */
     public function assertCanAcceptRequest(TripRequest $request, ?string $slotKey = null): void
     {
+        if ($this->slotTakenByAnotherDriver($request, $slotKey)) {
+            throw ValidationException::withMessages([
+                'status' => [__('dashboard.trip_request_slot_taken_by_another_driver')],
+            ]);
+        }
+    }
+
+    public function slotTakenByAnotherDriver(TripRequest $request, ?string $slotKey = null): bool
+    {
         if ($request->student_id === null) {
-            return;
+            return false;
         }
 
         $slotKey ??= $this->slotKeyResolver->slotKeyForRequest($request);
         if ($slotKey === null) {
-            return;
+            return false;
         }
 
-        if ($this->hasAcceptedRequestForSlotToday((int) $request->student_id, $slotKey, (int) $request->id)) {
-            throw ValidationException::withMessages([
-                'status' => [__('dashboard.trip_request_slot_already_accepted')],
-            ]);
-        }
+        return $this->findAcceptedRequestForSlotToday(
+            (int) $request->student_id,
+            $slotKey,
+            (int) $request->id,
+        ) instanceof TripRequest;
     }
 
     public function rejectCompetingPendingRequests(TripRequest $accepted, ?string $slotKey = null): void
@@ -96,16 +105,37 @@ final class TripRequestConflictGuard
             return;
         }
 
-        $this->pendingRequestsForStudent((int) $accepted->student_id)
+        $competingIds = $this->pendingRequestsForStudent((int) $accepted->student_id)
             ->filter(fn (TripRequest $request): bool => (int) $request->id !== (int) $accepted->id
                 && $this->slotKeyResolver->slotKeyForRequest($request) === $slotKey)
+            ->pluck('id')
+            ->all();
+
+        if ($competingIds === []) {
+            return;
+        }
+
+        TripRequest::query()
+            ->whereIn('id', $competingIds)
+            ->lockForUpdate()
+            ->get()
             ->each(function (TripRequest $request): void {
-                $request->update(['status' => 'rejected']);
+                if ($request->status === 'pending') {
+                    $request->update(['status' => 'rejected']);
+                }
             });
     }
 
     private function hasAcceptedRequestForSlotToday(int $studentId, string $slotKey, ?int $exceptRequestId = null): bool
     {
+        return $this->findAcceptedRequestForSlotToday($studentId, $slotKey, $exceptRequestId) instanceof TripRequest;
+    }
+
+    private function findAcceptedRequestForSlotToday(
+        int $studentId,
+        string $slotKey,
+        ?int $exceptRequestId = null,
+    ): ?TripRequest {
         return TripRequest::query()
             ->where('student_id', $studentId)
             ->where('status', 'accepted')
@@ -113,7 +143,7 @@ final class TripRequestConflictGuard
             ->when($exceptRequestId !== null, fn ($q) => $q->where('id', '!=', $exceptRequestId))
             ->with('tripHistory')
             ->get()
-            ->contains(fn (TripRequest $request): bool => $this->slotKeyResolver->slotKeyForRequest($request) === $slotKey);
+            ->first(fn (TripRequest $request): bool => $this->slotKeyResolver->slotKeyForRequest($request) === $slotKey);
     }
 
     /**

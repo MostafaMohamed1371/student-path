@@ -24,6 +24,8 @@ return [
         'RETURN_TRIP_STARTED' => 'TRIP',
         'RETURN_TRIP_COMPLETED' => 'TRIP',
         'TRIP_REQUEST' => 'SCHEDULE',
+        'TRIP_REQUEST_ACCEPTED' => 'SCHEDULE',
+        'TRIP_REQUEST_REJECTED' => 'SCHEDULE',
         'TRIP_STUDENT_ARRIVED' => 'LOCATION',
         'DELAY_ALERT' => 'ALERT',
         'SOS_TRIGGERED' => 'ALERT',

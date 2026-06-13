@@ -9,8 +9,10 @@ use App\Http\Resources\StudentResource;
 use App\Models\Driver;
 use App\Models\TripRequest;
 use App\Services\Trips\TripRequestAcceptanceService;
+use App\Services\Trips\TripRequestConflictGuard;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class OrderController extends Controller
 {
@@ -19,6 +21,7 @@ class OrderController extends Controller
 
     public function __construct(
         private readonly TripRequestAcceptanceService $tripRequestAcceptanceService,
+        private readonly TripRequestConflictGuard $tripRequestConflictGuard,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -84,10 +87,26 @@ class OrderController extends Controller
         }
 
         if ($tripRequest->status !== 'pending') {
+            if ($validated['status'] === 'accepted'
+                && $this->tripRequestConflictGuard->slotTakenByAnotherDriver($tripRequest)) {
+                return $this->parentError(
+                    __('dashboard.trip_request_slot_taken_by_another_driver'),
+                    ['status' => [__('dashboard.trip_request_slot_taken_by_another_driver')]],
+                    422,
+                );
+            }
+
             return $this->parentError('Only pending orders can be updated.', null, 422);
         }
 
-        $this->tripRequestAcceptanceService->applyDriverDecision($tripRequest, $validated['status']);
+        try {
+            $this->tripRequestAcceptanceService->applyDriverDecision($tripRequest, $validated['status']);
+        } catch (ValidationException $e) {
+            $message = collect($e->errors())->flatten()->first()
+                ?: 'Only pending orders can be updated.';
+
+            return $this->parentError($message, $e->errors(), 422);
+        }
 
         $msg = $validated['status'] === 'accepted'
             ? 'Order accepted successfully'

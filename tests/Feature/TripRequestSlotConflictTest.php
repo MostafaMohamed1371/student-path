@@ -11,6 +11,7 @@ use App\Models\Student;
 use App\Models\TripHistory;
 use App\Models\TripRequest;
 use App\Models\User;
+use App\Models\InAppNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -147,12 +148,62 @@ class TripRequestSlotConflictTest extends TestCase
 
         Sanctum::actingAs($driverBUser);
 
-        $this->putJson('/api/trip-requests/'.$requestB->id, [
+        $response = $this->putJson('/api/trip-requests/'.$requestB->id, [
             'status' => 'accepted',
         ])->assertStatus(422);
 
+        $response->assertJsonPath(
+            'message',
+            __('dashboard.trip_request_slot_taken_by_another_driver'),
+        );
+
         $this->assertSame('pending', $requestB->fresh()->status);
         $this->assertSame('accepted', $requestA->fresh()->status);
+    }
+
+    public function test_second_driver_sees_slot_taken_message_when_competing_request_was_auto_rejected(): void
+    {
+        [$school, $student, $user, $driverA] = $this->seedStudentWithDriver('Driver A');
+        $driverAUser = User::query()->findOrFail((int) $driverA->user_id);
+        $driverB = $this->makeSecondDriver($school, 'Driver B');
+        $driverBUser = User::query()->findOrFail((int) $driverB->user_id);
+
+        $pickupTripA = $this->makeTrip($school, $driverA, TripType::MORNING_PICKUP);
+        $pickupTripB = $this->makeTrip($school, $driverB, TripType::MORNING_PICKUP);
+
+        $requestA = TripRequest::query()->create([
+            'user_id' => $user->id,
+            'student_id' => $student->id,
+            'driver_id' => $driverA->id,
+            'trip_history_id' => $pickupTripA->id,
+            'status' => 'pending',
+        ]);
+
+        $requestB = TripRequest::query()->create([
+            'user_id' => $user->id,
+            'student_id' => $student->id,
+            'driver_id' => $driverB->id,
+            'trip_history_id' => $pickupTripB->id,
+            'status' => 'pending',
+        ]);
+
+        Sanctum::actingAs($driverAUser);
+        $this->putJson('/api/trip-requests/'.$requestA->id, [
+            'status' => 'accepted',
+        ])->assertOk();
+
+        $requestB->refresh();
+        $this->assertSame('rejected', $requestB->status);
+
+        Sanctum::actingAs($driverBUser);
+        $response = $this->putJson('/api/trip-requests/'.$requestB->id, [
+            'status' => 'accepted',
+        ])->assertStatus(422);
+
+        $response->assertJsonPath(
+            'message',
+            __('dashboard.trip_request_slot_taken_by_another_driver'),
+        );
     }
 
     public function test_driver_accept_via_api_rejects_competing_pending_requests_for_same_slot(): void
@@ -191,6 +242,69 @@ class TripRequestSlotConflictTest extends TestCase
 
         $this->assertSame('accepted', $requestA->status);
         $this->assertSame('rejected', $requestB->status);
+
+        $parentNotifications = InAppNotification::query()
+            ->where('user_id', $user->id)
+            ->get();
+        $this->assertCount(1, $parentNotifications);
+        $this->assertSame('TRIP_REQUEST_ACCEPTED', $parentNotifications->first()->data['type'] ?? null);
+        $this->assertSame($requestA->id, $parentNotifications->first()->data['trip_request_id'] ?? null);
+    }
+
+    public function test_driver_reject_notifies_parent_via_fcm_row(): void
+    {
+        [$school, $student, $user, $driverA] = $this->seedStudentWithDriver('Driver A');
+        $driverAUser = User::query()->findOrFail((int) $driverA->user_id);
+
+        $pickupTripA = $this->makeTrip($school, $driverA, TripType::MORNING_PICKUP);
+
+        $requestA = TripRequest::query()->create([
+            'user_id' => $user->id,
+            'student_id' => $student->id,
+            'driver_id' => $driverA->id,
+            'trip_history_id' => $pickupTripA->id,
+            'status' => 'pending',
+        ]);
+
+        Sanctum::actingAs($driverAUser);
+        $this->putJson('/api/trip-requests/'.$requestA->id, [
+            'status' => 'rejected',
+        ])->assertOk();
+
+        $notification = InAppNotification::query()
+            ->where('user_id', $user->id)
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($notification);
+        $this->assertSame('TRIP_REQUEST_REJECTED', $notification->data['type'] ?? null);
+        $this->assertSame($requestA->id, $notification->data['trip_request_id'] ?? null);
+        $this->assertSame('rejected', $notification->data['status'] ?? null);
+    }
+
+    public function test_parent_request_notifies_driver_via_fcm_row(): void
+    {
+        [$school, $student, $user, $driverA] = $this->seedStudentWithDriver('Driver A');
+        $driverAUser = User::query()->findOrFail((int) $driverA->user_id);
+        $pickupTripA = $this->makeTrip($school, $driverA, TripType::MORNING_PICKUP);
+
+        Sanctum::actingAs($user);
+        $created = $this->postJson('/api/trip-requests', [
+            'student_id' => $student->id,
+            'driver_id' => $driverA->id,
+            'trip_history_id' => $pickupTripA->id,
+        ])->assertStatus(201);
+
+        $requestId = (int) $created->json('data.id');
+
+        $notification = InAppNotification::query()
+            ->where('user_id', $driverAUser->id)
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($notification);
+        $this->assertSame('TRIP_REQUEST', $notification->data['type'] ?? null);
+        $this->assertSame($requestId, $notification->data['trip_request_id'] ?? null);
     }
 
     public function test_accepting_pickup_does_not_reject_pending_return_request(): void

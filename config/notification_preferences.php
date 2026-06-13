@@ -42,6 +42,8 @@ return [
         'SOS_TRIGGERED' => ['tripNotifications', 'sos'],
         'WALLET_PAYMENT' => ['paymentNotifications', 'paymentConfirmation'],
         'TRIP_REQUEST' => ['tripNotifications', 'busMovement'],
+        'TRIP_REQUEST_ACCEPTED' => ['tripNotifications', 'busMovement'],
+        'TRIP_REQUEST_REJECTED' => ['tripNotifications', 'busMovement'],
         'TRIP_STARTED' => ['tripNotifications', 'busMovement'],
         'TRIP_COMPLETED' => ['tripNotifications', 'busMovement'],
         'RETURN_TRIP_STARTED' => ['tripNotifications', 'returnTrip'],

@@ -15,6 +15,7 @@ final class TripRequestAcceptanceService
     public function __construct(
         private readonly TripRequestConflictGuard $conflictGuard,
         private readonly TripRequestSlotKeyResolver $slotKeyResolver,
+        private readonly TripRequestNotificationService $notificationService,
     ) {}
 
     /**
@@ -24,6 +25,10 @@ final class TripRequestAcceptanceService
     public function applyDriverDecision(TripRequest $tripRequest, string $status): void
     {
         DB::transaction(function () use ($tripRequest, $status): void {
+            if ($status === 'accepted' && $tripRequest->student_id !== null) {
+                Student::query()->whereKey($tripRequest->student_id)->lockForUpdate()->first();
+            }
+
             $locked = TripRequest::query()->whereKey($tripRequest->id)->lockForUpdate()->firstOrFail();
 
             if ($locked->status !== 'pending') {
@@ -33,9 +38,6 @@ final class TripRequestAcceptanceService
             }
 
             if ($status === 'accepted') {
-                if ($locked->student_id !== null) {
-                    Student::query()->whereKey($locked->student_id)->lockForUpdate()->first();
-                }
                 $locked->loadMissing(['student.school', 'driver.bus', 'tripHistory']);
 
                 $slotKey = $this->resolveAcceptanceSlotKey($locked);
@@ -49,6 +51,13 @@ final class TripRequestAcceptanceService
                 $this->attachAcceptedRequestToTrip($accepted);
                 $slotKey = $this->resolveAcceptanceSlotKey($accepted->fresh(['tripHistory']));
                 $this->conflictGuard->rejectCompetingPendingRequests($accepted->fresh(['tripHistory']), $slotKey);
+            }
+
+            if (in_array($status, ['accepted', 'rejected'], true)) {
+                $this->notificationService->notifyParentOfDriverDecision(
+                    $locked->fresh(['user', 'driver', 'student', 'tripHistory']),
+                    $status,
+                );
             }
         });
     }

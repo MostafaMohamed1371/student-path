@@ -17,6 +17,7 @@ use App\Models\TripHistory;
 use App\Models\TripRequest;
 use App\Models\User;
 use App\Services\Trips\TripRequestAcceptanceService;
+use App\Services\Trips\TripRequestConflictGuard;
 use App\Services\Trips\TripRequestCreator;
 use App\Services\Trips\TripRequestSubmissionPlanner;
 use App\Services\Trips\DriverShiftResolver;
@@ -318,6 +319,14 @@ class DashboardTripRequestController extends Controller
         }
 
         if ($trip_request->status !== 'pending') {
+            $nextStatus = (string) $request->validated('status');
+            if ($nextStatus === 'accepted'
+                && app(TripRequestConflictGuard::class)->slotTakenByAnotherDriver($trip_request)) {
+                return redirect()
+                    ->route('dashboard.trip_requests.show', $trip_request)
+                    ->with('error', __('dashboard.trip_request_slot_taken_by_another_driver'));
+            }
+
             return redirect()
                 ->route('dashboard.trip_requests.show', $trip_request)
                 ->with('error', __('dashboard.trip_request_only_pending_status'));

@@ -90,6 +90,8 @@ Examples that already create in-app notifications:
 - Trip ended (`TRIP_COMPLETED` / `RETURN_TRIP_COMPLETED`) — `PUT /api/trips/end-trip` or finalize
 - Bus arrived at student (`TRIP_STUDENT_ARRIVED`) — `PUT /api/update-status` with `new_status: ARRIVED`
 - New pending trip request for assigned driver (`TRIP_REQUEST`) — `POST /api/trip-requests` or dashboard **Add trip request** (only when a new pending row is created, not on duplicate submit)
+- Trip request accepted by driver (`TRIP_REQUEST_ACCEPTED`) — driver accepts via `PUT /api/trip-requests/{id}`, `PUT /api/orders/{id}`, or dashboard approve
+- Trip request rejected by driver (`TRIP_REQUEST_REJECTED`) — driver rejects via the same endpoints (auto-rejected competing requests do **not** notify the parent)
 
 Payload:
 
