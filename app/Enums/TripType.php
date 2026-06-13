@@ -32,6 +32,11 @@ enum TripType: string
         return self::tryFrom(trim($tripType))?->pairedReturnType()?->value;
     }
 
+    public static function pairedPickupTypeFor(string $tripType): ?string
+    {
+        return self::tryFrom(trim($tripType))?->pairedPickupType()?->value;
+    }
+
     public static function isPickup(string $tripType): bool
     {
         return in_array($tripType, [self::MORNING_PICKUP->value, self::EVENING_PICKUP->value], true);

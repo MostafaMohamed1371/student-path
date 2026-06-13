@@ -445,7 +445,7 @@ class DashboardTripController extends Controller
         )));
 
         /** @var list<int> $allExceptTripIds */
-        $allExceptTripIds = $tripIds;
+        $allExceptTripIds = $this->tripStudentAvailability->expandExceptTripIdsWithPairs($tripIds);
 
         foreach ($selectedTrips as $trip) {
             $this->syncTripStudentsForSchool($trip, $studentIds, $schoolId, $allExceptTripIds);
@@ -458,23 +458,37 @@ class DashboardTripController extends Controller
         foreach ($selectedTrips as $trip) {
             $tripsForRecurring->put((int) $trip->id, $trip);
 
-            if (! TripType::isPickup((string) ($trip->trip_type ?? '')) || ! $school instanceof School) {
+            if (! $school instanceof School) {
                 continue;
             }
 
-            $returnTrip = $this->syncPairedReturnTripStudents(
-                $trip,
-                $studentIds,
-                $schoolId,
-                $allExceptTripIds,
-                $school,
-                $pairPlanner,
-            );
+            $tripType = trim((string) ($trip->trip_type ?? ''));
+            $pairedTrip = null;
 
-            if ($returnTrip instanceof TripHistory) {
-                $tripsForRecurring->put((int) $returnTrip->id, $returnTrip);
-                if (! in_array((int) $returnTrip->id, $allExceptTripIds, true)) {
-                    $allExceptTripIds[] = (int) $returnTrip->id;
+            if (TripType::isPickup($tripType)) {
+                $pairedTrip = $this->syncPairedReturnTripStudents(
+                    $trip,
+                    $studentIds,
+                    $schoolId,
+                    $allExceptTripIds,
+                    $school,
+                    $pairPlanner,
+                );
+            } elseif (TripType::isReturn($tripType)) {
+                $pairedTrip = $this->syncPairedPickupTripStudents(
+                    $trip,
+                    $studentIds,
+                    $schoolId,
+                    $allExceptTripIds,
+                    $school,
+                    $pairPlanner,
+                );
+            }
+
+            if ($pairedTrip instanceof TripHistory) {
+                $tripsForRecurring->put((int) $pairedTrip->id, $pairedTrip);
+                if (! in_array((int) $pairedTrip->id, $allExceptTripIds, true)) {
+                    $allExceptTripIds[] = (int) $pairedTrip->id;
                 }
             }
         }
@@ -959,8 +973,9 @@ class DashboardTripController extends Controller
 
         $tripType = is_string($trip->trip_type) && $trip->trip_type !== '' ? $trip->trip_type : null;
 
-        $except = $exceptTripIds ?? (int) $trip->id;
+        $except = $this->tripStudentAvailability->expandExceptTripIdsWithPairs($exceptTripIds);
         $this->tripStudentAvailability->assertStudentsAvailableForTrip($unique, $schoolId, $except);
+        $this->assertTripRosterWithinBusCapacity($trip, count($unique));
 
         $previouslyOnTrip = $trip->tripHistoryStudents()
             ->pluck('student_id')
@@ -1116,6 +1131,60 @@ class DashboardTripController extends Controller
     }
 
     /**
+     * @param  list<int>  $studentIds
+     * @param  list<int>  $exceptTripIds
+     */
+    private function syncPairedPickupTripStudents(
+        TripHistory $returnTrip,
+        array $studentIds,
+        int $schoolId,
+        array $exceptTripIds,
+        School $school,
+        PickupReturnTripPairPlanner $pairPlanner,
+    ): ?TripHistory {
+        if (in_array(strtoupper((string) $returnTrip->status), ['CANCELLED', 'COMPLETED'], true)) {
+            return null;
+        }
+
+        $pickupTrip = $pairPlanner->findPickupTripForReturn($returnTrip->fresh(['school']));
+        if (! $pickupTrip instanceof TripHistory) {
+            return null;
+        }
+
+        if (in_array(strtoupper((string) $pickupTrip->status), ['CANCELLED', 'COMPLETED'], true)) {
+            return null;
+        }
+
+        $except = array_values(array_unique(array_merge(
+            $exceptTripIds,
+            [(int) $returnTrip->id, (int) $pickupTrip->id],
+        )));
+
+        $this->syncTripStudentsForSchool($pickupTrip, $studentIds, $schoolId, $except);
+
+        return $pickupTrip->fresh(['school', 'tripHistoryStudents']);
+    }
+
+    private function assertTripRosterWithinBusCapacity(TripHistory $trip, int $studentCount): void
+    {
+        if ($studentCount <= 0 || $trip->driver_id === null) {
+            return;
+        }
+
+        $driver = Driver::query()->with('bus')->find((int) $trip->driver_id);
+        $capacity = $driver?->bus?->capacity;
+        if ($capacity === null || (int) $capacity <= 0) {
+            return;
+        }
+
+        if ($studentCount > (int) $capacity) {
+            throw ValidationException::withMessages([
+                'student_ids' => [__('dashboard.trip_students_bus_capacity_exceeded')],
+            ]);
+        }
+    }
+
+    /**
      * @return list<int>
      */
     private function tripIdsFromAssignRequest(Request $request): array
@@ -1201,7 +1270,9 @@ class DashboardTripController extends Controller
             return collect();
         }
 
-        $exceptTripIds = $trips->pluck('id')->map(fn ($id): int => (int) $id)->all();
+        $exceptTripIds = $this->tripStudentAvailability->expandExceptTripIdsWithPairs(
+            $trips->pluck('id')->map(fn ($id): int => (int) $id)->all(),
+        );
         $rows = null;
 
         foreach ($trips as $trip) {

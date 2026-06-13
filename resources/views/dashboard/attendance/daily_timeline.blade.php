@@ -49,7 +49,16 @@
                             <strong>{{ $milestone['title_en'] }}</strong>
                         </div>
                         <div style="color:var(--text-muted);margin-bottom:4px;">{{ $milestone['description_en'] }}</div>
-                        <div class="mono">{{ $milestone['scheduled_time'] }} @if($milestone['actual_time']) → {{ $milestone['actual_time'] }} @endif</div>
+                        <div class="mono">
+                            @if ($milestone['scheduled_time'])
+                                {{ $milestone['scheduled_time'] }}
+                                @if ($milestone['actual_time']) → {{ $milestone['actual_time'] }} @endif
+                            @elseif ($milestone['actual_time'])
+                                {{ $milestone['actual_time'] }}
+                            @else
+                                —
+                            @endif
+                        </div>
                     </div>
                 </div>
             @endforeach

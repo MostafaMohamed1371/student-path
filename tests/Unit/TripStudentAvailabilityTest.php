@@ -2,10 +2,12 @@
 
 namespace Tests\Unit;
 
+use App\Models\Driver;
 use App\Models\School;
 use App\Models\Student;
 use App\Models\TripHistory;
 use App\Models\TripHistoryStudent;
+use App\Models\User;
 use App\Services\Trips\TripStudentAvailability;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
@@ -78,6 +80,87 @@ class TripStudentAvailabilityTest extends TestCase
 
         $this->expectException(ValidationException::class);
         $service->assertStudentsAvailableForTrip([(int) $student->id], $school->id);
+    }
+
+    public function test_paired_return_trip_does_not_block_student_on_pickup_assign_form(): void
+    {
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'S',
+            'province' => 'P',
+            'district' => 'D',
+            'address' => 'A',
+            'status' => 'active',
+        ]);
+
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'Paired Student',
+            'gender' => 'male',
+            'grade' => '1',
+            'student_phone' => '7400000099',
+            'guardian_name' => 'G',
+            'guardian_primary_phone' => '7300000099',
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'status' => 'active',
+        ]);
+
+        $driver = Driver::query()->create([
+            'user_id' => User::factory()->create()->id,
+            'school_id' => $school->id,
+            'first_name' => 'D',
+            'father_name' => 'D',
+            'grandfather_name' => 'D',
+            'last_name' => 'P',
+            'age' => 30,
+            'id_card_number' => 'IDC-PAIR',
+            'license_number' => 'LIC-PAIR',
+            'primary_phone' => '7770000099',
+            'emergency_phone' => '7770001099',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+
+        $day = now()->startOfDay()->addHours(7);
+        $pickupTrip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => 'MORNING_PICKUP',
+            'bus_number' => 'B1',
+            'students_count' => 1,
+            'distance_km' => 1,
+            'start_time' => $day,
+            'status' => 'ACTIVE',
+        ]);
+        $returnTrip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => 'MORNING_RETURN',
+            'bus_number' => 'B1',
+            'students_count' => 1,
+            'distance_km' => 1,
+            'start_time' => $day->copy()->addHours(7),
+            'status' => 'ACTIVE',
+        ]);
+
+        foreach ([$pickupTrip, $returnTrip] as $trip) {
+            TripHistoryStudent::query()->create([
+                'trip_history_id' => $trip->id,
+                'student_id' => $student->id,
+                'sort_order' => 0,
+                'status' => 'IDLE',
+            ]);
+        }
+
+        $service = app(TripStudentAvailability::class);
+
+        $booked = $service->studentIdsOnActiveTrips($school->id, (int) $pickupTrip->id);
+        $this->assertSame([], $booked);
+
+        $service->assertStudentsAvailableForTrip([(int) $student->id], $school->id, (int) $pickupTrip->id);
+        $this->assertTrue(true);
     }
 
     public function test_completed_trip_releases_student(): void

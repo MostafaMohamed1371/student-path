@@ -153,6 +153,67 @@ class StudentDailyTimelineTest extends TestCase
             ->assertJsonPath('data.milestones.3.scheduled_time', '14:50');
     }
 
+    public function test_daily_timeline_returns_null_times_when_no_trips_exist(): void
+    {
+        ['student' => $student, 'parent' => $parent] = $this->seedStudentWithRoute();
+        $day = now()->startOfDay();
+
+        Sanctum::actingAs($parent);
+
+        $this->getJson('/api/students/'.$student->id.'/daily-timeline?date='.$day->toDateString())
+            ->assertOk()
+            ->assertJsonPath('data.milestones.0.scheduled_time', null)
+            ->assertJsonPath('data.milestones.0.scheduled_at', null)
+            ->assertJsonPath('data.milestones.1.scheduled_time', null)
+            ->assertJsonPath('data.milestones.2.scheduled_time', null)
+            ->assertJsonPath('data.milestones.3.scheduled_time', null);
+    }
+
+    public function test_daily_timeline_uses_recurring_template_times_before_daily_spawn(): void
+    {
+        ['student' => $student, 'parent' => $parent, 'school' => $school, 'driver' => $driver] = $this->seedStudentWithRoute();
+        $day = now()->addDays(3)->startOfDay();
+
+        TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => TripType::MORNING_PICKUP->value,
+            'bus_number' => 'BUS-TL-TPL',
+            'route_title' => 'Template Pickup',
+            'location' => 'Campus',
+            'students_count' => 1,
+            'distance_km' => 0,
+            'start_time' => now()->setTime(5, 55),
+            'end_time' => now()->setTime(6, 25),
+            'status' => 'ACTIVE',
+            'is_recurring_template' => true,
+        ]);
+
+        TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => TripType::MORNING_RETURN->value,
+            'bus_number' => 'BUS-TL-TPL-RET',
+            'route_title' => 'Template Return',
+            'location' => 'School to home',
+            'students_count' => 1,
+            'distance_km' => 0,
+            'start_time' => now()->setTime(13, 20),
+            'end_time' => now()->setTime(14, 0),
+            'status' => 'ACTIVE',
+            'is_recurring_template' => true,
+        ]);
+
+        Sanctum::actingAs($parent);
+
+        $this->getJson('/api/students/'.$student->id.'/daily-timeline?date='.$day->toDateString())
+            ->assertOk()
+            ->assertJsonPath('data.milestones.0.scheduled_time', '05:55')
+            ->assertJsonPath('data.milestones.1.scheduled_time', '06:25')
+            ->assertJsonPath('data.milestones.2.scheduled_time', '13:20')
+            ->assertJsonPath('data.milestones.3.scheduled_time', '14:00');
+    }
+
     public function test_daily_timeline_marks_milestones_absent_when_parent_reported(): void
     {
         ['student' => $student, 'parent' => $parent, 'driver' => $driver] = $this->seedStudentWithRoute();

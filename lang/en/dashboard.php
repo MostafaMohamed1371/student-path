@@ -468,6 +468,7 @@ return [
     'trip_students_school_mismatch' => 'Each selected student must belong to the trip school.',
     'trip_students_shift_mismatch' => 'Each selected student must match the trip shift (morning/evening).',
     'trip_students_already_assigned' => 'One or more students are already assigned to another active trip.',
+    'trip_students_bus_capacity_exceeded' => 'The selected students exceed the bus capacity for a single trip leg.',
     'trip_students_select_help_assigned' => 'Students on another active trip are hidden. They become available when that trip is completed or cancelled.',
     'trip_students_route_filter_help' => 'Driver selected: only students along this driver’s route (start → school, within :km km) or already on the transport route are listed.',
     'trip_students_off_route' => 'One or more students are not along this driver’s transport route (start to school).',

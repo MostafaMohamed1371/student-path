@@ -105,11 +105,44 @@ final class PickupReturnTripPairPlanner
             return null;
         }
 
+        return $this->findPairedTripForDay(
+            (int) $pickupTrip->driver_id,
+            (int) $pickupTrip->school_id,
+            $returnTripType,
+            $pickupTrip->start_time,
+        );
+    }
+
+    public function findPickupTripForReturn(TripHistory $returnTrip, ?string $pickupTripType = null): ?TripHistory
+    {
+        if ($returnTrip->start_time === null || $returnTrip->driver_id === null) {
+            return null;
+        }
+
+        $pickupTripType ??= TripType::pairedPickupTypeFor((string) ($returnTrip->trip_type ?? ''));
+        if ($pickupTripType === null || $pickupTripType === '') {
+            return null;
+        }
+
+        return $this->findPairedTripForDay(
+            (int) $returnTrip->driver_id,
+            (int) $returnTrip->school_id,
+            $pickupTripType,
+            $returnTrip->start_time,
+        );
+    }
+
+    private function findPairedTripForDay(
+        int $driverId,
+        int $schoolId,
+        string $tripType,
+        Carbon $dayAnchor,
+    ): ?TripHistory {
         return TripHistory::query()
-            ->where('driver_id', (int) $pickupTrip->driver_id)
-            ->where('school_id', (int) $pickupTrip->school_id)
-            ->where('trip_type', $returnTripType)
-            ->whereDate('start_time', $pickupTrip->start_time->toDateString())
+            ->where('driver_id', $driverId)
+            ->where('school_id', $schoolId)
+            ->where('trip_type', $tripType)
+            ->whereDate('start_time', $dayAnchor->toDateString())
             ->orderBy('id')
             ->first();
     }

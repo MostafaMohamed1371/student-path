@@ -155,6 +155,60 @@ class DashboardTripAssignStudentsTest extends TestCase
         $this->assertSame(0, $trip->fresh()->students_count);
     }
 
+    public function test_assign_to_pickup_only_also_assigns_paired_return(): void
+    {
+        ['student' => $student, 'school' => $school, 'driver' => $driver] = $this->seedAssignablePickupTrip();
+
+        $pickupTrip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => TripType::MORNING_PICKUP->value,
+            'bus_number' => 'AS-2',
+            'route_title' => 'Pickup only',
+            'location' => 'Loc',
+            'students_count' => 0,
+            'distance_km' => 1,
+            'start_time' => now()->addHour(),
+            'end_time' => now()->addHours(2),
+            'status' => 'PRESENT',
+            'students_preview' => [],
+        ]);
+
+        $returnTrip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => TripType::MORNING_RETURN->value,
+            'bus_number' => 'AS-2',
+            'route_title' => 'Return',
+            'location' => 'Loc',
+            'students_count' => 0,
+            'distance_km' => 1,
+            'start_time' => now()->addHours(8),
+            'end_time' => now()->addHours(9),
+            'status' => 'PRESENT',
+            'students_preview' => [],
+        ]);
+
+        $admin = User::factory()->create(['is_admin' => true]);
+        $this->actingAs($admin);
+
+        $this->post(route('dashboard.trips.assign_students.store'), [
+            'trip_id' => $pickupTrip->id,
+            'student_ids' => [$student->id],
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('trip_history_students', [
+            'trip_history_id' => $pickupTrip->id,
+            'student_id' => $student->id,
+        ]);
+        $this->assertDatabaseHas('trip_history_students', [
+            'trip_history_id' => $returnTrip->id,
+            'student_id' => $student->id,
+        ]);
+        $this->assertSame(1, $pickupTrip->fresh()->students_count);
+        $this->assertSame(1, $returnTrip->fresh()->students_count);
+    }
+
     public function test_assign_students_to_multiple_trips_at_once(): void
     {
         $school = School::query()->create([
@@ -254,5 +308,67 @@ class DashboardTripAssignStudentsTest extends TestCase
             ]);
             $this->assertSame(1, $trip->fresh()->students_count);
         }
+    }
+
+    /**
+     * @return array{school: School, student: Student, driver: Driver}
+     */
+    private function seedAssignablePickupTrip(): array
+    {
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'School Assign',
+            'province' => 'P',
+            'district' => 'D',
+            'address' => 'A',
+            'latitude' => 33.315,
+            'longitude' => 44.366,
+            'status' => 'active',
+        ]);
+
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'G',
+            'phone' => '7300000772',
+            'status' => 'active',
+        ]);
+
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'Pickup Pair Student',
+            'gender' => 'male',
+            'grade' => 'G1',
+            'student_phone' => '7400000772',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'father',
+            'district_area' => 'Area',
+            'nearest_landmark' => 'LM',
+            'latitude' => 33.314,
+            'longitude' => 44.365,
+            'shift_period' => 'MORNING',
+            'status' => 'active',
+        ]);
+
+        $driverUser = User::factory()->create();
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'D',
+            'father_name' => 'D',
+            'grandfather_name' => 'D',
+            'last_name' => 'Assign',
+            'age' => 30,
+            'id_card_number' => 'IDC-AS2',
+            'license_number' => 'LIC-AS2',
+            'primary_phone' => '7770000772',
+            'emergency_phone' => '7770001772',
+            'residential_address' => 'Addr',
+            'shift_period' => 'MORNING',
+            'status' => 'active',
+        ]);
+
+        return compact('school', 'student', 'driver');
     }
 }

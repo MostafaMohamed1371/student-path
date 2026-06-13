@@ -40,13 +40,11 @@ final class StudentDailyTimelineService
         $pickupTrip = $tripsByType[$pickupType] ?? null;
         $returnTrip = $tripsByType[$returnType] ?? null;
 
-        $defaults = config('trips.default_daily_timeline', []);
-
         $milestones = [
-            $this->buildMorningPickupHome($student, $day, $pickupTrip, $isAbsent, $defaults),
-            $this->buildMorningArriveSchool($day, $pickupTrip, $isAbsent, $defaults),
-            $this->buildEveningPickupSchool($day, $returnTrip, $isAbsent, $defaults),
-            $this->buildEveningArriveHome($day, $returnTrip, $isAbsent, $defaults),
+            $this->buildMorningPickupHome($student, $pickupTrip, $isAbsent),
+            $this->buildMorningArriveSchool($pickupTrip, $isAbsent),
+            $this->buildEveningPickupSchool($returnTrip, $isAbsent),
+            $this->buildEveningArriveHome($returnTrip, $isAbsent),
         ];
 
         return [
@@ -61,19 +59,16 @@ final class StudentDailyTimelineService
     }
 
     /**
-     * @param  array<string, string>  $defaults
      * @return array<string, mixed>
      */
     private function buildMorningPickupHome(
         Student $student,
-        Carbon $day,
         ?array $context,
         bool $isAbsent,
-        array $defaults,
     ): array {
         $code = StudentTimelineMilestoneCode::MorningPickupHome;
         $trip = $context !== null ? ($context['trip'] ?? null) : null;
-        $scheduled = $this->scheduledAt($day, $trip, (string) ($defaults['morning_pickup'] ?? '07:15'));
+        $scheduled = $this->scheduledAt($trip, useEndTime: false);
 
         if ($isAbsent) {
             return $this->milestonePayload($code, StudentTimelineMilestoneStatus::Absent, $scheduled, null, $this->homeDescription($student));
@@ -87,18 +82,15 @@ final class StudentDailyTimelineService
     }
 
     /**
-     * @param  array<string, string>  $defaults
      * @return array<string, mixed>
      */
     private function buildMorningArriveSchool(
-        Carbon $day,
         ?array $context,
         bool $isAbsent,
-        array $defaults,
     ): array {
         $code = StudentTimelineMilestoneCode::MorningArriveSchool;
         $trip = $context !== null ? ($context['trip'] ?? null) : null;
-        $scheduled = $this->scheduledAt($day, $trip, (string) ($defaults['morning_school_arrival'] ?? '07:45'), useEndTime: true);
+        $scheduled = $this->scheduledAt($trip, useEndTime: true);
 
         if ($isAbsent) {
             return $this->milestonePayload($code, StudentTimelineMilestoneStatus::Absent, $scheduled, null);
@@ -119,18 +111,15 @@ final class StudentDailyTimelineService
     }
 
     /**
-     * @param  array<string, string>  $defaults
      * @return array<string, mixed>
      */
     private function buildEveningPickupSchool(
-        Carbon $day,
         ?array $context,
         bool $isAbsent,
-        array $defaults,
     ): array {
         $code = StudentTimelineMilestoneCode::EveningPickupSchool;
         $trip = $context !== null ? ($context['trip'] ?? null) : null;
-        $scheduled = $this->scheduledAt($day, $trip, (string) ($defaults['evening_pickup'] ?? '15:30'));
+        $scheduled = $this->scheduledAt($trip, useEndTime: false);
 
         if ($isAbsent) {
             return $this->milestonePayload($code, StudentTimelineMilestoneStatus::Absent, $scheduled, null);
@@ -144,19 +133,16 @@ final class StudentDailyTimelineService
     }
 
     /**
-     * @param  array<string, string>  $defaults
      * @return array<string, mixed>
      */
     private function buildEveningArriveHome(
-        Carbon $day,
         ?array $returnTrip,
         bool $isAbsent,
-        array $defaults,
     ): array {
         $code = StudentTimelineMilestoneCode::EveningArriveHome;
         $trip = $returnTrip !== null ? ($returnTrip['trip'] ?? null) : null;
         $stop = $returnTrip !== null ? ($returnTrip['stop'] ?? null) : null;
-        $scheduled = $this->scheduledAt($day, $trip, (string) ($defaults['evening_home_arrival'] ?? '16:15'), useEndTime: true);
+        $scheduled = $this->scheduledAt($trip, useEndTime: true);
 
         if ($isAbsent) {
             return $this->milestonePayload($code, StudentTimelineMilestoneStatus::Absent, $scheduled, null);
@@ -206,7 +192,7 @@ final class StudentDailyTimelineService
     private function milestonePayload(
         StudentTimelineMilestoneCode $code,
         StudentTimelineMilestoneStatus $status,
-        Carbon $scheduledAt,
+        ?Carbon $scheduledAt,
         mixed $actualAt = null,
         ?string $descriptionOverride = null,
     ): array {
@@ -224,25 +210,24 @@ final class StudentDailyTimelineService
             'status_label_ar' => $status->labelAr(),
             'status_color' => $status->colorHex(),
             'status_background_color' => $status->backgroundColorHex(),
-            'scheduled_at' => $scheduledAt->toIso8601String(),
-            'scheduled_time' => $scheduledAt->format('H:i'),
-            'scheduled_time_label_ar' => $this->formatTimeArabic($scheduledAt),
+            'scheduled_at' => $scheduledAt?->toIso8601String(),
+            'scheduled_time' => $scheduledAt?->format('H:i'),
+            'scheduled_time_label_ar' => $scheduledAt ? $this->formatTimeArabic($scheduledAt) : null,
             'actual_at' => $actualCarbon?->toIso8601String(),
             'actual_time' => $actualCarbon?->format('H:i'),
             'actual_time_label_ar' => $actualCarbon ? $this->formatTimeArabic($actualCarbon) : null,
         ];
     }
 
-    private function scheduledAt(Carbon $day, ?TripHistory $trip, string $fallbackTime, bool $useEndTime = false): Carbon
+    private function scheduledAt(?TripHistory $trip, bool $useEndTime = false): ?Carbon
     {
-        if ($trip) {
-            $source = $useEndTime ? ($trip->end_time ?? $trip->start_time) : $trip->start_time;
-            if ($source instanceof Carbon) {
-                return $source->copy();
-            }
+        if (! $trip) {
+            return null;
         }
 
-        return Carbon::parse($day->toDateString().' '.$fallbackTime);
+        $source = $useEndTime ? ($trip->end_time ?? $trip->start_time) : $trip->start_time;
+
+        return $source instanceof Carbon ? $source->copy() : null;
     }
 
     private function asCarbon(mixed $value): ?Carbon
@@ -426,7 +411,63 @@ final class StudentDailyTimelineService
             $map[$type] = $trip;
         }
 
+        foreach ($this->driverRecurringTemplates($driverId, $schoolId) as $template) {
+            $type = trim((string) ($template->trip_type ?? ''));
+            if ($type === '' || isset($map[$type])) {
+                continue;
+            }
+
+            $projected = $this->projectTemplateTripToDay($template, $day);
+            if ($projected instanceof TripHistory) {
+                $map[$type] = $projected;
+            }
+        }
+
         return $map;
+    }
+
+    /**
+     * @return Collection<int, TripHistory>
+     */
+    private function driverRecurringTemplates(int $driverId, int $schoolId): Collection
+    {
+        return TripHistory::query()
+            ->where('driver_id', $driverId)
+            ->where('school_id', $schoolId)
+            ->where('is_recurring_template', true)
+            ->whereNull('recurring_template_id')
+            ->whereNotNull('start_time')
+            ->whereNotIn('status', ['CANCELLED'])
+            ->orderBy('start_time')
+            ->orderBy('id')
+            ->get();
+    }
+
+    private function projectTemplateTripToDay(TripHistory $template, Carbon $day): ?TripHistory
+    {
+        $tz = (string) (config('app.timezone') ?: 'UTC');
+        $targetDay = $day->copy()->timezone($tz)->startOfDay();
+
+        $projected = $template->replicate();
+        $projected->start_time = $this->shiftDateTimeToDay($template->start_time, $targetDay, $tz);
+        $projected->end_time = $template->end_time !== null
+            ? $this->shiftDateTimeToDay($template->end_time, $targetDay, $tz)
+            : null;
+
+        return $projected;
+    }
+
+    private function shiftDateTimeToDay(mixed $source, Carbon $targetDay, string $tz): Carbon
+    {
+        $sourceCarbon = $source instanceof Carbon
+            ? $source->copy()->timezone($tz)
+            : Carbon::parse((string) $source, $tz);
+
+        return $targetDay->copy()->setTime(
+            (int) $sourceCarbon->format('H'),
+            (int) $sourceCarbon->format('i'),
+            (int) $sourceCarbon->format('s'),
+        );
     }
 
     /**

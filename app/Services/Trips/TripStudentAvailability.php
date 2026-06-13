@@ -2,14 +2,21 @@
 
 namespace App\Services\Trips;
 
+use App\Enums\TripType;
+use App\Models\TripHistory;
 use App\Models\TripHistoryStudent;
 use Illuminate\Validation\ValidationException;
 
 /**
  * Prevents the same student from being rostered on more than one open (ACTIVE) trip at a time.
+ * Pickup and return legs for the same driver/day count as one assignment slot.
  */
 final class TripStudentAvailability
 {
+    public function __construct(
+        private readonly PickupReturnTripPairPlanner $pairPlanner,
+    ) {}
+
     /**
      * @param  int|list<int>|null  $exceptTripIds
      * @return list<int>
@@ -20,7 +27,7 @@ final class TripStudentAvailability
             return [];
         }
 
-        $except = $this->normalizeExceptTripIds($exceptTripIds);
+        $except = $this->expandExceptTripIdsWithPairs($exceptTripIds);
 
         $query = TripHistoryStudent::query()
             ->join('trip_histories', 'trip_histories.id', '=', 'trip_history_students.trip_history_id')
@@ -59,6 +66,40 @@ final class TripStudentAvailability
         throw ValidationException::withMessages([
             'student_ids' => [__('dashboard.trip_students_already_assigned')],
         ]);
+    }
+
+    /**
+     * Pickup/return legs for the same driver and day share one roster slot.
+     *
+     * @param  int|list<int>|null  $exceptTripIds
+     * @return list<int>
+     */
+    public function expandExceptTripIdsWithPairs(int|array|null $exceptTripIds): array
+    {
+        $ids = $this->normalizeExceptTripIds($exceptTripIds);
+        if ($ids === []) {
+            return [];
+        }
+
+        $expanded = $ids;
+        $trips = TripHistory::query()
+            ->whereIn('id', $ids)
+            ->get(['id', 'driver_id', 'school_id', 'trip_type', 'start_time']);
+
+        foreach ($trips as $trip) {
+            $tripType = trim((string) ($trip->trip_type ?? ''));
+            $paired = match (true) {
+                TripType::isPickup($tripType) => $this->pairPlanner->findReturnTripForPickup($trip),
+                TripType::isReturn($tripType) => $this->pairPlanner->findPickupTripForReturn($trip),
+                default => null,
+            };
+
+            if ($paired instanceof TripHistory) {
+                $expanded[] = (int) $paired->id;
+            }
+        }
+
+        return $this->normalizeExceptTripIds($expanded);
     }
 
     /**
