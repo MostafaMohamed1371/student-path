@@ -88,6 +88,149 @@ class TripRequestSlotConflictTest extends TestCase
         $this->assertSame('rejected', $requestB->status);
     }
 
+    public function test_parent_can_create_requests_to_two_drivers_for_same_pickup_slot(): void
+    {
+        [$school, $student, $user, $driverA] = $this->seedStudentWithDriver('Driver A');
+        $driverB = $this->makeSecondDriver($school, 'Driver B');
+
+        $pickupTripA = $this->makeTrip($school, $driverA, TripType::MORNING_PICKUP);
+        $pickupTripB = $this->makeTrip($school, $driverB, TripType::MORNING_PICKUP);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/trip-requests', [
+            'student_id' => $student->id,
+            'driver_id' => $driverA->id,
+            'trip_history_id' => $pickupTripA->id,
+        ])->assertStatus(201);
+
+        $this->postJson('/api/trip-requests', [
+            'student_id' => $student->id,
+            'driver_id' => $driverB->id,
+            'trip_history_id' => $pickupTripB->id,
+        ])->assertStatus(201);
+
+        $this->assertSame(
+            2,
+            TripRequest::query()
+                ->where('student_id', $student->id)
+                ->where('status', 'pending')
+                ->count(),
+        );
+    }
+
+    public function test_second_driver_cannot_accept_after_first_driver_accepted_same_pickup_slot(): void
+    {
+        [$school, $student, $user, $driverA] = $this->seedStudentWithDriver('Driver A');
+        $driverB = $this->makeSecondDriver($school, 'Driver B');
+        $driverBUser = User::query()->findOrFail((int) $driverB->user_id);
+
+        $pickupTripA = $this->makeTrip($school, $driverA, TripType::MORNING_PICKUP);
+        $pickupTripB = $this->makeTrip($school, $driverB, TripType::MORNING_PICKUP);
+
+        $requestA = TripRequest::query()->create([
+            'user_id' => $user->id,
+            'student_id' => $student->id,
+            'driver_id' => $driverA->id,
+            'trip_history_id' => $pickupTripA->id,
+            'status' => 'accepted',
+            'updated_at' => now(),
+        ]);
+
+        $requestB = TripRequest::query()->create([
+            'user_id' => $user->id,
+            'student_id' => $student->id,
+            'driver_id' => $driverB->id,
+            'trip_history_id' => $pickupTripB->id,
+            'status' => 'pending',
+        ]);
+
+        Sanctum::actingAs($driverBUser);
+
+        $this->putJson('/api/trip-requests/'.$requestB->id, [
+            'status' => 'accepted',
+        ])->assertStatus(422);
+
+        $this->assertSame('pending', $requestB->fresh()->status);
+        $this->assertSame('accepted', $requestA->fresh()->status);
+    }
+
+    public function test_driver_accept_via_api_rejects_competing_pending_requests_for_same_slot(): void
+    {
+        [$school, $student, $user, $driverA] = $this->seedStudentWithDriver('Driver A');
+        $driverAUser = User::query()->findOrFail((int) $driverA->user_id);
+        $driverB = $this->makeSecondDriver($school, 'Driver B');
+
+        $pickupTripA = $this->makeTrip($school, $driverA, TripType::MORNING_PICKUP);
+        $pickupTripB = $this->makeTrip($school, $driverB, TripType::MORNING_PICKUP);
+
+        $requestA = TripRequest::query()->create([
+            'user_id' => $user->id,
+            'student_id' => $student->id,
+            'driver_id' => $driverA->id,
+            'trip_history_id' => $pickupTripA->id,
+            'status' => 'pending',
+        ]);
+
+        $requestB = TripRequest::query()->create([
+            'user_id' => $user->id,
+            'student_id' => $student->id,
+            'driver_id' => $driverB->id,
+            'trip_history_id' => $pickupTripB->id,
+            'status' => 'pending',
+        ]);
+
+        Sanctum::actingAs($driverAUser);
+
+        $this->putJson('/api/trip-requests/'.$requestA->id, [
+            'status' => 'accepted',
+        ])->assertOk();
+
+        $requestA->refresh();
+        $requestB->refresh();
+
+        $this->assertSame('accepted', $requestA->status);
+        $this->assertSame('rejected', $requestB->status);
+    }
+
+    public function test_accepting_pickup_does_not_reject_pending_return_request(): void
+    {
+        [$school, $student, $user, $driverA] = $this->seedStudentWithDriver('Driver A');
+        $driverB = $this->makeSecondDriver($school, 'Driver B');
+
+        $pickupTripA = $this->makeTrip($school, $driverA, TripType::MORNING_PICKUP);
+        $returnTripB = $this->makeTrip($school, $driverB, TripType::MORNING_RETURN);
+
+        $pickupRequest = TripRequest::query()->create([
+            'user_id' => $user->id,
+            'student_id' => $student->id,
+            'driver_id' => $driverA->id,
+            'trip_history_id' => $pickupTripA->id,
+            'status' => 'pending',
+        ]);
+
+        $returnRequest = TripRequest::query()->create([
+            'user_id' => $user->id,
+            'student_id' => $student->id,
+            'driver_id' => $driverB->id,
+            'trip_history_id' => $returnTripB->id,
+            'status' => 'pending',
+        ]);
+
+        $staff = User::factory()->create(['is_admin' => false, 'school_id' => $school->id]);
+        $this->actingAs($staff);
+
+        $this->put(route('dashboard.trip_requests.update_status', $pickupRequest), [
+            'status' => 'accepted',
+        ])->assertRedirect();
+
+        $pickupRequest->refresh();
+        $returnRequest->refresh();
+
+        $this->assertSame('accepted', $pickupRequest->status);
+        $this->assertSame('pending', $returnRequest->status);
+    }
+
     public function test_parent_cannot_request_same_slot_after_another_driver_accepted(): void
     {
         [$school, $student, $user, $driverA] = $this->seedStudentWithDriver('Driver A');

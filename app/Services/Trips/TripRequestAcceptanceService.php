@@ -3,7 +3,6 @@
 namespace App\Services\Trips;
 
 use App\Enums\StudentTripStopStatus;
-use App\Enums\TripType;
 use App\Models\Student;
 use App\Models\TripHistory;
 use App\Models\TripHistoryStudent;
@@ -15,6 +14,7 @@ final class TripRequestAcceptanceService
 {
     public function __construct(
         private readonly TripRequestConflictGuard $conflictGuard,
+        private readonly TripRequestSlotKeyResolver $slotKeyResolver,
     ) {}
 
     /**
@@ -37,16 +37,18 @@ final class TripRequestAcceptanceService
                     Student::query()->whereKey($locked->student_id)->lockForUpdate()->first();
                 }
                 $locked->loadMissing(['student.school', 'driver.bus', 'tripHistory']);
-                $this->conflictGuard->assertCanAcceptRequest($locked);
+
+                $slotKey = $this->resolveAcceptanceSlotKey($locked);
+                $this->conflictGuard->assertCanAcceptRequest($locked, $slotKey);
             }
 
             $locked->update(['status' => $status]);
 
             if ($status === 'accepted') {
-                $this->attachAcceptedRequestToTrip(
-                    $locked->fresh(['student.school', 'driver.bus', 'tripHistory']),
-                );
-                $this->conflictGuard->rejectCompetingPendingRequests($locked->fresh());
+                $accepted = $locked->fresh(['student.school', 'driver.bus', 'tripHistory']);
+                $this->attachAcceptedRequestToTrip($accepted);
+                $slotKey = $this->resolveAcceptanceSlotKey($accepted->fresh(['tripHistory']));
+                $this->conflictGuard->rejectCompetingPendingRequests($accepted->fresh(['tripHistory']), $slotKey);
             }
         });
     }
@@ -162,17 +164,20 @@ final class TripRequestAcceptanceService
 
     private function inferTripTypeFromPresentType(?string $presentType): ?string
     {
-        if ($presentType === null || trim($presentType) === '') {
-            return null;
-        }
-        $t = mb_strtolower(trim($presentType));
-        if (str_contains($t, 'صباح')) {
-            return TripType::MORNING_PICKUP->value;
-        }
-        if (str_contains($t, 'مساء') || str_contains($t, 'مسائي')) {
-            return TripType::EVENING_PICKUP->value;
+        return app(TripRequestSlotKeyResolver::class)->inferTripTypeFromPresentType($presentType);
+    }
+
+    private function resolveAcceptanceSlotKey(TripRequest $tripRequest): ?string
+    {
+        $slotKey = $this->slotKeyResolver->slotKeyForRequest($tripRequest);
+        if ($slotKey !== null) {
+            return $slotKey;
         }
 
-        return null;
+        $trip = $this->resolveTripForAcceptedRequest($tripRequest);
+
+        return $trip !== null
+            ? $this->slotKeyResolver->slotKeyForTripHistoryId((int) $trip->id)
+            : null;
     }
 }

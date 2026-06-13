@@ -67,24 +67,32 @@ final class TripRequestConflictGuard
     /**
      * @throws ValidationException
      */
-    public function assertCanAcceptRequest(TripRequest $request): void
+    public function assertCanAcceptRequest(TripRequest $request, ?string $slotKey = null): void
     {
-        $slotKey = $this->slotKeyResolver->slotKeyForRequest($request);
-        if ($slotKey === null || $request->student_id === null) {
+        if ($request->student_id === null) {
             return;
         }
 
-        if ($this->hasAcceptedRequestForSlotToday((int) $request->student_id, $slotKey)) {
+        $slotKey ??= $this->slotKeyResolver->slotKeyForRequest($request);
+        if ($slotKey === null) {
+            return;
+        }
+
+        if ($this->hasAcceptedRequestForSlotToday((int) $request->student_id, $slotKey, (int) $request->id)) {
             throw ValidationException::withMessages([
                 'status' => [__('dashboard.trip_request_slot_already_accepted')],
             ]);
         }
     }
 
-    public function rejectCompetingPendingRequests(TripRequest $accepted): void
+    public function rejectCompetingPendingRequests(TripRequest $accepted, ?string $slotKey = null): void
     {
-        $slotKey = $this->slotKeyResolver->slotKeyForRequest($accepted);
-        if ($slotKey === null || $accepted->student_id === null) {
+        if ($accepted->student_id === null) {
+            return;
+        }
+
+        $slotKey ??= $this->slotKeyResolver->slotKeyForRequest($accepted);
+        if ($slotKey === null) {
             return;
         }
 
@@ -96,12 +104,13 @@ final class TripRequestConflictGuard
             });
     }
 
-    private function hasAcceptedRequestForSlotToday(int $studentId, string $slotKey): bool
+    private function hasAcceptedRequestForSlotToday(int $studentId, string $slotKey, ?int $exceptRequestId = null): bool
     {
         return TripRequest::query()
             ->where('student_id', $studentId)
             ->where('status', 'accepted')
             ->whereDate('updated_at', now()->toDateString())
+            ->when($exceptRequestId !== null, fn ($q) => $q->where('id', '!=', $exceptRequestId))
             ->with('tripHistory')
             ->get()
             ->contains(fn (TripRequest $request): bool => $this->slotKeyResolver->slotKeyForRequest($request) === $slotKey);
