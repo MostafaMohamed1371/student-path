@@ -507,6 +507,79 @@ final class RouteAssignmentPlanner
     }
 
     /**
+     * Link a student to the accepting driver's active transport route after trip request acceptance.
+     * Best-effort: never throws; skips when no matching route exists.
+     */
+    public function ensureStudentSubscribedFromTripAcceptance(
+        Student $student,
+        int $driverId,
+        string $tripType,
+    ): ?TransportRouteStudent {
+        $tripType = trim($tripType);
+        if ($tripType === '' || $driverId <= 0) {
+            return null;
+        }
+
+        $student->loadMissing('transportRouteStudent');
+
+        $route = TransportRoute::query()
+            ->with('school')
+            ->where('driver_id', $driverId)
+            ->where('school_id', (int) $student->school_id)
+            ->where('trip_type', $tripType)
+            ->where('status', 'active')
+            ->first();
+
+        if (! $route instanceof TransportRoute) {
+            return null;
+        }
+
+        $existing = $student->transportRouteStudent;
+        if ($existing instanceof TransportRouteStudent
+            && (int) $existing->transport_route_id === (int) $route->id) {
+            return $existing;
+        }
+
+        return DB::transaction(function () use ($student, $driverId, $route, $existing): ?TransportRouteStudent {
+            if ($existing instanceof TransportRouteStudent) {
+                $existing->delete();
+            }
+
+            $driver = Driver::query()->find($driverId);
+            if (! $driver instanceof Driver || $driver->status !== 'active') {
+                return null;
+            }
+
+            $school = $route->school ?? School::query()->find($route->school_id);
+            $distanceKm = null;
+            if (
+                $school
+                && $school->latitude !== null
+                && $school->longitude !== null
+                && $this->studentHasCoordinates($student)
+            ) {
+                $distanceKm = Haversine::metersBetween(
+                    (float) $student->latitude,
+                    (float) $student->longitude,
+                    (float) $school->latitude,
+                    (float) $school->longitude,
+                ) / 1000;
+            }
+
+            $row = TransportRouteStudent::query()->create([
+                'transport_route_id' => $route->id,
+                'student_id' => $student->id,
+                'sort_order' => $route->routeStudents()->count(),
+                'distance_from_school_km' => $distanceKm,
+            ]);
+
+            $this->syncDriverMetaFromRoute($driver, $route->fresh() ?? $route);
+
+            return $row;
+        });
+    }
+
+    /**
      * Copy route subscription/shift and line description onto the assigned driver.
      */
     public function syncDriverMetaFromRoute(Driver $driver, TransportRoute $route): void

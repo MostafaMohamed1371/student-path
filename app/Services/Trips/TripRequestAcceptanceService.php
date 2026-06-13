@@ -7,6 +7,7 @@ use App\Models\Student;
 use App\Models\TripHistory;
 use App\Models\TripHistoryStudent;
 use App\Models\TripRequest;
+use App\Services\Routes\RouteAssignmentPlanner;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -16,6 +17,7 @@ final class TripRequestAcceptanceService
         private readonly TripRequestConflictGuard $conflictGuard,
         private readonly TripRequestSlotKeyResolver $slotKeyResolver,
         private readonly TripRequestNotificationService $notificationService,
+        private readonly RouteAssignmentPlanner $routeAssignmentPlanner,
     ) {}
 
     /**
@@ -60,7 +62,8 @@ final class TripRequestAcceptanceService
 
             if ($status === 'accepted') {
                 $accepted = $locked->fresh(['student.school', 'driver.bus', 'tripHistory']);
-                $this->attachAcceptedRequestToTrip($accepted);
+                $trip = $this->attachAcceptedRequestToTrip($accepted);
+                $this->subscribeStudentToDriverRoute($accepted, $trip);
                 $slotKey = $this->resolveAcceptanceSlotKey($accepted->fresh(['tripHistory']));
                 $this->conflictGuard->rejectCompetingPendingRequests($accepted->fresh(['tripHistory']), $slotKey);
             }
@@ -74,7 +77,7 @@ final class TripRequestAcceptanceService
         });
     }
 
-    private function attachAcceptedRequestToTrip(TripRequest $tripRequest): void
+    private function attachAcceptedRequestToTrip(TripRequest $tripRequest): TripHistory
     {
         $student = $tripRequest->student;
         if (! $student) {
@@ -92,6 +95,25 @@ final class TripRequestAcceptanceService
 
         $this->ensureStudentOnTrip($tripRequest, $trip);
         $tripRequest->forceFill(['trip_history_id' => $trip->id])->save();
+
+        return $trip;
+    }
+
+    private function subscribeStudentToDriverRoute(TripRequest $tripRequest, TripHistory $trip): void
+    {
+        $student = $tripRequest->student;
+        $driverId = (int) ($tripRequest->driver_id ?? 0);
+        $tripType = trim((string) ($trip->trip_type ?? ''));
+
+        if (! $student || $driverId <= 0 || $tripType === '') {
+            return;
+        }
+
+        $this->routeAssignmentPlanner->ensureStudentSubscribedFromTripAcceptance(
+            $student,
+            $driverId,
+            $tripType,
+        );
     }
 
     private function resolveTripForAcceptedRequest(TripRequest $tripRequest): ?TripHistory

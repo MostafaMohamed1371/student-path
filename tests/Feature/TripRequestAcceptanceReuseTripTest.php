@@ -146,6 +146,136 @@ class TripRequestAcceptanceReuseTripTest extends TestCase
             'trip_history_id' => $existingTrip->id,
             'student_id' => $student->id,
         ]);
+
+        $route = TransportRoute::query()->where('driver_id', $driver->id)->firstOrFail();
+        $this->assertDatabaseHas('transport_route_students', [
+            'transport_route_id' => $route->id,
+            'student_id' => $student->id,
+        ]);
+    }
+
+    public function test_accepting_trip_request_subscribes_student_so_parent_can_report_absence(): void
+    {
+        $school = School::query()->create([
+            'name_ar' => 'مدرسة',
+            'name_en' => 'Absence Subscribe School',
+            'province' => 'Baghdad',
+            'district' => '1',
+            'address' => 'School Ave',
+            'status' => 'active',
+            'latitude' => 33.3152,
+            'longitude' => 44.3661,
+        ]);
+
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'Guardian',
+            'phone' => '7300000299',
+            'status' => 'active',
+        ]);
+
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'Absence Subscribe Student',
+            'gender' => 'male',
+            'grade' => '2',
+            'student_phone' => '7400000299',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'father',
+            'district_area' => 'Mansour',
+            'nearest_landmark' => 'Center',
+            'status' => 'active',
+            'shift_period' => 'MORNING',
+        ]);
+
+        $driverUser = User::factory()->create();
+        $driver = Driver::query()->create([
+            'school_id' => $school->id,
+            'user_id' => $driverUser->id,
+            'first_name' => 'Driver',
+            'father_name' => 'Test',
+            'grandfather_name' => 'X',
+            'last_name' => 'One',
+            'age' => 35,
+            'id_card_number' => 'ABS-SUB-DRV',
+            'license_number' => 'ABS-SUB-LIC',
+            'primary_phone' => '7900222299',
+            'emergency_phone' => '7900222298',
+            'residential_address' => 'Baghdad',
+            'status' => 'active',
+            'shift_period' => 'MORNING',
+        ]);
+
+        $route = TransportRoute::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'name' => 'Morning pickup route',
+            'trip_type' => TripType::MORNING_PICKUP->value,
+            'shift_period' => 'MORNING',
+            'start_address' => 'Depot',
+            'start_latitude' => 33.31,
+            'start_longitude' => 44.36,
+            'status' => 'active',
+        ]);
+
+        TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => TripType::MORNING_PICKUP->value,
+            'bus_number' => '145',
+            'route_title' => 'Morning route',
+            'location' => 'Depot to school',
+            'students_count' => 0,
+            'distance_km' => 3,
+            'start_time' => now()->setTime(7, 0),
+            'end_time' => now()->setTime(8, 0),
+            'status' => 'ACTIVE',
+            'students_preview' => [],
+        ]);
+
+        $parent = User::factory()->create([
+            'guardian_id' => $guardian->id,
+            'school_id' => $school->id,
+        ]);
+
+        $tripRequest = TripRequest::query()->create([
+            'user_id' => $parent->id,
+            'student_id' => $student->id,
+            'driver_id' => $driver->id,
+            'trip_history_id' => null,
+            'status' => 'pending',
+            'present_type' => 'صباح',
+        ]);
+
+        $this->assertDatabaseMissing('transport_route_students', [
+            'student_id' => $student->id,
+        ]);
+
+        $staff = User::factory()->create(['is_admin' => false, 'school_id' => $school->id]);
+        $this->actingAs($staff);
+
+        $this->put(route('dashboard.trip_requests.update_status', $tripRequest), [
+            'status' => 'accepted',
+        ])->assertRedirect(route('dashboard.trip_requests.show', $tripRequest));
+
+        $this->assertDatabaseHas('transport_route_students', [
+            'transport_route_id' => $route->id,
+            'student_id' => $student->id,
+        ]);
+
+        \Laravel\Sanctum\Sanctum::actingAs($parent);
+
+        $this->postJson('/api/absences', [
+            'student_id' => $student->id,
+            'start_date' => now()->toDateString(),
+            'end_date' => now()->toDateString(),
+            'reason' => 'travel',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.driver_id', $driver->id)
+            ->assertJsonPath('data.transport_route_id', $route->id);
     }
 
     public function test_accepting_trip_request_uses_linked_trip_when_trip_history_id_is_set(): void
@@ -303,7 +433,9 @@ class TripRequestAcceptanceReuseTripTest extends TestCase
 
         $this->put(route('dashboard.trip_requests.update_status', $tripRequest), [
             'status' => 'accepted',
-        ])->assertSessionHasErrors('status');
+        ])
+            ->assertRedirect(route('dashboard.trip_requests.show', $tripRequest))
+            ->assertSessionHas('error');
 
         $this->assertSame('pending', $tripRequest->fresh()->status);
         $this->assertSame(0, TripHistory::query()->count());
