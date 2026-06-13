@@ -36,7 +36,7 @@
             <p style="margin: 0; white-space: pre-wrap;">{{ $tripRequest->notes ?: '—' }}</p>
         </section>
 
-        @if($canManageTripRequests && $tripRequest->status === 'pending')
+        @if($canManageTripRequests)
             <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
                 <a href="{{ route('dashboard.trip_requests.edit', $tripRequest) }}" class="btn-primary" style="width:auto;padding:10px 14px;text-decoration:none;">{{ __('dashboard.edit') }}</a>
                 <form method="post" action="{{ route('dashboard.trip_requests.destroy', $tripRequest) }}" onsubmit="return confirm(@json(__('dashboard.confirm_delete')))" style="display:inline;margin:0;">

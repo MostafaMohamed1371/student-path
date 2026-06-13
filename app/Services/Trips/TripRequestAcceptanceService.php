@@ -4,6 +4,7 @@ namespace App\Services\Trips;
 
 use App\Enums\StudentTripStopStatus;
 use App\Enums\TripType;
+use App\Models\Student;
 use App\Models\TripHistory;
 use App\Models\TripHistoryStudent;
 use App\Models\TripRequest;
@@ -12,6 +13,10 @@ use Illuminate\Validation\ValidationException;
 
 final class TripRequestAcceptanceService
 {
+    public function __construct(
+        private readonly TripRequestConflictGuard $conflictGuard,
+    ) {}
+
     /**
      * Apply accepted / rejected for a pending trip request.
      * Acceptance never creates a new trip — it only links to an existing scheduled trip.
@@ -19,11 +24,29 @@ final class TripRequestAcceptanceService
     public function applyDriverDecision(TripRequest $tripRequest, string $status): void
     {
         DB::transaction(function () use ($tripRequest, $status): void {
-            $tripRequest->update(['status' => $status]);
+            $locked = TripRequest::query()->whereKey($tripRequest->id)->lockForUpdate()->firstOrFail();
+
+            if ($locked->status !== 'pending') {
+                throw ValidationException::withMessages([
+                    'status' => [__('dashboard.trip_request_only_pending_status')],
+                ]);
+            }
+
+            if ($status === 'accepted') {
+                if ($locked->student_id !== null) {
+                    Student::query()->whereKey($locked->student_id)->lockForUpdate()->first();
+                }
+                $locked->loadMissing(['student.school', 'driver.bus', 'tripHistory']);
+                $this->conflictGuard->assertCanAcceptRequest($locked);
+            }
+
+            $locked->update(['status' => $status]);
+
             if ($status === 'accepted') {
                 $this->attachAcceptedRequestToTrip(
-                    $tripRequest->fresh(['student.school', 'driver.bus', 'tripHistory']),
+                    $locked->fresh(['student.school', 'driver.bus', 'tripHistory']),
                 );
+                $this->conflictGuard->rejectCompetingPendingRequests($locked->fresh());
             }
         });
     }

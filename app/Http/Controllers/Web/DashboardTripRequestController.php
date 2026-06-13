@@ -195,10 +195,26 @@ class DashboardTripRequestController extends Controller
         $this->abortUnlessCanManageTripRequestsInDashboard();
         abort_unless($this->tripRequestVisible($trip_request), 404);
         $trip_request->load(['user.guardian', 'student.guardian', 'student.school', 'driver', 'tripHistory']);
-        $students = $this->studentsForUser($trip_request->user)->get();
-        $trips = $this->tripHistoriesInScope()->get();
 
-        return view('dashboard.trip-requests.edit', compact('trip_request', 'students', 'trips'));
+        $schoolId = (int) ($trip_request->student?->school_id ?? $trip_request->driver?->school_id ?? 0);
+        $students = $this->studentsForUser($trip_request->user)->get();
+        $trips = $this->tripHistoriesInScope()
+            ->when($schoolId > 0, fn (Builder $q) => $q->where('school_id', $schoolId))
+            ->get();
+        $drivers = Driver::query()
+            ->when($schoolId > 0, fn (Builder $q) => $q->where('school_id', $schoolId))
+            ->where('status', 'active')
+            ->orderBy('first_name')
+            ->orderBy('id')
+            ->get();
+
+        return view('dashboard.trip-requests.edit', [
+            'trip_request' => $trip_request,
+            'students' => $students,
+            'trips' => $trips,
+            'drivers' => $drivers,
+            'statusOptions' => $this->tripRequestStatusOptions(),
+        ]);
     }
 
     public function update(UpdateDashboardTripRequestRequest $request, TripRequest $trip_request): RedirectResponse
@@ -206,48 +222,88 @@ class DashboardTripRequestController extends Controller
         $this->abortUnlessCanManageTripRequestsInDashboard();
         abort_unless($this->tripRequestVisible($trip_request), 404);
 
-        if ($trip_request->status !== 'pending') {
-            return redirect()
-                ->route('dashboard.trip_requests.edit', $trip_request)
-                ->with('error', __('dashboard.trip_request_only_pending_status'));
-        }
-
         $validated = $request->validated();
         $user = $trip_request->user;
-        if (isset($validated['student_id'])) {
-            $student = $this->studentsInScope()->whereKey((int) $validated['student_id'])->firstOrFail();
-            abort_unless(ParentContext::ownsStudent($user, $student->id), 403);
-        }
+        $previousStatus = (string) $trip_request->status;
+        $nextStatus = (string) $validated['status'];
+
+        $student = $this->studentsInScope()->whereKey((int) $validated['student_id'])->firstOrFail();
+        abort_unless(ParentContext::ownsStudent($user, $student->id), 403);
 
         $tripHistoryId = array_key_exists('trip_history_id', $validated)
             ? $validated['trip_history_id']
             : $trip_request->trip_history_id;
-
-        if ($tripHistoryId !== null) {
+        $trip = null;
+        if ($tripHistoryId !== null && (int) $tripHistoryId > 0) {
             $trip = TripHistory::query()->findOrFail((int) $tripHistoryId);
             $this->assertTripInScope($trip);
-            $schoolIds = ParentContext::studentsFor($user)->pluck('school_id')->unique()->filter();
-            if ($schoolIds->isNotEmpty() && ! $schoolIds->contains($trip->school_id)) {
-                return redirect()->back()->withInput()->with('error', __('dashboard.trip_request_trip_out_of_scope'));
+            try {
+                app(TripRequestSubmissionPlanner::class)->assertTripMatchesStudentSchools($user, $student, $trip);
+                app(TripRequestSubmissionPlanner::class)->assertStudentShiftMatchesTrip($student, $trip);
+            } catch (ValidationException $e) {
+                return redirect()->back()->withInput()->withErrors($e->errors());
             }
         }
 
-        if (isset($validated['student_id'])) {
-            $updatedStudent = Student::query()->find((int) $validated['student_id']);
-            if ($updatedStudent) {
-                $targetShift = null;
-                if ($tripHistoryId !== null) {
-                    $tripForShift = TripHistory::query()->find((int) $tripHistoryId);
-                    $targetShift = app(DriverShiftResolver::class)->fromTripType($tripForShift?->trip_type);
-                }
-                if ($targetShift === null) {
-                    $targetShift = app(DriverShiftResolver::class)->fromPresentType($trip_request->present_type);
-                }
-                $validated['driver_id'] = $this->assignSchoolDriverId((int) $updatedStudent->school_id, $targetShift);
+        $presentType = $validated['present_type'] ?? $trip_request->present_type;
+        $driverId = array_key_exists('driver_id', $validated) && $validated['driver_id'] !== null && $validated['driver_id'] !== ''
+            ? (int) $validated['driver_id']
+            : $trip_request->driver_id;
+
+        if ($driverId !== null && (int) $driverId > 0) {
+            try {
+                app(TripRequestSubmissionPlanner::class)->plan(
+                    $user,
+                    $student,
+                    $trip,
+                    (int) $driverId,
+                    $presentType,
+                );
+            } catch (ValidationException $e) {
+                return redirect()->back()->withInput()->withErrors($e->errors());
             }
+        } elseif ($driverId === null && ($previousStatus !== $nextStatus || (int) $student->id !== (int) $trip_request->student_id)) {
+            $targetShift = app(DriverShiftResolver::class)->fromPresentType($presentType);
+            if ($targetShift === null && $trip !== null) {
+                $targetShift = app(DriverShiftResolver::class)->fromTripType($trip->trip_type);
+            }
+            $driverId = $this->assignSchoolDriverId((int) $student->school_id, $targetShift);
         }
 
-        $trip_request->fill($validated)->save();
+        $attributes = [
+            'student_id' => $student->id,
+            'driver_id' => $driverId,
+            'trip_history_id' => $tripHistoryId,
+            'notes' => $validated['notes'] ?? null,
+            'present_type' => $presentType,
+            'moving_point' => $validated['moving_point'] ?? null,
+            'stop_point' => $validated['stop_point'] ?? null,
+            'subscribe_price' => array_key_exists('subscribe_price', $validated)
+                ? $validated['subscribe_price']
+                : $trip_request->subscribe_price,
+        ];
+
+        if ($previousStatus === 'pending' && in_array($nextStatus, ['accepted', 'rejected'], true)) {
+            $trip_request->fill($attributes)->save();
+
+            try {
+                app(TripRequestAcceptanceService::class)->applyDriverDecision($trip_request->fresh(), $nextStatus);
+            } catch (ValidationException $e) {
+                return redirect()->back()->withInput()->withErrors($e->errors());
+            }
+
+            return redirect()->route('dashboard.trip_requests.show', $trip_request)
+                ->with('success', __('dashboard.trip_request_updated'));
+        }
+
+        $attributes['status'] = $nextStatus;
+        if ($nextStatus === 'cancelled') {
+            $attributes['cancelled_at'] = $trip_request->cancelled_at ?? now();
+        } elseif ($previousStatus === 'cancelled' && $nextStatus !== 'cancelled') {
+            $attributes['cancelled_at'] = null;
+        }
+
+        $trip_request->fill($attributes)->save();
 
         return redirect()->route('dashboard.trip_requests.show', $trip_request)
             ->with('success', __('dashboard.trip_request_updated'));
@@ -280,12 +336,6 @@ class DashboardTripRequestController extends Controller
     {
         $this->abortUnlessCanManageTripRequestsInDashboard();
         abort_unless($this->tripRequestVisible($trip_request), 404);
-
-        if ($trip_request->status !== 'pending') {
-            return redirect()
-                ->route('dashboard.trip_requests.index')
-                ->with('error', __('dashboard.trip_request_only_pending_delete'));
-        }
 
         $trip_request->delete();
 
@@ -477,6 +527,19 @@ class DashboardTripRequestController extends Controller
         }
 
         return Driver::query()->where('user_id', $authId)->first();
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function tripRequestStatusOptions(): array
+    {
+        return [
+            'pending' => __('dashboard.trip_request_status_pending'),
+            'accepted' => __('dashboard.trip_request_status_accepted'),
+            'rejected' => __('dashboard.trip_request_status_rejected'),
+            'cancelled' => __('dashboard.trip_request_status_cancelled'),
+        ];
     }
 
     /**

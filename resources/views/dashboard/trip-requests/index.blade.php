@@ -55,7 +55,7 @@
                             <td>
                                 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
                                     <a href="{{ route('dashboard.trip_requests.show', $r) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.action_view') }}</a>
-                                    @if($canManageTripRequests && $r->status === 'pending')
+                                    @if($canManageTripRequests)
                                         <a href="{{ route('dashboard.trip_requests.edit', $r) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.edit') }}</a>
                                         <form method="post" action="{{ route('dashboard.trip_requests.destroy', $r) }}" style="display:inline;margin:0;" onsubmit="return confirm(@json(__('dashboard.confirm_delete')))">
                                             @csrf
