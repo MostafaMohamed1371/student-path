@@ -18,6 +18,20 @@ enum TripType: string
         };
     }
 
+    public function pairedPickupType(): ?self
+    {
+        return match ($this) {
+            self::MORNING_RETURN => self::MORNING_PICKUP,
+            self::EVENING_RETURN => self::EVENING_PICKUP,
+            default => null,
+        };
+    }
+
+    public static function pairedReturnTypeFor(string $tripType): ?string
+    {
+        return self::tryFrom(trim($tripType))?->pairedReturnType()?->value;
+    }
+
     public static function isPickup(string $tripType): bool
     {
         return in_array($tripType, [self::MORNING_PICKUP->value, self::EVENING_PICKUP->value], true);

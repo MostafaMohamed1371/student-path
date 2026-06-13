@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Enums\TripType;
 use App\Models\School;
+use App\Models\TripHistory;
 use App\Services\Trips\PickupReturnTripPairPlanner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -54,6 +55,45 @@ class PickupReturnTripPairPlannerTest extends TestCase
         $this->assertStringContainsString('Depot', (string) $attributes['location']);
         $this->assertStringContainsString('School Street', (string) $attributes['location']);
         $this->assertStringContainsString('Morning return', (string) $attributes['route_title']);
+    }
+
+    public function test_ensure_return_trip_creates_missing_return_for_pickup_day(): void
+    {
+        $school = School::query()->create([
+            'name_ar' => 'مدرسة',
+            'name_en' => 'School',
+            'province' => 'Baghdad',
+            'district' => '1',
+            'address' => 'School Street',
+            'latitude' => 33.32,
+            'longitude' => 44.37,
+            'work_time_to' => '14:00',
+            'status' => 'active',
+        ]);
+
+        $pickup = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => null,
+            'trip_type' => TripType::MORNING_PICKUP->value,
+            'bus_number' => 'BUS-1',
+            'route_title' => 'Route',
+            'start_address' => 'Depot',
+            'start_latitude' => 33.31,
+            'start_longitude' => 44.36,
+            'students_count' => 0,
+            'distance_km' => 4.5,
+            'start_time' => '2026-06-10 07:00:00',
+            'end_time' => '2026-06-10 07:45:00',
+            'status' => 'PRESENT',
+        ]);
+
+        $planner = app(PickupReturnTripPairPlanner::class);
+
+        $return = $planner->ensureReturnTripForPickup($pickup, $school);
+
+        $this->assertInstanceOf(TripHistory::class, $return);
+        $this->assertSame(TripType::MORNING_RETURN->value, $return->trip_type);
+        $this->assertSame('2026-06-10 14:00:00', $return->start_time->format('Y-m-d H:i:s'));
     }
 
     public function test_evening_return_uses_evening_school_dismissal_when_both_shifts(): void

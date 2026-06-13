@@ -253,6 +253,8 @@ class DashboardTripController extends Controller
         $drivers = $this->driversForTripForm($schoolId, is_string($tripType) ? $tripType : null);
         $tripStatus = strtoupper((string) old('status', $trip->status ?? ''));
         $selectableStatus = in_array($tripStatus, ['ACTIVE', 'PRESENT'], true) ? $tripStatus : 'PRESENT';
+        $returnRoutePathSeed = $this->resolveReturnRoutePathSeed($trip);
+        $isReturnTrip = TripType::isReturn(trim((string) old('trip_type', $trip->trip_type ?? '')));
 
         return view('dashboard.trips.edit', [
             'trip' => $trip,
@@ -263,6 +265,8 @@ class DashboardTripController extends Controller
             'formOptionsUrl' => route('dashboard.trips.form_options'),
             'driverAutoFillUrl' => route('dashboard.trips.driver_auto_fill'),
             'exceptTripId' => (int) $trip->id,
+            'returnRoutePathSeed' => $returnRoutePathSeed,
+            'isReturnTrip' => $isReturnTrip,
         ]);
     }
 
@@ -440,13 +444,44 @@ class DashboardTripController extends Controller
             $validated['student_ids'] ?? [],
         )));
 
+        /** @var list<int> $allExceptTripIds */
+        $allExceptTripIds = $tripIds;
+
         foreach ($selectedTrips as $trip) {
-            $this->syncTripStudentsForSchool($trip, $studentIds, $schoolId, $tripIds);
+            $this->syncTripStudentsForSchool($trip, $studentIds, $schoolId, $allExceptTripIds);
+        }
+
+        $tripsForRecurring = collect();
+        $pairPlanner = app(PickupReturnTripPairPlanner::class);
+        $school = School::query()->find($schoolId);
+
+        foreach ($selectedTrips as $trip) {
+            $tripsForRecurring->put((int) $trip->id, $trip);
+
+            if (! TripType::isPickup((string) ($trip->trip_type ?? '')) || ! $school instanceof School) {
+                continue;
+            }
+
+            $returnTrip = $this->syncPairedReturnTripStudents(
+                $trip,
+                $studentIds,
+                $schoolId,
+                $allExceptTripIds,
+                $school,
+                $pairPlanner,
+            );
+
+            if ($returnTrip instanceof TripHistory) {
+                $tripsForRecurring->put((int) $returnTrip->id, $returnTrip);
+                if (! in_array((int) $returnTrip->id, $allExceptTripIds, true)) {
+                    $allExceptTripIds[] = (int) $returnTrip->id;
+                }
+            }
         }
 
         $spawnedTotal = 0;
         $recurringSpawner = app(RecurringTripSpawner::class);
-        foreach ($selectedTrips as $trip) {
+        foreach ($tripsForRecurring->values() as $trip) {
             $freshTrip = $trip->fresh(['school', 'tripHistoryStudents']);
             if ($studentIds !== []) {
                 $recurringSpawner->registerTemplateFromTrip($freshTrip);
@@ -455,6 +490,8 @@ class DashboardTripController extends Controller
                 $recurringSpawner->unregisterTemplate($freshTrip);
             }
         }
+
+        $pairedReturnSynced = $tripsForRecurring->count() > $selectedTrips->count();
 
         $tripCount = $selectedTrips->count();
         $message = count($studentIds) > 0
@@ -467,6 +504,10 @@ class DashboardTripController extends Controller
 
         if ($spawnedTotal > 0) {
             $message .= ' '.__('dashboard.trip_recurring_spawned_ahead', ['count' => $spawnedTotal]);
+        }
+
+        if ($pairedReturnSynced && count($studentIds) > 0) {
+            $message .= ' '.__('dashboard.trip_students_synced_to_paired_return');
         }
 
         return redirect()
@@ -578,6 +619,32 @@ class DashboardTripController extends Controller
                     'transport_route_id' => $returnPayload['transport_route_id'],
                 ]);
             }
+
+            $bus = $driver->bus;
+
+            return response()->json([
+                'ok' => true,
+                'is_return_trip' => true,
+                'has_route' => false,
+                'has_service_areas' => false,
+                'service_areas' => [],
+                'bus_number' => $bus?->number !== null && trim((string) $bus->number) !== ''
+                    ? trim((string) $bus->number)
+                    : null,
+                'route_title' => null,
+                'location' => null,
+                'distance_km' => null,
+                'students_count' => 0,
+                'start_address' => null,
+                'end_address' => null,
+                'route_start_latitude' => null,
+                'route_start_longitude' => null,
+                'route_end_latitude' => null,
+                'route_end_longitude' => null,
+                'school_latitude' => null,
+                'school_longitude' => null,
+                'transport_route_id' => null,
+            ]);
         }
 
         $route = $this->tripTransportRouteApplier->findRouteForTrip([
@@ -807,6 +874,33 @@ class DashboardTripController extends Controller
         ]);
     }
 
+    /**
+     * @return array{
+     *     route_title: string|null,
+     *     location: string|null,
+     *     distance_km: float|null,
+     *     start_address: string|null,
+     *     route_start_latitude: float|null,
+     *     route_start_longitude: float|null,
+     *     route_end_latitude: float|null,
+     *     route_end_longitude: float|null,
+     *     end_address: string|null
+     * }|null
+     */
+    private function resolveReturnRoutePathSeed(TripHistory $trip): ?array
+    {
+        $tripType = trim((string) ($trip->trip_type ?? ''));
+        if (! TripType::isReturn($tripType) || $trip->driver_id === null) {
+            return null;
+        }
+
+        return $this->tripTransportRouteApplier->returnTripFormPayload([
+            'school_id' => (int) $trip->school_id,
+            'driver_id' => (int) $trip->driver_id,
+            'trip_type' => $tripType,
+        ], $tripType);
+    }
+
     private function nullableCoordinate(mixed $value): ?float
     {
         if ($value === null || $value === '') {
@@ -984,6 +1078,41 @@ class DashboardTripController extends Controller
 
         // Return trip path/times are planned from school dismissal → driver pickup start.
         TripHistory::query()->create($returnAttributes);
+    }
+
+    /**
+     * @param  list<int>  $studentIds
+     * @param  list<int>  $exceptTripIds
+     */
+    private function syncPairedReturnTripStudents(
+        TripHistory $pickupTrip,
+        array $studentIds,
+        int $schoolId,
+        array $exceptTripIds,
+        School $school,
+        PickupReturnTripPairPlanner $pairPlanner,
+    ): ?TripHistory {
+        if (in_array(strtoupper((string) $pickupTrip->status), ['CANCELLED', 'COMPLETED'], true)) {
+            return null;
+        }
+
+        $returnTrip = $pairPlanner->ensureReturnTripForPickup($pickupTrip->fresh(['school']), $school);
+        if (! $returnTrip instanceof TripHistory) {
+            return null;
+        }
+
+        if (in_array(strtoupper((string) $returnTrip->status), ['CANCELLED', 'COMPLETED'], true)) {
+            return null;
+        }
+
+        $except = array_values(array_unique(array_merge(
+            $exceptTripIds,
+            [(int) $pickupTrip->id, (int) $returnTrip->id],
+        )));
+
+        $this->syncTripStudentsForSchool($returnTrip, $studentIds, $schoolId, $except);
+
+        return $returnTrip->fresh(['school', 'tripHistoryStudents']);
     }
 
     /**

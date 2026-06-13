@@ -59,32 +59,13 @@
                 <label><span>{{ __('dashboard.bus_number') }}</span><input id="trip_form_bus_number" name="bus_number" value="{{ old('bus_number', $trip->bus_number) }}" required></label>
                 <label><span>{{ __('dashboard.route_title') }}</span><input id="trip_form_route_title" name="route_title" value="{{ old('route_title', $trip->route_title) }}"></label>
 
-                <label style="grid-column:1 / -1;">
-                    <span>{{ __('dashboard.trip_start_on_map') }}</span>
-                    <input id="trip_form_start_address" name="start_address" value="{{ old('start_address', $trip->start_address) }}" readonly placeholder="{{ __('dashboard.trip_start_address_placeholder') }}">
-                </label>
-                <div style="grid-column:1 / -1;">
-                    <div id="trip_form_start_map" style="height:320px;border:1px solid #cbd5e1;border-radius:10px;"></div>
-                </div>
-                <label>
-                    <span>{{ __('dashboard.latitude') }}</span>
-                    <input id="trip_form_start_latitude" name="start_latitude" type="number" step="0.0000001" min="-90" max="90" value="{{ old('start_latitude', $trip->start_latitude) }}" placeholder="33.3128000">
-                </label>
-                <label>
-                    <span>{{ __('dashboard.longitude') }}</span>
-                    <input id="trip_form_start_longitude" name="start_longitude" type="number" step="0.0000001" min="-180" max="180" value="{{ old('start_longitude', $trip->start_longitude) }}" placeholder="44.3615000">
-                </label>
+                @include('dashboard.trips._trip_form_route_path_fields', [
+                    'trip' => $trip,
+                    'isReturnTrip' => $isReturnTrip ?? false,
+                    'returnRoutePathSeed' => $returnRoutePathSeed ?? null,
+                ])
 
-                <label style="grid-column:1 / -1;">
-                    <span>{{ __('dashboard.trip_route_path') }}</span>
-                    <input id="trip_form_location" name="location" value="{{ old('location', $trip->location) }}" readonly placeholder="{{ __('dashboard.trip_route_path_placeholder') }}">
-                </label>
-                <p id="trip_form_route_hint" class="help" style="grid-column:1 / -1;margin:0;display:none;"></p>
                 <label><span>{{ __('dashboard.students_count') }}</span><input id="trip_form_students_count" type="number" min="0" name="students_count" value="{{ old('students_count', $trip->students_count) }}" required></label>
-                <label>
-                    <span>{{ __('dashboard.distance_km') }}</span>
-                    <input id="trip_form_distance_km" type="number" step="0.01" min="0" name="distance_km" value="{{ old('distance_km', $trip->distance_km) }}" required readonly>
-                </label>
                 <label><span>{{ __('dashboard.trip_start_time') }}</span><input type="datetime-local" name="start_time" value="{{ old('start_time', optional($trip->start_time)->format('Y-m-d\TH:i')) }}" required></label>
                 <label><span>{{ __('dashboard.trip_end_time') }}</span><input type="datetime-local" name="end_time" value="{{ old('end_time', optional($trip->end_time)->format('Y-m-d\TH:i')) }}"></label>
                 @php

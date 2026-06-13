@@ -56,6 +56,89 @@ class RecurringTripSpawnerTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_assigning_students_to_pickup_also_assigns_paired_return_and_spawns_both(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-08 08:00:00', 'UTC'));
+
+        [$school, $driver, $student, $staff, $pickupTrip] = $this->seedAssignableTrip();
+
+        $school->update([
+            'work_days' => ['monday'],
+            'latitude' => 33.32,
+            'longitude' => 44.37,
+            'address' => 'School Street',
+            'work_time_to' => '14:00',
+        ]);
+
+        $pickupTrip->update([
+            'end_time' => Carbon::parse('2026-06-08 07:45:00'),
+        ]);
+
+        TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => TripType::MORNING_RETURN->value,
+            'bus_number' => '101',
+            'route_title' => 'Route A — Morning return',
+            'location' => 'School to home',
+            'students_count' => 0,
+            'distance_km' => 4,
+            'start_time' => Carbon::parse('2026-06-08 14:00:00'),
+            'end_time' => Carbon::parse('2026-06-08 14:30:00'),
+            'status' => 'ACTIVE',
+            'students_preview' => [],
+        ]);
+
+        $this->actingAs($staff);
+
+        $this->post(route('dashboard.trips.assign_students.store'), [
+            'trip_ids' => [$pickupTrip->id],
+            'student_ids' => [$student->id],
+        ])->assertRedirect();
+
+        $pickupTrip->refresh();
+        $this->assertTrue($pickupTrip->is_recurring_template);
+        $this->assertSame(1, (int) $pickupTrip->students_count);
+
+        $returnTrip = TripHistory::query()
+            ->where('driver_id', $driver->id)
+            ->where('trip_type', TripType::MORNING_RETURN->value)
+            ->whereDate('start_time', '2026-06-08')
+            ->first();
+
+        $this->assertInstanceOf(TripHistory::class, $returnTrip);
+        $this->assertTrue($returnTrip->is_recurring_template);
+        $this->assertSame(1, (int) $returnTrip->students_count);
+        $this->assertDatabaseHas('trip_history_students', [
+            'trip_history_id' => $returnTrip->id,
+            'student_id' => $student->id,
+        ]);
+
+        $spawnedPickup = TripHistory::query()
+            ->where('recurring_template_id', $pickupTrip->id)
+            ->whereDate('start_time', '2026-06-15')
+            ->first();
+        $spawnedReturn = TripHistory::query()
+            ->where('recurring_template_id', $returnTrip->id)
+            ->whereDate('start_time', '2026-06-15')
+            ->first();
+
+        $this->assertInstanceOf(TripHistory::class, $spawnedPickup);
+        $this->assertInstanceOf(TripHistory::class, $spawnedReturn);
+        $this->assertSame('2026-06-15', $spawnedPickup->start_time->toDateString());
+        $this->assertSame('2026-06-15', $spawnedReturn->start_time->toDateString());
+        $this->assertDatabaseHas('trip_history_students', [
+            'trip_history_id' => $spawnedPickup->id,
+            'student_id' => $student->id,
+        ]);
+        $this->assertDatabaseHas('trip_history_students', [
+            'trip_history_id' => $spawnedReturn->id,
+            'student_id' => $student->id,
+        ]);
+
+        Carbon::setTestNow();
+    }
+
     public function test_spawn_command_creates_trip_on_school_work_day(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-06-15 06:00:00', 'UTC')); // Monday

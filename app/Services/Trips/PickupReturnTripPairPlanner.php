@@ -91,8 +91,18 @@ final class PickupReturnTripPairPlanner
 
     public function returnTripExistsForPickup(TripHistory $pickupTrip, string $returnTripType): bool
     {
+        return $this->findReturnTripForPickup($pickupTrip, $returnTripType) !== null;
+    }
+
+    public function findReturnTripForPickup(TripHistory $pickupTrip, ?string $returnTripType = null): ?TripHistory
+    {
         if ($pickupTrip->start_time === null || $pickupTrip->driver_id === null) {
-            return false;
+            return null;
+        }
+
+        $returnTripType ??= TripType::pairedReturnTypeFor((string) ($pickupTrip->trip_type ?? ''));
+        if ($returnTripType === null || $returnTripType === '') {
+            return null;
         }
 
         return TripHistory::query()
@@ -100,7 +110,49 @@ final class PickupReturnTripPairPlanner
             ->where('school_id', (int) $pickupTrip->school_id)
             ->where('trip_type', $returnTripType)
             ->whereDate('start_time', $pickupTrip->start_time->toDateString())
-            ->exists();
+            ->orderBy('id')
+            ->first();
+    }
+
+    public function ensureReturnTripForPickup(TripHistory $pickupTrip, School $school): ?TripHistory
+    {
+        $existing = $this->findReturnTripForPickup($pickupTrip);
+        if ($existing instanceof TripHistory) {
+            return $existing;
+        }
+
+        $returnAttributes = $this->returnTripAttributesFromPickup(
+            $this->pickupAttributesFromTrip($pickupTrip),
+            $school,
+        );
+
+        if ($returnAttributes === null) {
+            return null;
+        }
+
+        return TripHistory::query()->create($returnAttributes);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function pickupAttributesFromTrip(TripHistory $pickupTrip): array
+    {
+        return [
+            'school_id' => (int) $pickupTrip->school_id,
+            'driver_id' => $pickupTrip->driver_id !== null ? (int) $pickupTrip->driver_id : null,
+            'trip_type' => (string) ($pickupTrip->trip_type ?? ''),
+            'bus_number' => (string) ($pickupTrip->bus_number ?? ''),
+            'route_title' => (string) ($pickupTrip->route_title ?? ''),
+            'start_address' => $pickupTrip->start_address,
+            'start_latitude' => $pickupTrip->start_latitude,
+            'start_longitude' => $pickupTrip->start_longitude,
+            'distance_km' => $pickupTrip->distance_km,
+            'start_time' => $pickupTrip->start_time,
+            'end_time' => $pickupTrip->end_time,
+            'status' => (string) ($pickupTrip->status ?? 'PRESENT'),
+            'note' => $pickupTrip->note,
+        ];
     }
 
     private function returnRouteTitle(string $pickupRouteTitle, TripType $returnType): ?string

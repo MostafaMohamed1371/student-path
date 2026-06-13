@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const routeFromAddressesHint = @json(__('dashboard.trip_route_from_driver_addresses'));
     const routeFromMapHint = @json(__('dashboard.trip_route_from_map'));
     const noRouteForDriverHint = @json(__('dashboard.trip_no_route_for_driver'));
+    const noPickupRouteForReturnHint = @json(__('dashboard.trip_no_pickup_route_for_return'));
     const distanceNeedsSchoolCoordsHint = @json(__('dashboard.trip_distance_needs_school_coords'));
     const loadFailedHint = @json(__('dashboard.trip_auto_fill_failed'));
     const locationStartToEnd = @json(__('dashboard.trip_location_start_to_end', ['start' => '__START__', 'end' => '__END__']));
@@ -349,9 +350,13 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             if (routeHint) {
                 routeHint.style.display = 'block';
-                routeHint.textContent = serviceAreas.length === 0
-                    ? noRouteForDriverHint
-                    : routeFromMapHint;
+                if (isReturnTripType()) {
+                    routeHint.textContent = noPickupRouteForReturnHint;
+                } else {
+                    routeHint.textContent = serviceAreas.length === 0
+                        ? noRouteForDriverHint
+                        : routeFromMapHint;
+                }
             }
 
             return;
@@ -468,10 +473,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
     driverSelect.addEventListener('change', loadDriverAutoFill);
 
-    if (schoolSelect.value && tripTypeSelect.value) {
-        refreshDriverList();
-    } else if (driverSelect.value && schoolSelect.value && tripTypeSelect.value) {
-        loadDriverAutoFill();
+    async function initTripForm() {
+        if (!schoolSelect.value || !tripTypeSelect.value) {
+            return;
+        }
+
+        await refreshDriverList();
+        if (driverSelect.value) {
+            await loadDriverAutoFill();
+        }
     }
+
+    initTripForm();
 });
 </script>

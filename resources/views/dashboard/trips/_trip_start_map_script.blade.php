@@ -47,6 +47,7 @@
     const locationStartToEnd = @json(__('dashboard.trip_location_start_to_end', ['start' => '__START__', 'end' => '__END__']));
     const locationStartOnly = @json(__('dashboard.trip_location_start_only', ['start' => '__START__']));
     const locationEndOnly = @json(__('dashboard.trip_location_end_only', ['end' => '__END__']));
+    const locationSchoolToPickupStart = @json(__('dashboard.trip_location_school_to_pickup_start', ['start' => '__START__', 'end' => '__END__']));
 
     if (!mapEl || !latInput || !lngInput || !addressInput || typeof L === 'undefined') {
         return;
@@ -71,6 +72,7 @@
     let suggestionMarkers = [];
     let returnEndLat = null;
     let returnEndLng = null;
+    let returnEndAddress = '';
     let returnTripMode = false;
 
     const tripTypeSelect = document.getElementById('trip_form_trip_type');
@@ -224,9 +226,51 @@
         fitMapBounds();
     }
 
+    function returnLocationFromStartAndEnd(start, end) {
+        if (start === '' && end === '') {
+            return '';
+        }
+        if (start === '') {
+            return locationEndOnly.replace('__END__', end);
+        }
+        if (end === '') {
+            return locationStartOnly.replace('__START__', start);
+        }
+
+        return locationSchoolToPickupStart.replace('__START__', start).replace('__END__', end);
+    }
+
     function syncRoutePathFields() {
         const start = addressInput.value != null ? String(addressInput.value).trim() : '';
         const school = selectedSchoolData();
+
+        if (returnTripMode) {
+            if (returnEndLat === null || returnEndLng === null) {
+                drawRouteLine();
+                fitMapBounds();
+
+                return;
+            }
+
+            const end = returnEndAddress !== '' ? returnEndAddress : '';
+
+            if (locationInput && start !== '' && end !== '') {
+                locationInput.value = returnLocationFromStartAndEnd(start, end);
+            }
+
+            const startLat = parseCoord(latInput.value);
+            const startLng = parseCoord(lngInput.value);
+            if (distanceKmInput && startLat !== null && startLng !== null) {
+                distanceKmInput.value = String(haversineKm(startLat, startLng, returnEndLat, returnEndLng));
+            }
+
+            syncEndMarker();
+            drawRouteLine();
+            fitMapBounds();
+
+            return;
+        }
+
         const end = school.address != null ? String(school.address).trim() : '';
 
         if (locationInput) {
@@ -235,15 +279,8 @@
 
         const startLat = parseCoord(latInput.value);
         const startLng = parseCoord(lngInput.value);
-        if (distanceKmInput && startLat !== null && startLng !== null) {
-            if (returnTripMode && returnEndLat !== null && returnEndLng !== null) {
-                distanceKmInput.value = String(haversineKm(startLat, startLng, returnEndLat, returnEndLng));
-            } else {
-                const school = selectedSchoolData();
-                if (school.latitude !== null && school.longitude !== null) {
-                    distanceKmInput.value = String(haversineKm(startLat, startLng, school.latitude, school.longitude));
-                }
-            }
+        if (distanceKmInput && startLat !== null && startLng !== null && school.latitude !== null && school.longitude !== null) {
+            distanceKmInput.value = String(haversineKm(startLat, startLng, school.latitude, school.longitude));
         }
 
         syncEndMarker();
@@ -367,13 +404,14 @@
         updateReturnTripMode();
         returnEndLat = parseCoord(endLat);
         returnEndLng = parseCoord(endLng);
+        returnEndAddress = endAddressLabel != null ? String(endAddressLabel).trim() : '';
 
         if (schoolLat != null && schoolLng != null && typeof window.tripMapSetStart === 'function') {
             window.tripMapSetStart(schoolLat, schoolLng, schoolAddress || '', true);
         }
 
         if (locationInput && schoolAddress && endAddressLabel) {
-            locationInput.value = locationFromStartAndEnd(
+            locationInput.value = returnLocationFromStartAndEnd(
                 String(schoolAddress).trim(),
                 String(endAddressLabel).trim(),
             );
@@ -382,9 +420,66 @@
         syncRoutePathFields();
     };
 
+    function applyInitialReturnPath() {
+        const seed = window.tripMapInitialReturnPath;
+        if (!seed || typeof window.tripMapSetReturnPath !== 'function') {
+            return;
+        }
+
+        if (
+            seed.route_start_latitude == null
+            || seed.route_start_longitude == null
+            || seed.route_end_latitude == null
+            || seed.route_end_longitude == null
+        ) {
+            return;
+        }
+
+        window.tripMapSetReturnPath(
+            seed.route_start_latitude,
+            seed.route_start_longitude,
+            seed.route_end_latitude,
+            seed.route_end_longitude,
+            seed.start_address || '',
+            seed.end_address || '',
+        );
+
+        if (locationInput && seed.location) {
+            locationInput.value = String(seed.location);
+        }
+
+        if (distanceKmInput && seed.distance_km != null && !isNaN(parseFloat(seed.distance_km))) {
+            distanceKmInput.value = String(Number(parseFloat(seed.distance_km).toFixed(2)));
+        }
+    }
+
+    function syncReturnTripLabels() {
+        const isReturn = isReturnTripType();
+        const startLabel = document.getElementById('trip_form_start_map_label');
+        const pathLabel = document.getElementById('trip_form_route_path_label');
+        const pathInput = document.getElementById('trip_form_location');
+        const pickupPathLabel = @json(__('dashboard.trip_route_path'));
+        const returnPathLabel = @json(__('dashboard.trip_route_path_return'));
+        const pickupStartLabel = @json(__('dashboard.trip_start_on_map'));
+        const returnStartLabel = @json(__('dashboard.trip_start_on_map_return'));
+
+        if (startLabel) {
+            startLabel.textContent = isReturn ? returnStartLabel : pickupStartLabel;
+        }
+        if (pathLabel) {
+            pathLabel.textContent = isReturn ? returnPathLabel : pickupPathLabel;
+        }
+        if (pathInput) {
+            pathInput.placeholder = isReturn
+                ? @json(__('dashboard.trip_route_path_return_placeholder'))
+                : @json(__('dashboard.trip_route_path_placeholder'));
+        }
+    }
+
     window.tripMapClearReturnEnd = function () {
         returnEndLat = null;
         returnEndLng = null;
+        returnEndAddress = '';
         syncEndMarker();
         drawRouteLine();
     };
@@ -444,6 +539,7 @@
     if (tripTypeSelect) {
         tripTypeSelect.addEventListener('change', function () {
             updateReturnTripMode();
+            syncReturnTripLabels();
             if (!returnTripMode && typeof window.tripMapClearReturnEnd === 'function') {
                 window.tripMapClearReturnEnd();
             }
@@ -452,13 +548,17 @@
     }
 
     updateReturnTripMode();
+    syncReturnTripLabels();
+    applyInitialReturnPath();
 
     if (schoolSelect) {
         schoolSelect.addEventListener('change', window.tripMapSyncSchool);
     }
 
     syncSchoolMarker();
-    syncRoutePathFields();
+    if (!returnTripMode || returnEndLat === null) {
+        syncRoutePathFields();
+    }
     setTimeout(function () { map.invalidateSize(); fitMapBounds(); }, 100);
 
     if (mapHelp) {
