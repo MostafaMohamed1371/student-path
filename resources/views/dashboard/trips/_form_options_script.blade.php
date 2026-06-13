@@ -26,6 +26,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const placeholderShift = @json($tripFormPlaceholderShift);
     const routeFromDriverHint = @json(__('dashboard.trip_route_from_driver_route'));
+    const routeFromReturnDriverHint = @json(__('dashboard.trip_return_route_from_driver_route'));
     const routeFromAddressesHint = @json(__('dashboard.trip_route_from_driver_addresses'));
     const routeFromMapHint = @json(__('dashboard.trip_route_from_map'));
     const noRouteForDriverHint = @json(__('dashboard.trip_no_route_for_driver'));
@@ -235,7 +236,58 @@ document.addEventListener('DOMContentLoaded', function () {
         return true;
     }
 
+    function isReturnTripType() {
+        return String(tripTypeSelect.value || '').endsWith('_RETURN');
+    }
+
+    function applyReturnTransportRouteFields(row) {
+        if (routeTitleInput) {
+            routeTitleInput.value = row.route_title != null ? String(row.route_title) : '';
+        }
+
+        if (locationInput && row.location != null) {
+            locationInput.value = String(row.location);
+        }
+
+        if (distanceKmInput && row.distance_km != null && !isNaN(parseFloat(row.distance_km))) {
+            distanceKmInput.value = String(Number(parseFloat(row.distance_km).toFixed(2)));
+        }
+
+        if (
+            row.route_start_latitude != null
+            && row.route_start_longitude != null
+            && row.route_end_latitude != null
+            && row.route_end_longitude != null
+            && typeof window.tripMapSetReturnPath === 'function'
+        ) {
+            window.tripMapSetReturnPath(
+                row.route_start_latitude,
+                row.route_start_longitude,
+                row.route_end_latitude,
+                row.route_end_longitude,
+                row.start_address || '',
+                row.end_address || '',
+            );
+        } else if (typeof window.tripMapSyncRoutePath === 'function') {
+            window.tripMapSyncRoutePath();
+        }
+
+        if (routeHint) {
+            routeHint.style.display = 'block';
+            const distText = distanceKmInput && distanceKmInput.value !== '0'
+                ? ' (' + distanceKmInput.value + ' km)'
+                : '';
+            routeHint.textContent = routeFromReturnDriverHint + distText;
+        }
+    }
+
     function applyTransportRouteFields(row) {
+        if (isReturnTripType() || row.is_return_trip === true) {
+            applyReturnTransportRouteFields(row);
+
+            return;
+        }
+
         if (routeTitleInput) {
             routeTitleInput.value = row.route_title != null ? String(row.route_title) : '';
         }
@@ -284,7 +336,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         setMultiServiceAreaOptions(serviceAreas, preselected);
 
-        if (serviceAreas.length > 0 && applyServiceAreaSelection()) {
+        if (serviceAreas.length > 0 && !isReturnTripType() && applyServiceAreaSelection()) {
             return;
         }
 

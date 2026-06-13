@@ -2,9 +2,11 @@
 
 namespace App\Services\Trips;
 
+use App\Enums\TripType;
 use App\Models\Driver;
 use App\Models\School;
 use App\Models\TransportRoute;
+use App\Models\TripHistory;
 use App\Support\Geo\Haversine;
 use Illuminate\Support\Collection;
 
@@ -60,6 +62,267 @@ final class TripTransportRouteApplier
             ->first();
     }
 
+    public function pairedPickupTripType(string $tripType): ?string
+    {
+        return match (TripType::tryFrom(trim($tripType))) {
+            TripType::MORNING_RETURN => TripType::MORNING_PICKUP->value,
+            TripType::EVENING_RETURN => TripType::EVENING_PICKUP->value,
+            default => null,
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    public function findPickupRouteForReturnTrip(array $attributes): ?TransportRoute
+    {
+        $pickupType = $this->pairedPickupTripType((string) ($attributes['trip_type'] ?? ''));
+        if ($pickupType === null) {
+            return null;
+        }
+
+        return $this->findRouteForTrip([
+            'school_id' => $attributes['school_id'] ?? 0,
+            'driver_id' => $attributes['driver_id'] ?? 0,
+            'trip_type' => $pickupType,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @return array{
+     *     address: string|null,
+     *     latitude: float|null,
+     *     longitude: float|null
+     * }|null
+     */
+    public function pickupStartPointForReturnTrip(array $attributes): ?array
+    {
+        $pickupRoute = $this->findPickupRouteForReturnTrip($attributes);
+        if ($pickupRoute !== null
+            && $pickupRoute->start_latitude !== null
+            && $pickupRoute->start_longitude !== null) {
+            $address = trim((string) ($pickupRoute->start_address ?? ''));
+
+            return [
+                'address' => $address !== '' ? $address : null,
+                'latitude' => (float) $pickupRoute->start_latitude,
+                'longitude' => (float) $pickupRoute->start_longitude,
+            ];
+        }
+
+        $pickupType = $this->pairedPickupTripType((string) ($attributes['trip_type'] ?? ''));
+        if ($pickupType === null) {
+            return null;
+        }
+
+        $driverId = (int) ($attributes['driver_id'] ?? 0);
+        $schoolId = (int) ($attributes['school_id'] ?? 0);
+        if ($driverId <= 0 || $schoolId <= 0) {
+            return null;
+        }
+
+        $pickupTrip = TripHistory::query()
+            ->where('driver_id', $driverId)
+            ->where('school_id', $schoolId)
+            ->where('trip_type', $pickupType)
+            ->whereNotNull('start_latitude')
+            ->whereNotNull('start_longitude')
+            ->orderByDesc('start_time')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($pickupTrip === null) {
+            return null;
+        }
+
+        $address = trim((string) ($pickupTrip->start_address ?? ''));
+
+        return [
+            'address' => $address !== '' ? $address : null,
+            'latitude' => (float) $pickupTrip->start_latitude,
+            'longitude' => (float) $pickupTrip->start_longitude,
+        ];
+    }
+
+    /**
+     * Return trips run school → driver pickup start (reverse of pickup).
+     *
+     * @return array{
+     *     route_title: string|null,
+     *     location: string|null,
+     *     distance_km: float|null,
+     *     transport_route_id: int|null,
+     *     route_student_ids: list<int>,
+     *     start_address: string|null,
+     *     end_address: string|null,
+     *     route_start_latitude: float|null,
+     *     route_start_longitude: float|null,
+     *     route_end_latitude: float|null,
+     *     route_end_longitude: float|null,
+     *     school_latitude: float|null,
+     *     school_longitude: float|null
+     * }|null
+     */
+    public function returnTripFormPayloadFromPickupRoute(TransportRoute $pickupRoute, string $returnTripType): ?array
+    {
+        $pickupRoute->loadMissing('school');
+        $school = $pickupRoute->school;
+        if (! $school instanceof School
+            || $school->latitude === null
+            || $school->longitude === null) {
+            return null;
+        }
+
+        $pickupStartAddress = trim((string) ($pickupRoute->start_address ?? ''));
+        $schoolAddress = trim((string) ($school->address ?? ''));
+
+        if ($pickupRoute->start_latitude === null || $pickupRoute->start_longitude === null) {
+            return null;
+        }
+
+        $pickupTitle = $this->routeTitleForTrip($pickupRoute);
+        $returnType = TripType::tryFrom(trim($returnTripType));
+
+        return [
+            'route_title' => $this->returnRouteTitle($pickupTitle, $returnType),
+            'location' => $this->returnLocationLabel($schoolAddress, $pickupStartAddress),
+            'distance_km' => $this->routeDistanceKm($pickupRoute),
+            'transport_route_id' => (int) $pickupRoute->id,
+            'route_student_ids' => $this->studentIdsOnRoute($pickupRoute),
+            'start_address' => $schoolAddress !== '' ? $schoolAddress : null,
+            'end_address' => $pickupStartAddress !== '' ? $pickupStartAddress : null,
+            'route_start_latitude' => (float) $school->latitude,
+            'route_start_longitude' => (float) $school->longitude,
+            'route_end_latitude' => (float) $pickupRoute->start_latitude,
+            'route_end_longitude' => (float) $pickupRoute->start_longitude,
+            'school_latitude' => (float) $school->latitude,
+            'school_longitude' => (float) $school->longitude,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
+     */
+    public function applyReturnTripPathAttributes(array $attributes, School $school): array
+    {
+        $pickupStart = $this->pickupStartPointForReturnTrip($attributes);
+        $schoolAddress = trim((string) ($school->address ?? ''));
+
+        if ($school->latitude !== null && $school->longitude !== null) {
+            $attributes['start_latitude'] = (float) $school->latitude;
+            $attributes['start_longitude'] = (float) $school->longitude;
+            if ($schoolAddress !== '') {
+                $attributes['start_address'] = $schoolAddress;
+            }
+        }
+
+        $pickupAddress = $pickupStart['address'] ?? '';
+        if ($pickupAddress !== '') {
+            $attributes['location'] = $this->returnLocationLabel($schoolAddress, $pickupAddress);
+        }
+
+        if (
+            $pickupStart !== null
+            && $school->latitude !== null
+            && $school->longitude !== null
+        ) {
+            $attributes['distance_km'] = round(
+                Haversine::metersBetween(
+                    (float) $school->latitude,
+                    (float) $school->longitude,
+                    $pickupStart['latitude'],
+                    $pickupStart['longitude'],
+                ) / 1000,
+                2,
+            );
+        }
+
+        if (trim((string) ($attributes['route_title'] ?? '')) === '') {
+            $pickupRoute = $this->findPickupRouteForReturnTrip($attributes);
+            if ($pickupRoute !== null) {
+                $returnType = TripType::tryFrom(trim((string) ($attributes['trip_type'] ?? '')));
+                $attributes['route_title'] = $this->returnRouteTitle(
+                    $this->routeTitleForTrip($pickupRoute),
+                    $returnType,
+                );
+            }
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * @param  array<string, mixed>  $tripAttributes
+     * @return array{
+     *     route_title: string|null,
+     *     location: string|null,
+     *     distance_km: float|null,
+     *     transport_route_id: int|null,
+     *     route_student_ids: list<int>,
+     *     start_address: string|null,
+     *     end_address: string|null,
+     *     route_start_latitude: float|null,
+     *     route_start_longitude: float|null,
+     *     route_end_latitude: float|null,
+     *     route_end_longitude: float|null,
+     *     school_latitude: float|null,
+     *     school_longitude: float|null
+     * }|null
+     */
+    public function returnTripFormPayload(array $tripAttributes, string $returnTripType): ?array
+    {
+        $pickupRoute = $this->findPickupRouteForReturnTrip([
+            ...$tripAttributes,
+            'trip_type' => $returnTripType,
+        ]);
+
+        if ($pickupRoute !== null) {
+            return $this->returnTripFormPayloadFromPickupRoute($pickupRoute, $returnTripType);
+        }
+
+        $pickupStart = $this->pickupStartPointForReturnTrip([
+            ...$tripAttributes,
+            'trip_type' => $returnTripType,
+        ]);
+
+        $schoolId = (int) ($tripAttributes['school_id'] ?? 0);
+        $school = School::query()->find($schoolId);
+        if ($pickupStart === null || ! $school instanceof School
+            || $school->latitude === null
+            || $school->longitude === null) {
+            return null;
+        }
+
+        $schoolAddress = trim((string) ($school->address ?? ''));
+        $pickupAddress = trim((string) ($pickupStart['address'] ?? ''));
+
+        return [
+            'route_title' => $this->returnRouteTitle('', TripType::tryFrom(trim($returnTripType))),
+            'location' => $this->returnLocationLabel($schoolAddress, $pickupAddress),
+            'distance_km' => round(
+                Haversine::metersBetween(
+                    (float) $school->latitude,
+                    (float) $school->longitude,
+                    $pickupStart['latitude'],
+                    $pickupStart['longitude'],
+                ) / 1000,
+                2,
+            ),
+            'transport_route_id' => null,
+            'route_student_ids' => [],
+            'start_address' => $schoolAddress !== '' ? $schoolAddress : null,
+            'end_address' => $pickupAddress !== '' ? $pickupAddress : null,
+            'route_start_latitude' => (float) $school->latitude,
+            'route_start_longitude' => (float) $school->longitude,
+            'route_end_latitude' => $pickupStart['latitude'],
+            'route_end_longitude' => $pickupStart['longitude'],
+            'school_latitude' => (float) $school->latitude,
+            'school_longitude' => (float) $school->longitude,
+        ];
+    }
+
     public function routeTitleForTrip(TransportRoute $route): string
     {
         $name = trim((string) $route->name);
@@ -105,6 +368,59 @@ final class TripTransportRouteApplier
             'start' => $startLabel,
             'end' => $endLabel,
         ]);
+    }
+
+    private function locationFromPoints(string $start, string $end): ?string
+    {
+        if ($start === '' && $end === '') {
+            return null;
+        }
+
+        if ($start === '') {
+            return __('dashboard.trip_location_end_only', ['end' => $end]);
+        }
+
+        if ($end === '') {
+            return __('dashboard.trip_location_start_only', ['start' => $start]);
+        }
+
+        return __('dashboard.trip_location_start_to_end', [
+            'start' => $start,
+            'end' => $end,
+        ]);
+    }
+
+    private function returnLocationLabel(string $schoolAddress, string $pickupStartAddress): ?string
+    {
+        if ($schoolAddress === '' && $pickupStartAddress === '') {
+            return null;
+        }
+
+        if ($schoolAddress === '') {
+            return __('dashboard.trip_location_end_only', ['end' => $pickupStartAddress]);
+        }
+
+        if ($pickupStartAddress === '') {
+            return __('dashboard.trip_location_start_only', ['start' => $schoolAddress]);
+        }
+
+        return __('dashboard.trip_location_school_to_pickup_start', [
+            'start' => $schoolAddress,
+            'end' => $pickupStartAddress,
+        ]);
+    }
+
+    private function returnRouteTitle(string $pickupRouteTitle, ?TripType $returnType): string
+    {
+        $suffix = match ($returnType) {
+            TripType::MORNING_RETURN => __('dashboard.trip_return_route_title_morning'),
+            TripType::EVENING_RETURN => __('dashboard.trip_return_route_title_evening'),
+            default => __('dashboard.trip_return_route_title_generic'),
+        };
+
+        $pickupRouteTitle = trim($pickupRouteTitle);
+
+        return $pickupRouteTitle === '' ? $suffix : $pickupRouteTitle.' — '.$suffix;
     }
 
     public function routeDistanceKm(TransportRoute $route): ?float

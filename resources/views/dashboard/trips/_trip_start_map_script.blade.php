@@ -66,8 +66,24 @@
 
     let startMarker = L.marker([lat, lng]).addTo(map);
     let schoolMarker = null;
+    let endMarker = null;
     let routeLine = null;
     let suggestionMarkers = [];
+    let returnEndLat = null;
+    let returnEndLng = null;
+    let returnTripMode = false;
+
+    const tripTypeSelect = document.getElementById('trip_form_trip_type');
+
+    function isReturnTripType() {
+        const value = tripTypeSelect ? String(tripTypeSelect.value || '') : '';
+
+        return value.endsWith('_RETURN');
+    }
+
+    function updateReturnTripMode() {
+        returnTripMode = isReturnTripType();
+    }
 
     function parseCoord(value) {
         if (value === '' || value === null || value === undefined) {
@@ -124,6 +140,20 @@
         const startLng = parseCoord(lngInput.value);
         const school = selectedSchoolData();
 
+        if (returnTripMode && returnEndLat !== null && returnEndLng !== null) {
+            const lineStartLat = school.latitude !== null ? school.latitude : startLat;
+            const lineStartLng = school.longitude !== null ? school.longitude : startLng;
+            if (lineStartLat === null || lineStartLng === null) {
+                return;
+            }
+            routeLine = L.polyline(
+                [[lineStartLat, lineStartLng], [returnEndLat, returnEndLng]],
+                { color: '#2563eb', weight: 3, opacity: 0.75, dashArray: '6,8' },
+            ).addTo(map);
+
+            return;
+        }
+
         if (startLat === null || startLng === null || school.latitude === null || school.longitude === null) {
             return;
         }
@@ -132,6 +162,19 @@
             [[startLat, startLng], [school.latitude, school.longitude]],
             { color: '#2563eb', weight: 3, opacity: 0.75, dashArray: '6,8' },
         ).addTo(map);
+    }
+
+    function syncEndMarker() {
+        if (endMarker) {
+            map.removeLayer(endMarker);
+            endMarker = null;
+        }
+
+        if (!returnTripMode || returnEndLat === null || returnEndLng === null) {
+            return;
+        }
+
+        endMarker = L.marker([returnEndLat, returnEndLng]).addTo(map);
     }
 
     function fitMapBounds() {
@@ -145,6 +188,9 @@
         }
         if (school.latitude !== null && school.longitude !== null) {
             points.push([school.latitude, school.longitude]);
+        }
+        if (returnTripMode && returnEndLat !== null && returnEndLng !== null) {
+            points.push([returnEndLat, returnEndLng]);
         }
 
         if (points.length >= 2) {
@@ -173,6 +219,7 @@
             }).addTo(map);
         }
 
+        syncEndMarker();
         drawRouteLine();
         fitMapBounds();
     }
@@ -188,10 +235,18 @@
 
         const startLat = parseCoord(latInput.value);
         const startLng = parseCoord(lngInput.value);
-        if (distanceKmInput && startLat !== null && startLng !== null && school.latitude !== null && school.longitude !== null) {
-            distanceKmInput.value = String(haversineKm(startLat, startLng, school.latitude, school.longitude));
+        if (distanceKmInput && startLat !== null && startLng !== null) {
+            if (returnTripMode && returnEndLat !== null && returnEndLng !== null) {
+                distanceKmInput.value = String(haversineKm(startLat, startLng, returnEndLat, returnEndLng));
+            } else {
+                const school = selectedSchoolData();
+                if (school.latitude !== null && school.longitude !== null) {
+                    distanceKmInput.value = String(haversineKm(startLat, startLng, school.latitude, school.longitude));
+                }
+            }
         }
 
+        syncEndMarker();
         drawRouteLine();
         fitMapBounds();
     }
@@ -308,6 +363,32 @@
         syncRoutePathFields();
     };
 
+    window.tripMapSetReturnPath = function (schoolLat, schoolLng, endLat, endLng, schoolAddress, endAddressLabel) {
+        updateReturnTripMode();
+        returnEndLat = parseCoord(endLat);
+        returnEndLng = parseCoord(endLng);
+
+        if (schoolLat != null && schoolLng != null && typeof window.tripMapSetStart === 'function') {
+            window.tripMapSetStart(schoolLat, schoolLng, schoolAddress || '', true);
+        }
+
+        if (locationInput && schoolAddress && endAddressLabel) {
+            locationInput.value = locationFromStartAndEnd(
+                String(schoolAddress).trim(),
+                String(endAddressLabel).trim(),
+            );
+        }
+
+        syncRoutePathFields();
+    };
+
+    window.tripMapClearReturnEnd = function () {
+        returnEndLat = null;
+        returnEndLng = null;
+        syncEndMarker();
+        drawRouteLine();
+    };
+
     window.tripMapSyncRoutePath = syncRoutePathFields;
 
     function coordsValid(lat, lng) {
@@ -353,9 +434,24 @@
     });
 
     map.on('click', function (event) {
+        if (returnTripMode) {
+            return;
+        }
         setStartLocation(event.latlng.lat, event.latlng.lng, true);
         fillAddressFromMap(event.latlng.lat, event.latlng.lng);
     });
+
+    if (tripTypeSelect) {
+        tripTypeSelect.addEventListener('change', function () {
+            updateReturnTripMode();
+            if (!returnTripMode && typeof window.tripMapClearReturnEnd === 'function') {
+                window.tripMapClearReturnEnd();
+            }
+            syncRoutePathFields();
+        });
+    }
+
+    updateReturnTripMode();
 
     if (schoolSelect) {
         schoolSelect.addEventListener('change', window.tripMapSyncSchool);

@@ -543,6 +543,43 @@ class DashboardTripController extends Controller
         $this->assertDriverBelongsToSchool($driverId, $schoolId);
 
         $driver = Driver::query()->with('bus')->findOrFail($driverId);
+
+        if (TripType::isReturn($tripType)) {
+            $returnPayload = $this->tripTransportRouteApplier->returnTripFormPayload([
+                'school_id' => $schoolId,
+                'driver_id' => $driverId,
+                'trip_type' => $tripType,
+            ], $tripType);
+
+            if ($returnPayload !== null) {
+                $bus = $driver->bus;
+
+                return response()->json([
+                    'ok' => true,
+                    'is_return_trip' => true,
+                    'has_route' => $returnPayload['transport_route_id'] !== null,
+                    'has_service_areas' => false,
+                    'service_areas' => [],
+                    'bus_number' => $bus?->number !== null && trim((string) $bus->number) !== ''
+                        ? trim((string) $bus->number)
+                        : null,
+                    'route_title' => $returnPayload['route_title'],
+                    'location' => $returnPayload['location'],
+                    'distance_km' => $returnPayload['distance_km'],
+                    'students_count' => count($returnPayload['route_student_ids']),
+                    'start_address' => $returnPayload['start_address'],
+                    'end_address' => $returnPayload['end_address'],
+                    'route_start_latitude' => $returnPayload['route_start_latitude'],
+                    'route_start_longitude' => $returnPayload['route_start_longitude'],
+                    'route_end_latitude' => $returnPayload['route_end_latitude'],
+                    'route_end_longitude' => $returnPayload['route_end_longitude'],
+                    'school_latitude' => $returnPayload['school_latitude'],
+                    'school_longitude' => $returnPayload['school_longitude'],
+                    'transport_route_id' => $returnPayload['transport_route_id'],
+                ]);
+            }
+        }
+
         $route = $this->tripTransportRouteApplier->findRouteForTrip([
             'school_id' => $schoolId,
             'driver_id' => $driverId,
@@ -555,6 +592,7 @@ class DashboardTripController extends Controller
 
         return response()->json([
             'ok' => true,
+            'is_return_trip' => TripType::isReturn($tripType),
             'has_route' => $route !== null,
             'has_service_areas' => $serviceAreas !== [],
             'service_areas' => $serviceAreas,
@@ -567,6 +605,8 @@ class DashboardTripController extends Controller
             'end_address' => $payload['end_address'] ?? ($school ? trim((string) ($school->address ?? '')) : null),
             'route_start_latitude' => $payload['route_start_latitude'],
             'route_start_longitude' => $payload['route_start_longitude'],
+            'route_end_latitude' => null,
+            'route_end_longitude' => null,
             'school_latitude' => $payload['school_latitude'] ?? ($school?->latitude !== null ? (float) $school->latitude : null),
             'school_longitude' => $payload['school_longitude'] ?? ($school?->longitude !== null ? (float) $school->longitude : null),
             'transport_route_id' => $payload['transport_route_id'],
@@ -665,6 +705,13 @@ class DashboardTripController extends Controller
             if (trim($combined['route_title']) !== '') {
                 $validated['route_title'] = $combined['route_title'];
             }
+        }
+
+        $tripType = trim((string) ($validated['trip_type'] ?? ''));
+        $school = School::query()->find($schoolId);
+
+        if (TripType::isReturn($tripType) && $school instanceof School) {
+            return $this->tripTransportRouteApplier->applyReturnTripPathAttributes($validated, $school);
         }
 
         $startLat = $this->nullableCoordinate($validated['start_latitude'] ?? null);
