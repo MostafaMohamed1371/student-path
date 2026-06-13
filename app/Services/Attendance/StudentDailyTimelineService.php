@@ -10,6 +10,7 @@ use App\Models\Absence;
 use App\Models\Student;
 use App\Models\TripHistory;
 use App\Models\TripHistoryStudent;
+use App\Models\TripRequest;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -33,19 +34,17 @@ final class StudentDailyTimelineService
         $dayString = $day->toDateString();
 
         $isAbsent = $this->isAbsentOnDate((int) $student->id, $day);
-        $tripRows = $this->tripRowsForDate((int) $student->id, $day);
-        $tripsByType = $this->tripsByType($tripRows);
+        $tripsByType = $this->resolveTripsByTypeForStudent($student, $day);
 
-        $morningPickup = $tripsByType[TripType::MORNING_PICKUP->value] ?? null;
-        $morningReturn = $tripsByType[TripType::MORNING_RETURN->value] ?? null;
-        $eveningReturn = $tripsByType[TripType::EVENING_RETURN->value] ?? null;
-        $returnTrip = $this->resolveReturnTripContext($morningReturn, $eveningReturn);
+        [$pickupType, $returnType] = $this->pickupReturnTypesForStudent($student);
+        $pickupTrip = $tripsByType[$pickupType] ?? null;
+        $returnTrip = $tripsByType[$returnType] ?? null;
 
         $defaults = config('trips.default_daily_timeline', []);
 
         $milestones = [
-            $this->buildMorningPickupHome($student, $day, $morningPickup, $isAbsent, $defaults),
-            $this->buildMorningArriveSchool($day, $morningPickup, $isAbsent, $defaults),
+            $this->buildMorningPickupHome($student, $day, $pickupTrip, $isAbsent, $defaults),
+            $this->buildMorningArriveSchool($day, $pickupTrip, $isAbsent, $defaults),
             $this->buildEveningPickupSchool($day, $returnTrip, $isAbsent, $defaults),
             $this->buildEveningArriveHome($day, $returnTrip, $isAbsent, $defaults),
         ];
@@ -73,13 +72,14 @@ final class StudentDailyTimelineService
         array $defaults,
     ): array {
         $code = StudentTimelineMilestoneCode::MorningPickupHome;
-        $scheduled = $this->scheduledAt($day, $context['trip'] ?? null, (string) ($defaults['morning_pickup'] ?? '07:15'));
+        $trip = $context !== null ? ($context['trip'] ?? null) : null;
+        $scheduled = $this->scheduledAt($day, $trip, (string) ($defaults['morning_pickup'] ?? '07:15'));
 
         if ($isAbsent) {
             return $this->milestonePayload($code, StudentTimelineMilestoneStatus::Absent, $scheduled, null, $this->homeDescription($student));
         }
 
-        $stop = $context['stop'] ?? null;
+        $stop = $context !== null ? ($context['stop'] ?? null) : null;
         $status = $this->pickupStatus($stop);
         $actual = $stop?->boarding_time ?? ($status === StudentTimelineMilestoneStatus::Arrived ? $stop?->arrived_at : null);
 
@@ -97,14 +97,14 @@ final class StudentDailyTimelineService
         array $defaults,
     ): array {
         $code = StudentTimelineMilestoneCode::MorningArriveSchool;
-        $trip = $context['trip'] ?? null;
+        $trip = $context !== null ? ($context['trip'] ?? null) : null;
         $scheduled = $this->scheduledAt($day, $trip, (string) ($defaults['morning_school_arrival'] ?? '07:45'), useEndTime: true);
 
         if ($isAbsent) {
             return $this->milestonePayload($code, StudentTimelineMilestoneStatus::Absent, $scheduled, null);
         }
 
-        $stop = $context['stop'] ?? null;
+        $stop = $context !== null ? ($context['stop'] ?? null) : null;
         $status = StudentTimelineMilestoneStatus::Scheduled;
         $actual = null;
 
@@ -129,13 +129,14 @@ final class StudentDailyTimelineService
         array $defaults,
     ): array {
         $code = StudentTimelineMilestoneCode::EveningPickupSchool;
-        $scheduled = $this->scheduledAt($day, $context['trip'] ?? null, (string) ($defaults['evening_pickup'] ?? '15:30'));
+        $trip = $context !== null ? ($context['trip'] ?? null) : null;
+        $scheduled = $this->scheduledAt($day, $trip, (string) ($defaults['evening_pickup'] ?? '15:30'));
 
         if ($isAbsent) {
             return $this->milestonePayload($code, StudentTimelineMilestoneStatus::Absent, $scheduled, null);
         }
 
-        $stop = $context['stop'] ?? null;
+        $stop = $context !== null ? ($context['stop'] ?? null) : null;
         $status = $this->pickupStatus($stop, defaultScheduled: true);
         $actual = $stop?->boarding_time;
 
@@ -153,8 +154,8 @@ final class StudentDailyTimelineService
         array $defaults,
     ): array {
         $code = StudentTimelineMilestoneCode::EveningArriveHome;
-        $trip = $returnTrip['trip'] ?? null;
-        $stop = $returnTrip['stop'] ?? null;
+        $trip = $returnTrip !== null ? ($returnTrip['trip'] ?? null) : null;
+        $stop = $returnTrip !== null ? ($returnTrip['stop'] ?? null) : null;
         $scheduled = $this->scheduledAt($day, $trip, (string) ($defaults['evening_home_arrival'] ?? '16:15'), useEndTime: true);
 
         if ($isAbsent) {
@@ -321,8 +322,116 @@ final class StudentDailyTimelineService
     }
 
     /**
+     * @return array{0: string, 1: string} pickup and return trip_type values
+     */
+    private function pickupReturnTypesForStudent(Student $student): array
+    {
+        if (strtoupper(trim((string) ($student->shift_period ?? ''))) === 'EVENING') {
+            return [TripType::EVENING_PICKUP->value, TripType::EVENING_RETURN->value];
+        }
+
+        return [TripType::MORNING_PICKUP->value, TripType::MORNING_RETURN->value];
+    }
+
+    /**
+     * Roster trips first; fill missing legs from the assigned driver's scheduled trips for the day.
+     *
+     * @return array<string, array{stop: TripHistoryStudent|null, trip: TripHistory}>
+     */
+    private function resolveTripsByTypeForStudent(Student $student, Carbon $day): array
+    {
+        $tripRows = $this->tripRowsForDate((int) $student->id, $day);
+        $tripsByType = $this->tripsByType($tripRows);
+
+        $driverId = $this->resolveDriverIdForStudent($student);
+        if ($driverId === null) {
+            return $tripsByType;
+        }
+
+        foreach ($this->driverTripsForDate($driverId, (int) $student->school_id, $day) as $tripType => $trip) {
+            if (isset($tripsByType[$tripType])) {
+                continue;
+            }
+
+            $tripsByType[$tripType] = [
+                'stop' => null,
+                'trip' => $trip,
+            ];
+        }
+
+        return $tripsByType;
+    }
+
+    private function resolveDriverIdForStudent(Student $student): ?int
+    {
+        $student->loadMissing('transportRouteStudent.transportRoute');
+
+        $fromRoute = (int) ($student->transportRouteStudent?->transportRoute?->driver_id ?? 0);
+        if ($fromRoute > 0) {
+            return $fromRoute;
+        }
+
+        $fromRequest = TripRequest::query()
+            ->where('student_id', (int) $student->id)
+            ->where('status', 'accepted')
+            ->whereNotNull('driver_id')
+            ->latest('id')
+            ->value('driver_id');
+
+        if (is_numeric($fromRequest) && (int) $fromRequest > 0) {
+            return (int) $fromRequest;
+        }
+
+        $fromRoster = TripHistoryStudent::query()
+            ->where('student_id', (int) $student->id)
+            ->whereHas('tripHistory', function ($query) use ($student): void {
+                $query
+                    ->where('school_id', (int) $student->school_id)
+                    ->whereNotNull('driver_id')
+                    ->whereNotIn('status', ['CANCELLED']);
+            })
+            ->with('tripHistory')
+            ->latest('id')
+            ->first()
+            ?->tripHistory
+            ?->driver_id;
+
+        return is_numeric($fromRoster) && (int) $fromRoster > 0 ? (int) $fromRoster : null;
+    }
+
+    /**
+     * @return array<string, TripHistory>
+     */
+    private function driverTripsForDate(int $driverId, int $schoolId, Carbon $day): array
+    {
+        $from = $day->copy()->startOfDay();
+        $to = $day->copy()->endOfDay();
+
+        $map = [];
+        $trips = TripHistory::query()
+            ->where('driver_id', $driverId)
+            ->where('school_id', $schoolId)
+            ->whereBetween('start_time', [$from, $to])
+            ->whereNotIn('status', ['CANCELLED'])
+            ->orderBy('start_time')
+            ->orderBy('id')
+            ->get();
+
+        foreach ($trips as $trip) {
+            $type = trim((string) ($trip->trip_type ?? ''));
+            if ($type === '' || isset($map[$type])) {
+                continue;
+            }
+
+            $map[$type] = $trip;
+        }
+
+        return $map;
+    }
+
+    /**
      * @param  Collection<int, TripHistoryStudent>  $rows
-     * @return array<string, array{stop: TripHistoryStudent, trip: TripHistory}>
+     * @return array<string, array{stop: TripHistoryStudent|null, trip: TripHistory}>
      */
     private function tripsByType(Collection $rows): array
     {
@@ -340,25 +449,5 @@ final class StudentDailyTimelineService
         }
 
         return $map;
-    }
-
-    /**
-     * Return leg for milestones 3–4: school pickup → home (MORNING_RETURN or EVENING_RETURN).
-     *
-     * @return array{stop: TripHistoryStudent, trip: TripHistory}|null
-     */
-    private function resolveReturnTripContext(
-        ?array $morningReturn,
-        ?array $eveningReturn,
-    ): ?array {
-        if ($morningReturn !== null) {
-            return $morningReturn;
-        }
-
-        if ($eveningReturn !== null) {
-            return $eveningReturn;
-        }
-
-        return null;
     }
 }
