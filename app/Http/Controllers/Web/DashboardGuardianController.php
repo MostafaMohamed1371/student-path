@@ -10,6 +10,7 @@ use App\Http\Requests\Web\UpdateDashboardGuardianRequest;
 use App\Models\Guardian;
 use App\Models\User;
 use App\Services\Guardian\GuardianHomeLocationSync;
+use App\Services\Guardian\GuardianIndexGrouper;
 use App\Services\Guardian\GuardianSchoolProvisioner;
 use App\Services\IdCard\DashboardIdCardRegistry;
 use App\Services\Phone\DashboardPhoneUserProvisioner;
@@ -25,7 +26,7 @@ class DashboardGuardianController extends Controller
     use ManagesDashboardScoping;
     use ProvidesDashboardSchoolDriverFilters;
 
-    public function index(Request $request): View
+    public function index(Request $request, GuardianIndexGrouper $indexGrouper): View
     {
         $filters = $this->dashboardReportFilterContext($request);
 
@@ -38,7 +39,32 @@ class DashboardGuardianController extends Controller
             $this->applyDashboardReportFilters($query, $filters, 'guardian_driver_route');
         }
 
-        $guardians = $query->paginate($this->dashboardListPerPage())->withQueryString();
+        $perPage = $this->dashboardListPerPage();
+        $page = max(1, (int) $request->query('page', 1));
+        $schoolScoped = (int) $filters['filterSchoolId'] > 0 || (int) $filters['filterDriverId'] > 0;
+
+        if ($schoolScoped) {
+            $paginator = $query->paginate($perPage)->withQueryString();
+            $groups = $indexGrouper->wrapSingleRecords($paginator->items());
+            $guardians = new \Illuminate\Pagination\LengthAwarePaginator(
+                $groups->all(),
+                $paginator->total(),
+                $paginator->perPage(),
+                $paginator->currentPage(),
+                [
+                    'path' => $paginator->path(),
+                    'query' => $request->query(),
+                ],
+            );
+        } else {
+            $guardians = $indexGrouper->paginate(
+                $query->get(),
+                $perPage,
+                $page,
+                $request->url(),
+                $request->query(),
+            );
+        }
 
         return view('dashboard.guardians.index', array_merge($filters, [
             'filterAction' => route('dashboard.guardians.index'),
@@ -130,17 +156,40 @@ class DashboardGuardianController extends Controller
         StoreDashboardGuardianRequest $request,
         PhoneNormalizer $phoneNormalizer,
         GuardianHomeLocationSync $homeLocationSync,
+        GuardianSchoolProvisioner $provisioner,
     ): RedirectResponse {
         $this->abortUnlessCanMutateSchoolRoster();
         $validated = $this->enforceRosterSchoolIdForStaff($request->validated());
-        $this->abortUnlessCanMutateSchoolRosterForSchool((int) $validated['school_id']);
+        $schoolId = (int) $validated['school_id'];
+        $this->abortUnlessCanMutateSchoolRosterForSchool($schoolId);
 
-        $guardian = Guardian::query()->create($this->guardianAttributesFromValidated($validated));
+        $attributes = $this->guardianAttributesFromValidated($validated);
+        $normalizedIdCard = app(DashboardIdCardRegistry::class)->normalize($attributes['id_card_number'] ?? null);
+
+        $guardian = null;
+        if ($normalizedIdCard !== null) {
+            $guardian = $provisioner->findForSchoolByIdCard($schoolId, $normalizedIdCard);
+            if ($guardian === null) {
+                $source = $provisioner->findAnyByIdCard($normalizedIdCard);
+                if ($source !== null) {
+                    $guardian = $provisioner->ensureForSchool($schoolId, $source);
+                }
+            }
+        }
+
+        if ($guardian !== null) {
+            $guardian->update($attributes);
+            $message = __('dashboard.guardian_updated');
+        } else {
+            $guardian = Guardian::query()->create($attributes);
+            $message = __('dashboard.guardian_created');
+        }
+
         $user = $this->syncGuardianUser($guardian, app(DashboardPhoneUserProvisioner::class));
         $this->syncGuardianHomeLocation($user, $validated, $homeLocationSync);
 
         return redirect()->route('dashboard.guardians.index')
-            ->with('success', __('dashboard.guardian_created'));
+            ->with('success', $message);
     }
 
     public function edit(Guardian $guardian): View

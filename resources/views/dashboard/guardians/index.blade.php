@@ -31,27 +31,49 @@
                     </tr>
                     </thead>
                     <tbody>
-                    @forelse($guardians as $guardian)
+                    @forelse($guardians as $group)
+                        @php($guardian = $group->primary)
                         <tr>
                             <td>{{ $guardian->id }}</td>
-                            <td>{{ $guardian->full_name }}</td>
-                            <td>{{ $guardian->school?->name_en ?: '—' }}</td>
+                            <td>
+                                {{ $guardian->full_name }}
+                                @if($group->isMultiSchool())
+                                    <span class="badge ok" style="margin-inline-start:6px;">{{ __('dashboard.guardian_multi_school_badge', ['count' => count($group->schoolLabels)]) }}</span>
+                                @endif
+                            </td>
+                            <td>
+                                @if($group->schoolLabels !== [])
+                                    {{ implode(', ', $group->schoolLabels) }}
+                                @else
+                                    —
+                                @endif
+                            </td>
                             <td>{{ $guardian->phone }}</td>
                             <td>{{ $guardian->id_card_number ?: '—' }}</td>
-                            <td>{{ $guardian->students_count }}</td>
+                            <td>{{ $group->studentsCount }}</td>
                             <td>
                                 <span class="badge {{ $guardian->status === 'active' ? 'ok' : 'off' }}">
                                     {{ $guardian->status === 'active' ? __('dashboard.active') : __('dashboard.inactive') }}
                                 </span>
                             </td>
                             @if(auth()->user()?->canMutateSchoolRoster())
-                            <td style="display:flex;gap:8px;">
-                                <a href="{{ route('dashboard.guardians.edit', $guardian) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.edit') }}</a>
-                                <form method="post" action="{{ route('dashboard.guardians.destroy', $guardian) }}" onsubmit="return confirm('{{ __('dashboard.confirm_delete') }}')">
-                                    @csrf
-                                    @method('delete')
-                                    <button type="submit" class="btn-muted">{{ __('dashboard.delete') }}</button>
-                                </form>
+                            <td style="display:flex;gap:8px;flex-wrap:wrap;">
+                                @if($group->isMultiSchool())
+                                    @foreach($group->records as $record)
+                                        <a href="{{ route('dashboard.guardians.edit', $record) }}" class="btn-muted" style="text-decoration:none;">
+                                            {{ __('dashboard.edit') }}@if($record->school?->name_en) ({{ $record->school->name_en }})@endif
+                                        </a>
+                                    @endforeach
+                                @else
+                                    <a href="{{ route('dashboard.guardians.edit', $guardian) }}" class="btn-muted" style="text-decoration:none;">{{ __('dashboard.edit') }}</a>
+                                @endif
+                                @if($group->records->count() === 1)
+                                    <form method="post" action="{{ route('dashboard.guardians.destroy', $guardian) }}" onsubmit="return confirm('{{ __('dashboard.confirm_delete') }}')">
+                                        @csrf
+                                        @method('delete')
+                                        <button type="submit" class="btn-muted">{{ __('dashboard.delete') }}</button>
+                                    </form>
+                                @endif
                             </td>
                             @endif
                         </tr>

@@ -387,6 +387,7 @@ return [
     'student_updated' => 'تم تحديث الطالب بنجاح.',
     'student_deleted' => 'تم حذف الطالب بنجاح.',
     'guardian_created' => 'تم إنشاء ولي الأمر بنجاح.',
+    'guardian_multi_school_badge' => ':count مدارس',
     'guardian_updated' => 'تم تحديث ولي الأمر بنجاح.',
     'guardian_deleted' => 'تم حذف ولي الأمر بنجاح.',
     'trip_route_from_driver_route' => 'تم تعبئة مسار الانطلاق → المدرسة والمسافة من نقطة انطلاق مسار النقل على الخريطة. طلاب المسار مُحدَّدون مسبقاً.',

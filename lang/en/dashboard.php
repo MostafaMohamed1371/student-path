@@ -387,6 +387,7 @@ return [
     'student_updated' => 'Student updated successfully.',
     'student_deleted' => 'Student deleted successfully.',
     'guardian_created' => 'Guardian created successfully.',
+    'guardian_multi_school_badge' => ':count schools',
     'guardian_updated' => 'Guardian updated successfully.',
     'guardian_deleted' => 'Guardian deleted successfully.',
     'trip_route_from_driver_route' => 'Route path (start → school) and distance were filled from this driver’s transport route start on the map. Students on that route are pre-selected.',
