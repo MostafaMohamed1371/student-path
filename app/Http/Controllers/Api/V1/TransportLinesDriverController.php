@@ -128,7 +128,7 @@ class TransportLinesDriverController extends Controller
                     }
                 });
 
-                if ($tripType === '') {
+                if ($tripType === '' && $filterStudent === null) {
                     $q->orWhereHas('serviceAreas.neighborhoods', function (Builder $neighborhoodQuery): void {
                         $neighborhoodQuery->whereNotNull('latitude')->whereNotNull('longitude');
                     });
@@ -424,11 +424,6 @@ class TransportLinesDriverController extends Controller
         ?string $tripType,
         User $user,
     ): array {
-        $school = School::query()->find((int) $student->school_id);
-        $serviceAreaDriverIds = $school instanceof School
-            ? $this->serviceAreaStudentMatcher->matchingDriverIdsForStudent($student, $school)
-            : [];
-
         $query = TransportRoute::query()
             ->with('school')
             ->whereIn('school_id', $schoolIds)
@@ -461,13 +456,8 @@ class TransportLinesDriverController extends Controller
                 : ($shiftTripTypes !== [] ? $shiftTripTypes : null),
         );
 
-        $matched = collect($transportRouteDriverIds)->merge($scheduledTripDriverIds);
-
-        if ($tripType === null || $tripType === '') {
-            $matched = $matched->merge($serviceAreaDriverIds);
-        }
-
-        return $matched
+        return collect($transportRouteDriverIds)
+            ->merge($scheduledTripDriverIds)
             ->unique()
             ->values()
             ->all();

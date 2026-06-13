@@ -2322,7 +2322,7 @@ class ApiV1ParentEndpointsTest extends TestCase
             ->assertJsonPath('data.drivers.0.route.name', 'Morning Return — School to Sector 9');
     }
 
-    public function test_v1_transport_lines_drivers_excludes_service_area_only_when_trip_type_filter_set(): void
+    public function test_v1_transport_lines_drivers_excludes_service_area_only_without_route_or_trip(): void
     {
         $school = $this->makeSchool('Service Area Return Filter School');
         $school->update(['latitude' => 33.31, 'longitude' => 44.36, 'address' => 'School Campus']);
@@ -2401,27 +2401,11 @@ class ApiV1ParentEndpointsTest extends TestCase
         ]);
         $serviceArea->neighborhoods()->attach($nearNeighborhood->id);
 
-        TripHistory::query()->create([
-            'school_id' => $school->id,
-            'driver_id' => $serviceAreaDriver->id,
-            'bus_number' => 'SA-RET-F',
-            'trip_type' => \App\Enums\TripType::MORNING_PICKUP->value,
-            'route_title' => 'Pickup only trip',
-            'start_address' => 'Near stop',
-            'start_latitude' => 33.311,
-            'start_longitude' => 44.361,
-            'students_count' => 0,
-            'distance_km' => 1,
-            'start_time' => now()->addHour(),
-            'status' => 'PRESENT',
-        ]);
-
         Sanctum::actingAs($parent);
 
         $this->getJson('/api/transport-lines/drivers?student_id='.$student->id)
             ->assertOk()
-            ->assertJsonCount(1, 'data.drivers')
-            ->assertJsonPath('data.drivers.0.driverId', (string) $serviceAreaDriver->id);
+            ->assertJsonCount(0, 'data.drivers');
 
         $this->getJson('/api/transport-lines/drivers?student_id='.$student->id.'&trip_type=MORNING_RETURN')
             ->assertOk()
