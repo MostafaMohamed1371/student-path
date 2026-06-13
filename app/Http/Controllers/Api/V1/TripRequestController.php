@@ -36,6 +36,10 @@ class TripRequestController extends Controller
     public function index(Request $request): JsonResponse
     {
         $driver = $this->currentDriver($request);
+        if ($driver) {
+            $this->tripRequestConflictGuard->closeStalePendingRequestsForDriver((int) $driver->id);
+        }
+
         $query = TripRequest::query()->with(['student', 'driver', 'tripHistory'])->latest('id');
         if ($driver) {
             $query->where('driver_id', $driver->id);
@@ -195,6 +199,10 @@ class TripRequestController extends Controller
                         __('dashboard.trip_request_slot_taken_by_another_driver'),
                         ['status' => [__('dashboard.trip_request_slot_taken_by_another_driver')]],
                         422,
+                        [
+                            'id' => (int) $trip_request->id,
+                            'status' => $trip_request->fresh()->status,
+                        ],
                     );
                 }
 
@@ -207,7 +215,16 @@ class TripRequestController extends Controller
                 $message = collect($e->errors())->flatten()->first()
                     ?: __('dashboard.trip_request_only_pending_status');
 
-                return $this->parentError($message, $e->errors(), 422);
+                $trip_request->refresh();
+
+                return $this->parentError(
+                    $message,
+                    $e->errors(),
+                    422,
+                    $this->tripRequestConflictGuard->slotTakenByAnotherDriver($trip_request)
+                        ? ['id' => (int) $trip_request->id, 'status' => $trip_request->status]
+                        : null,
+                );
             }
 
             return $this->parentSuccess(

@@ -31,6 +31,10 @@ class OrderController extends Controller
         ]);
 
         $driver = $this->currentDriver($request);
+        if ($driver instanceof Driver) {
+            $this->tripRequestConflictGuard->closeStalePendingRequestsForDriver((int) $driver->id);
+        }
+
         $query = TripRequest::query()
             ->with(['user.guardian', 'student.guardian', 'student.school', 'driver.bus'])
             ->latest('trip_requests.id');
@@ -46,6 +50,8 @@ class OrderController extends Controller
 
         if ($request->filled('status')) {
             $query->where('status', (string) $request->query('status'));
+        } elseif ($driver instanceof Driver) {
+            $query->where('status', 'pending');
         }
 
         $orders = $query
@@ -93,6 +99,10 @@ class OrderController extends Controller
                     __('dashboard.trip_request_slot_taken_by_another_driver'),
                     ['status' => [__('dashboard.trip_request_slot_taken_by_another_driver')]],
                     422,
+                    [
+                        'id' => (int) $tripRequest->id,
+                        'status' => $tripRequest->fresh()->status,
+                    ],
                 );
             }
 
@@ -105,7 +115,16 @@ class OrderController extends Controller
             $message = collect($e->errors())->flatten()->first()
                 ?: 'Only pending orders can be updated.';
 
-            return $this->parentError($message, $e->errors(), 422);
+            $tripRequest->refresh();
+
+            return $this->parentError(
+                $message,
+                $e->errors(),
+                422,
+                $this->tripRequestConflictGuard->slotTakenByAnotherDriver($tripRequest)
+                    ? ['id' => (int) $tripRequest->id, 'status' => $tripRequest->status]
+                    : null,
+            );
         }
 
         $msg = $validated['status'] === 'accepted'

@@ -320,10 +320,12 @@ class DashboardTripRequestController extends Controller
 
         if ($trip_request->status !== 'pending') {
             $nextStatus = (string) $request->validated('status');
-            if ($nextStatus === 'accepted'
-                && app(TripRequestConflictGuard::class)->slotTakenByAnotherDriver($trip_request)) {
+            $conflictGuard = app(TripRequestConflictGuard::class);
+            if ($nextStatus === 'accepted' && $conflictGuard->slotTakenByAnotherDriver($trip_request)) {
+                $conflictGuard->closePendingRequestWhenSlotTaken($trip_request);
+
                 return redirect()
-                    ->route('dashboard.trip_requests.show', $trip_request)
+                    ->route('dashboard.trip_requests.show', $trip_request->fresh())
                     ->with('error', __('dashboard.trip_request_slot_taken_by_another_driver'));
             }
 
@@ -334,7 +336,13 @@ class DashboardTripRequestController extends Controller
 
         $nextStatus = (string) $request->validated('status');
 
-        app(TripRequestAcceptanceService::class)->applyDriverDecision($trip_request, $nextStatus);
+        try {
+            app(TripRequestAcceptanceService::class)->applyDriverDecision($trip_request, $nextStatus);
+        } catch (ValidationException $e) {
+            return redirect()
+                ->route('dashboard.trip_requests.show', $trip_request->fresh())
+                ->with('error', collect($e->errors())->flatten()->first());
+        }
 
         return redirect()
             ->route('dashboard.trip_requests.show', $trip_request)

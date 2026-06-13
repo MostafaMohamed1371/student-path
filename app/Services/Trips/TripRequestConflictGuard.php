@@ -76,6 +76,32 @@ final class TripRequestConflictGuard
         }
     }
 
+    public function closePendingRequestWhenSlotTaken(TripRequest $request, ?string $slotKey = null): bool
+    {
+        if ($request->status !== 'pending') {
+            return false;
+        }
+
+        if (! $this->slotTakenByAnotherDriver($request, $slotKey)) {
+            return false;
+        }
+
+        $request->update(['status' => 'rejected']);
+
+        return true;
+    }
+
+    public function closeStalePendingRequestsForDriver(int $driverId): void
+    {
+        TripRequest::query()
+            ->where('driver_id', $driverId)
+            ->where('status', 'pending')
+            ->with('tripHistory')
+            ->orderBy('id')
+            ->get()
+            ->each(fn (TripRequest $request): bool => $this->closePendingRequestWhenSlotTaken($request));
+    }
+
     public function slotTakenByAnotherDriver(TripRequest $request, ?string $slotKey = null): bool
     {
         if ($request->student_id === null) {

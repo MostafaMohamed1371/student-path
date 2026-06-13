@@ -157,8 +157,44 @@ class TripRequestSlotConflictTest extends TestCase
             __('dashboard.trip_request_slot_taken_by_another_driver'),
         );
 
-        $this->assertSame('pending', $requestB->fresh()->status);
+        $this->assertSame('rejected', $requestB->fresh()->status);
         $this->assertSame('accepted', $requestA->fresh()->status);
+    }
+
+    public function test_stale_pending_order_removed_from_driver_list_after_another_driver_accepted(): void
+    {
+        [$school, $student, $user, $driverA] = $this->seedStudentWithDriver('Driver A');
+        $driverB = $this->makeSecondDriver($school, 'Driver B');
+        $driverBUser = User::query()->findOrFail((int) $driverB->user_id);
+
+        $pickupTripA = $this->makeTrip($school, $driverA, TripType::MORNING_PICKUP);
+        $pickupTripB = $this->makeTrip($school, $driverB, TripType::MORNING_PICKUP);
+
+        TripRequest::query()->create([
+            'user_id' => $user->id,
+            'student_id' => $student->id,
+            'driver_id' => $driverA->id,
+            'trip_history_id' => $pickupTripA->id,
+            'status' => 'accepted',
+            'updated_at' => now(),
+        ]);
+
+        $requestB = TripRequest::query()->create([
+            'user_id' => $user->id,
+            'student_id' => $student->id,
+            'driver_id' => $driverB->id,
+            'trip_history_id' => $pickupTripB->id,
+            'status' => 'pending',
+        ]);
+
+        Sanctum::actingAs($driverBUser);
+
+        $this->getJson('/api/orders')
+            ->assertOk()
+            ->assertJsonPath('data.pending_count', 0)
+            ->assertJsonCount(0, 'data.orders');
+
+        $this->assertSame('rejected', $requestB->fresh()->status);
     }
 
     public function test_second_driver_sees_slot_taken_message_when_competing_request_was_auto_rejected(): void

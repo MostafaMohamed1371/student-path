@@ -24,6 +24,18 @@ final class TripRequestAcceptanceService
      */
     public function applyDriverDecision(TripRequest $tripRequest, string $status): void
     {
+        if ($status === 'accepted') {
+            $tripRequest->loadMissing(['student.school', 'driver.bus', 'tripHistory']);
+            $slotKey = $this->resolveAcceptanceSlotKey($tripRequest);
+            if ($this->conflictGuard->slotTakenByAnotherDriver($tripRequest, $slotKey)) {
+                $this->conflictGuard->closePendingRequestWhenSlotTaken($tripRequest, $slotKey);
+
+                throw ValidationException::withMessages([
+                    'status' => [__('dashboard.trip_request_slot_taken_by_another_driver')],
+                ]);
+            }
+        }
+
         DB::transaction(function () use ($tripRequest, $status): void {
             if ($status === 'accepted' && $tripRequest->student_id !== null) {
                 Student::query()->whereKey($tripRequest->student_id)->lockForUpdate()->first();
