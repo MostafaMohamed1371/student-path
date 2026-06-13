@@ -2220,6 +2220,108 @@ class ApiV1ParentEndpointsTest extends TestCase
             ->assertJsonPath('data.drivers.0.driverId', (string) $matchingDriver->id);
     }
 
+    public function test_v1_transport_lines_drivers_includes_return_trip_only_without_return_route(): void
+    {
+        $school = $this->makeSchool('Return Trip School');
+        $school->update(['latitude' => 33.31, 'longitude' => 44.36, 'address' => 'School Campus']);
+
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'G Return',
+            'phone' => '7300000599',
+            'status' => 'active',
+        ]);
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'Student Return',
+            'gender' => 'male',
+            'grade' => '1',
+            'student_phone' => '7400000599',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'latitude' => 33.29,
+            'longitude' => 44.10,
+            'status' => 'active',
+            'shift_period' => 'MORNING',
+        ]);
+
+        $parent = User::factory()->create(['guardian_id' => $guardian->id, 'school_id' => $school->id]);
+
+        $returnDriver = Driver::query()->create([
+            'user_id' => User::factory()->create()->id,
+            'school_id' => $school->id,
+            'first_name' => 'Return',
+            'father_name' => 'Trip',
+            'grandfather_name' => 'Only',
+            'last_name' => 'Driver',
+            'age' => 35,
+            'id_card_number' => 'IDC-RET',
+            'license_number' => 'LIC-RET',
+            'primary_phone' => '7770000591',
+            'emergency_phone' => '7770000592',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+            'shift_period' => 'MORNING',
+            'monthly_subscription_price' => 55000,
+        ]);
+
+        Bus::query()->create([
+            'user_id' => User::factory()->create()->id,
+            'driver_id' => $returnDriver->id,
+            'name' => 'Bus Return',
+            'number' => 'RET-1',
+            'type' => 'Van',
+            'city' => 'Baghdad',
+            'capacity' => 12,
+            'color' => 'white',
+            'fuel_type' => 'diesel',
+            'status' => 'active',
+        ]);
+
+        \App\Models\TransportRoute::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $returnDriver->id,
+            'name' => 'Morning Pickup Only',
+            'trip_type' => \App\Enums\TripType::MORNING_PICKUP->value,
+            'shift_period' => 'MORNING',
+            'start_address' => 'Depot near student',
+            'start_latitude' => 33.291,
+            'start_longitude' => 44.105,
+            'status' => 'active',
+        ]);
+
+        $returnTrip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $returnDriver->id,
+            'bus_number' => 'RET-1',
+            'trip_type' => \App\Enums\TripType::MORNING_RETURN->value,
+            'route_title' => 'Morning Return — School to Sector 9',
+            'start_address' => 'School Campus',
+            'start_latitude' => 33.31,
+            'start_longitude' => 44.36,
+            'students_count' => 0,
+            'distance_km' => 5,
+            'start_time' => now()->addHours(4),
+            'status' => 'PRESENT',
+        ]);
+
+        Sanctum::actingAs($parent);
+
+        $this->getJson('/api/transport-lines/drivers?student_id='.$student->id.'&trip_type=MORNING_RETURN&matches_route_only=1')
+            ->assertOk()
+            ->assertJsonCount(1, 'data.drivers')
+            ->assertJsonPath('data.drivers.0.driverId', (string) $returnDriver->id)
+            ->assertJsonPath('data.drivers.0.matchesStudentRoute', true)
+            ->assertJsonPath('data.drivers.0.hasScheduledTrip', true)
+            ->assertJsonPath('data.drivers.0.route.tripType', 'MORNING_RETURN')
+            ->assertJsonPath('data.drivers.0.route.tripId', (string) $returnTrip->id)
+            ->assertJsonPath('data.drivers.0.route.name', 'Morning Return — School to Sector 9');
+    }
+
     private function makeSchool(string $nameEn): School
     {
         return School::query()->create([

@@ -2,6 +2,7 @@
 
 namespace App\Services\TransportLines;
 
+use App\Enums\TripType;
 use App\Models\Bus;
 use App\Models\Driver;
 use App\Models\School;
@@ -74,7 +75,10 @@ final class TransportDriverCardBuilder
                 ->whereIn('driver_id', $driverIds)
                 ->whereNotNull('route_title')
                 ->where('route_title', '!=', '')
-                ->orderByDesc('start_time');
+                ->whereNotIn('status', ['CANCELLED', 'COMPLETED', 'DONE'])
+                ->where('start_time', '>=', now()->startOfDay())
+                ->orderBy('start_time')
+                ->orderBy('id');
 
             if ($tripType !== '') {
                 $query->where('trip_type', $tripType);
@@ -98,6 +102,37 @@ final class TransportDriverCardBuilder
                 }
                 $out[$driverId] = $this->tripRouteMetaFromRow($row);
             }
+
+            $missingDriverIds = array_values(array_diff($driverIds, array_keys($out)));
+            if ($missingDriverIds !== []) {
+                $pastQuery = TripHistory::query()
+                    ->whereIn('driver_id', $missingDriverIds)
+                    ->whereNotNull('route_title')
+                    ->where('route_title', '!=', '')
+                    ->orderByDesc('start_time')
+                    ->orderByDesc('id');
+
+                if ($tripType !== '') {
+                    $pastQuery->where('trip_type', $tripType);
+                }
+
+                foreach ($pastQuery->get([
+                    'id',
+                    'driver_id',
+                    'school_id',
+                    'trip_type',
+                    'route_title',
+                    'start_address',
+                    'start_latitude',
+                    'start_longitude',
+                ]) as $row) {
+                    $driverId = (int) $row->driver_id;
+                    if ($driverId <= 0 || array_key_exists($driverId, $out)) {
+                        continue;
+                    }
+                    $out[$driverId] = $this->tripRouteMetaFromRow($row);
+                }
+            }
         }
 
         $numbers = $drivers
@@ -116,7 +151,10 @@ final class TransportDriverCardBuilder
             ->whereIn('bus_number', $numbers)
             ->whereNotNull('route_title')
             ->where('route_title', '!=', '')
-            ->orderByDesc('start_time');
+            ->whereNotIn('status', ['CANCELLED', 'COMPLETED', 'DONE'])
+            ->where('start_time', '>=', now()->startOfDay())
+            ->orderBy('start_time')
+            ->orderBy('id');
 
         if ($tripType !== '') {
             $fallbackQuery->where('trip_type', $tripType);
@@ -136,6 +174,39 @@ final class TransportDriverCardBuilder
 
         $bySchoolBus = [];
         foreach ($rows as $row) {
+            $bn = (string) $row->bus_number;
+            if ($bn === '') {
+                continue;
+            }
+            $key = (int) $row->school_id.'|'.$bn;
+            if (! array_key_exists($key, $bySchoolBus)) {
+                $bySchoolBus[$key] = $this->tripRouteMetaFromRow($row);
+            }
+        }
+
+        $pastFallbackQuery = TripHistory::query()
+            ->whereIn('school_id', $schoolIds)
+            ->whereIn('bus_number', $numbers)
+            ->whereNotNull('route_title')
+            ->where('route_title', '!=', '')
+            ->orderByDesc('start_time')
+            ->orderByDesc('id');
+
+        if ($tripType !== '') {
+            $pastFallbackQuery->where('trip_type', $tripType);
+        }
+
+        foreach ($pastFallbackQuery->get([
+            'id',
+            'driver_id',
+            'school_id',
+            'bus_number',
+            'trip_type',
+            'route_title',
+            'start_address',
+            'start_latitude',
+            'start_longitude',
+        ]) as $row) {
             $bn = (string) $row->bus_number;
             if ($bn === '') {
                 continue;
@@ -328,6 +399,8 @@ final class TransportDriverCardBuilder
                     $studentForRouteMatch,
                     $transportRoute,
                 );
+            } elseif ($latestTripRoute !== null) {
+                $matchesStudentRoute = true;
             } else {
                 $matchesStudentRoute = false;
             }
@@ -340,6 +413,7 @@ final class TransportDriverCardBuilder
             'profileImageUrl' => $this->normalizePublicAssetUrl($user?->image),
             'routeDescription' => $routeDescription,
             'route' => $this->formatRouteForDriverCard($latestTripRoute, $school instanceof School ? $school : null),
+            'hasScheduledTrip' => $latestTripRoute !== null,
             'matchesStudentRoute' => $matchesStudentRoute,
             'ratingAvg' => $ratingAvg,
             'ratingCount' => $ratingCount,
@@ -544,5 +618,57 @@ final class TransportDriverCardBuilder
             + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLon / 2) ** 2;
 
         return round($earthKm * 2 * atan2(sqrt($a), sqrt(1 - $a)), 2);
+    }
+
+    /**
+     * Drivers with a scheduled trip row (not only a transport route) for the given school + trip type(s).
+     *
+     * @param  list<int>  $schoolIds
+     * @param  list<string>|null  $tripTypes
+     * @return list<int>
+     */
+    public function scheduledTripDriverIds(
+        array $schoolIds,
+        ?string $tripType = null,
+        ?array $tripTypes = null,
+    ): array {
+        if ($schoolIds === []) {
+            return [];
+        }
+
+        $query = TripHistory::query()
+            ->whereIn('school_id', $schoolIds)
+            ->whereNotNull('driver_id')
+            ->whereNotNull('route_title')
+            ->where('route_title', '!=', '')
+            ->whereNotIn('status', ['CANCELLED', 'COMPLETED', 'DONE'])
+            ->where('start_time', '>=', now()->startOfDay());
+
+        $tripType = trim((string) ($tripType ?? ''));
+        if ($tripType !== '') {
+            $query->where('trip_type', $tripType);
+        } elseif ($tripTypes !== null && $tripTypes !== []) {
+            $query->whereIn('trip_type', $tripTypes);
+        }
+
+        return $query
+            ->pluck('driver_id')
+            ->map(fn ($id): int => (int) $id)
+            ->filter(fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  list<int>  $schoolIds
+     */
+    public function driverHasScheduledTripOfType(int $driverId, array $schoolIds, string $tripType): bool
+    {
+        if ($driverId <= 0 || $tripType === '') {
+            return false;
+        }
+
+        return in_array($driverId, $this->scheduledTripDriverIds($schoolIds, $tripType), true);
     }
 }

@@ -133,7 +133,9 @@ class TransportLinesDriverController extends Controller
                         ->from((new TripHistory)->getTable())
                         ->whereColumn('trip_histories.driver_id', 'drivers.id')
                         ->whereNotNull('route_title')
-                        ->where('route_title', '!=', '');
+                        ->where('route_title', '!=', '')
+                        ->whereNotIn('trip_histories.status', ['CANCELLED', 'COMPLETED', 'DONE'])
+                        ->where('trip_histories.start_time', '>=', now()->startOfDay());
 
                     if ($tripType !== '') {
                         $sub->where('trip_type', $tripType);
@@ -444,8 +446,18 @@ class TransportLinesDriverController extends Controller
             ->map(fn ($id): int => (int) $id)
             ->all();
 
+        $shiftTripTypes = $this->tripTypesForStudentShift($student);
+        $scheduledTripDriverIds = $this->cardBuilder->scheduledTripDriverIds(
+            [(int) $student->school_id],
+            ($tripType !== null && $tripType !== '') ? $tripType : null,
+            ($tripType !== null && $tripType !== '')
+                ? null
+                : ($shiftTripTypes !== [] ? $shiftTripTypes : null),
+        );
+
         return collect($serviceAreaDriverIds)
             ->merge($transportRouteDriverIds)
+            ->merge($scheduledTripDriverIds)
             ->unique()
             ->values()
             ->all();

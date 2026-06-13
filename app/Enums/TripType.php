@@ -22,4 +22,9 @@ enum TripType: string
     {
         return in_array($tripType, [self::MORNING_PICKUP->value, self::EVENING_PICKUP->value], true);
     }
+
+    public static function isReturn(string $tripType): bool
+    {
+        return in_array($tripType, [self::MORNING_RETURN->value, self::EVENING_RETURN->value], true);
+    }
 }
