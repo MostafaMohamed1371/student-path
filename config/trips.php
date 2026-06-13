@@ -87,4 +87,15 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Recurring trip templates
+    |--------------------------------------------------------------------------
+    |
+    | When students are assigned to a trip it becomes a template. The spawner
+    | clones it on each school working day for this many days ahead.
+    |
+    */
+    'recurring_spawn_horizon_days' => (int) env('TRIP_RECURRING_SPAWN_HORIZON_DAYS', 30),
+
 ];

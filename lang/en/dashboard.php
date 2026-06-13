@@ -432,6 +432,7 @@ return [
     'trip_students_cleared_multiple' => 'All students removed from :trips trip(s).',
     'trip_assign_trips_same_school' => 'All selected trips must belong to the same school.',
     'trip_students_cleared' => 'All students were removed from this trip.',
+    'trip_recurring_spawned_ahead' => ':count upcoming daily trip(s) were scheduled from the school work calendar.',
     'trip_assign_students_closed_trip' => 'Cannot assign students to a cancelled or completed trip.',
     'trip' => 'Trip',
     'trip_updated' => 'Trip updated successfully.',

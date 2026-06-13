@@ -23,6 +23,7 @@ use App\Services\Trips\StudentShiftFilter;
 use App\Services\Trips\TripStudentAvailability;
 use App\Services\Trips\TripLocationTrackingService;
 use App\Services\Trips\PickupReturnTripPairPlanner;
+use App\Services\Trips\RecurringTripSpawner;
 use App\Services\Trips\TripTransportRouteApplier;
 use App\Support\Geo\Haversine;
 use Illuminate\Database\Eloquent\Builder;
@@ -443,6 +444,18 @@ class DashboardTripController extends Controller
             $this->syncTripStudentsForSchool($trip, $studentIds, $schoolId, $tripIds);
         }
 
+        $spawnedTotal = 0;
+        $recurringSpawner = app(RecurringTripSpawner::class);
+        foreach ($selectedTrips as $trip) {
+            $freshTrip = $trip->fresh(['school', 'tripHistoryStudents']);
+            if ($studentIds !== []) {
+                $recurringSpawner->registerTemplateFromTrip($freshTrip);
+                $spawnedTotal += $recurringSpawner->spawnAheadForTemplate($freshTrip->fresh(['school', 'tripHistoryStudents']));
+            } else {
+                $recurringSpawner->unregisterTemplate($freshTrip);
+            }
+        }
+
         $tripCount = $selectedTrips->count();
         $message = count($studentIds) > 0
             ? ($tripCount > 1
@@ -451,6 +464,10 @@ class DashboardTripController extends Controller
             : ($tripCount > 1
                 ? __('dashboard.trip_students_cleared_multiple', ['trips' => $tripCount])
                 : __('dashboard.trip_students_cleared'));
+
+        if ($spawnedTotal > 0) {
+            $message .= ' '.__('dashboard.trip_recurring_spawned_ahead', ['count' => $spawnedTotal]);
+        }
 
         return redirect()
             ->route('dashboard.trips.assign_students', [

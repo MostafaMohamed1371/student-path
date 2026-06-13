@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('trips:sync-statuses')->everyMinute();
+Schedule::command('trips:spawn-recurring')->dailyAt('00:05');

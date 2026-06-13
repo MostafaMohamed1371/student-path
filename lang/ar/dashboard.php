@@ -432,6 +432,7 @@ return [
     'trip_students_cleared_multiple' => 'تمت إزالة كل الطلاب من :trips رحلة/رحلات.',
     'trip_assign_trips_same_school' => 'يجب أن تنتمي جميع الرحلات المختارة إلى نفس المدرسة.',
     'trip_students_cleared' => 'تمت إزالة كل الطلاب من هذه الرحلة.',
+    'trip_recurring_spawned_ahead' => 'تم جدولة :count رحلة يومية قادمة حسب تقويم دوام المدرسة.',
     'trip_assign_students_closed_trip' => 'لا يمكن تعيين طلاب لرحلة ملغاة أو مكتملة.',
     'trip' => 'رحلة',
     'trip_updated' => 'تم تحديث الرحلة بنجاح.',

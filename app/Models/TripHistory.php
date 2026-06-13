@@ -25,6 +25,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'final_lat',
     'final_lng',
     'status',
+    'is_recurring_template',
+    'recurring_template_id',
     'note',
     'students_preview',
 ])]
@@ -34,6 +36,7 @@ class TripHistory extends Model
     {
         return [
             'students_preview' => 'array',
+            'is_recurring_template' => 'boolean',
             'start_time' => 'datetime',
             'driver_started_at' => 'datetime',
             'end_time' => 'datetime',
