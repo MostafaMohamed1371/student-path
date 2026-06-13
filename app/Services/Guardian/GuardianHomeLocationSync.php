@@ -4,9 +4,11 @@ namespace App\Services\Guardian;
 
 use App\Models\Guardian;
 use App\Models\HomeLocation;
+use App\Models\Student;
 use App\Models\User;
 use App\Services\HomeLocation\HomeLocationService;
 use App\Services\Phone\PhoneNormalizer;
+use App\Support\IdCardNumber;
 
 final class GuardianHomeLocationSync
 {
@@ -84,7 +86,7 @@ final class GuardianHomeLocationSync
             return;
         }
 
-        $this->homeLocationService->syncForUser(
+        $location = $this->homeLocationService->syncForUser(
             $user,
             $latitude,
             $longitude,
@@ -92,5 +94,123 @@ final class GuardianHomeLocationSync
             $districtArea,
             $nearestLandmark,
         );
+
+        $this->afterHomeLocationSaved($user, $location);
+    }
+
+    public function afterHomeLocationSaved(User $user, HomeLocation $location): void
+    {
+        if ($location->latitude === null || $location->longitude === null) {
+            return;
+        }
+
+        $landmark = trim((string) ($location->nearest_landmark ?? $location->formatted_address ?? ''));
+        $district = trim((string) ($location->district_area ?? ''));
+        if ($district === '' && $landmark !== '') {
+            $district = $landmark;
+        }
+
+        $this->syncStudentsForUser(
+            $user,
+            (float) $location->latitude,
+            (float) $location->longitude,
+            $district !== '' ? $district : null,
+            $landmark !== '' ? $landmark : null,
+        );
+    }
+
+    public function syncStudentsForUser(
+        User $user,
+        float $latitude,
+        float $longitude,
+        ?string $districtArea = null,
+        ?string $nearestLandmark = null,
+    ): void {
+        $guardianIds = $this->guardianIdsForUser($user);
+        if ($guardianIds === []) {
+            return;
+        }
+
+        $payload = [
+            'latitude' => $latitude,
+            'longitude' => $longitude,
+        ];
+
+        if ($districtArea !== null && trim($districtArea) !== '') {
+            $payload['district_area'] = trim($districtArea);
+        }
+
+        if ($nearestLandmark !== null && trim($nearestLandmark) !== '') {
+            $payload['nearest_landmark'] = trim($nearestLandmark);
+        }
+
+        Student::query()
+            ->whereIn('guardian_id', $guardianIds)
+            ->update($payload);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function guardianIdsForUser(User $user): array
+    {
+        $ids = [];
+
+        if ($user->guardian_id !== null && (int) $user->guardian_id > 0) {
+            $ids[] = (int) $user->guardian_id;
+        }
+
+        $phone = trim((string) ($user->phone ?? ''));
+        if ($phone !== '') {
+            $national = preg_replace('/\D+/', '', $phone) ?? '';
+            if (str_starts_with($national, '964')) {
+                $national = substr($national, 3);
+            }
+
+            $phoneMatches = array_values(array_unique(array_filter([
+                $national,
+                $this->phoneNormalizer->isValidIraqiMobile($national)
+                    ? $this->phoneNormalizer->normalize($national)
+                    : null,
+            ])));
+
+            if ($phoneMatches !== []) {
+                $ids = array_merge(
+                    $ids,
+                    Guardian::query()
+                        ->whereIn('phone', $phoneMatches)
+                        ->pluck('id')
+                        ->map(fn ($id): int => (int) $id)
+                        ->all(),
+                );
+            }
+        }
+
+        $ids = array_values(array_unique(array_filter($ids, static fn (int $id): bool => $id > 0)));
+        if ($ids === []) {
+            return [];
+        }
+
+        $idCards = Guardian::query()
+            ->whereIn('id', $ids)
+            ->pluck('id_card_number')
+            ->map(fn ($card): ?string => IdCardNumber::normalize($card))
+            ->filter(fn (?string $card): bool => is_string($card) && $card !== '')
+            ->unique()
+            ->values()
+            ->all();
+
+        foreach ($idCards as $idCard) {
+            $ids = array_merge(
+                $ids,
+                Guardian::query()
+                    ->where('id_card_number', $idCard)
+                    ->pluck('id')
+                    ->map(fn ($id): int => (int) $id)
+                    ->all(),
+            );
+        }
+
+        return array_values(array_unique(array_filter($ids, static fn (int $id): bool => $id > 0)));
     }
 }

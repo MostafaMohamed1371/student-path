@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\Concerns\FormatsParentApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\UpsertHomeLocationRequest;
 use App\Models\HomeLocation;
+use App\Services\Guardian\GuardianHomeLocationSync;
 use App\Services\HomeLocation\HomeLocationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -54,6 +55,8 @@ class HomeLocationController extends Controller
             $validated['nearest_landmark'] ?? null,
             $validated['place_id'] ?? null,
         );
+
+        app(GuardianHomeLocationSync::class)->afterHomeLocationSaved($request->user(), $location);
 
         return $this->parentSuccess(
             $homeLocationService->formatForApi($location),
