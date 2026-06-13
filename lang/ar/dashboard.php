@@ -393,6 +393,8 @@ return [
     'guardian_choose_school_to_delete' => 'اختر المدرسة للحذف',
     'guardian_choose_school_to_delete_help' => ':name مرتبط بأكثر من مدرسة. اختر ملف ولي الأمر في المدرسة التي تريد حذفها.',
     'guardian_confirm_delete_help' => 'حذف :name من :school؟ سيتم حذف ملف ولي الأمر في هذه المدرسة فقط.',
+    'guardian_edit_school_locked_help' => 'هذا الملف خاص بالمدرسة المحددة فقط. لتعديل نفس ولي الأمر في مدرسة أخرى، استخدم تعديل من قائمة أولياء الأمور.',
+    'guardian_edit_school_switch_help' => 'اختر مدرسة أخرى مرتبطة بنفس ولي الأمر لفتح ملف ذلك المدرسة.',
     'guardian_updated' => 'تم تحديث ولي الأمر بنجاح.',
     'guardian_deleted' => 'تم حذف ولي الأمر بنجاح.',
     'trip_route_from_driver_route' => 'تم تعبئة مسار الانطلاق → المدرسة والمسافة من نقطة انطلاق مسار النقل على الخريطة. طلاب المسار مُحدَّدون مسبقاً.',

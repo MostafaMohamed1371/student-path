@@ -13,7 +13,33 @@
 <div class="form-grid">
     <div>
         <label class="field-label" for="school_id">{{ __('dashboard.school') }}</label>
-        @if(auth()->user()?->is_admin)
+        @if(!$isCreate)
+            @php($schoolRecords = ($guardianSchoolRecords ?? collect())->filter())
+            @if($schoolRecords->isEmpty())
+                @php($schoolRecords = collect([$guardian->loadMissing('school')]))
+            @endif
+            <select
+                class="input"
+                id="guardian_form_school_id"
+                @if($schoolRecords->count() <= 1) disabled @endif
+                @if($schoolRecords->count() > 1) data-guardian-school-switcher @endif
+            >
+                @foreach($schoolRecords as $record)
+                    <option
+                        value="{{ $schoolRecords->count() > 1 ? route('dashboard.guardians.edit', $record) : (int) $record->school_id }}"
+                        @selected((int) $record->id === (int) $guardian->id)
+                    >
+                        {{ $record->school?->name_en ?: '—' }}@if($record->school?->name_ar) ({{ $record->school->name_ar }})@endif
+                    </option>
+                @endforeach
+            </select>
+            <input type="hidden" name="school_id" value="{{ old('school_id', $guardian->school_id) }}">
+            @if($schoolRecords->count() > 1)
+                <p class="field-help">{{ __('dashboard.guardian_edit_school_switch_help') }}</p>
+            @else
+                <p class="field-help">{{ __('dashboard.guardian_edit_school_locked_help') }}</p>
+            @endif
+        @elseif(auth()->user()?->is_admin)
             <select class="input" id="guardian_form_school_id" name="school_id" required>
                 <option value="">{{ __('dashboard.select_school') }}</option>
                 @foreach(($schools ?? collect()) as $school)

@@ -228,14 +228,33 @@ class DashboardGuardianController extends Controller
         ]);
     }
 
-    public function edit(Guardian $guardian): View
+    public function edit(Guardian $guardian, GuardianIndexGrouper $indexGrouper): View
     {
         $this->abortUnlessCanMutateSchoolRosterForSchool((int) $guardian->school_id);
-        $schools = $this->schoolsForRosterForm();
+        $guardian->load('school');
+
+        $guardianSchoolRecords = $indexGrouper->recordsForSameIdentity($guardian);
+        $scopedSchoolId = auth()->user()?->scopingSchoolId();
+        if ($scopedSchoolId !== null && (int) $scopedSchoolId > 0 && ! auth()->user()?->is_admin) {
+            $guardianSchoolRecords = $guardianSchoolRecords
+                ->filter(fn (Guardian $record): bool => (int) $record->school_id === (int) $scopedSchoolId)
+                ->values();
+        }
+
+        $schools = $guardianSchoolRecords
+            ->map(fn (Guardian $record): ?\App\Models\School => $record->school)
+            ->filter()
+            ->unique('id')
+            ->values();
 
         $homeLocation = app(GuardianHomeLocationSync::class)->homeLocationForGuardian($guardian);
 
-        return view('dashboard.guardians.edit', compact('guardian', 'schools', 'homeLocation'));
+        return view('dashboard.guardians.edit', compact(
+            'guardian',
+            'schools',
+            'guardianSchoolRecords',
+            'homeLocation',
+        ));
     }
 
     public function update(
@@ -244,8 +263,10 @@ class DashboardGuardianController extends Controller
         PhoneNormalizer $phoneNormalizer,
         GuardianHomeLocationSync $homeLocationSync,
     ): RedirectResponse {
+        $this->abortUnlessCanMutateSchoolRosterForSchool((int) $guardian->school_id);
+
         $validated = $this->enforceRosterSchoolIdForStaff($request->validated());
-        $this->abortUnlessCanMutateSchoolRosterForSchool((int) ($validated['school_id'] ?? $guardian->school_id));
+        $validated['school_id'] = (int) $guardian->school_id;
 
         $guardian->update($this->guardianAttributesFromValidated($validated));
         $user = $this->syncGuardianUser($guardian->fresh(), app(DashboardPhoneUserProvisioner::class));

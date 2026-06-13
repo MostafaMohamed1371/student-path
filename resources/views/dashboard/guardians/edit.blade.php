@@ -12,10 +12,27 @@
                     'submitLabel' => __('dashboard.save_guardian'),
                     'guardian' => $guardian,
                     'schools' => $schools,
+                    'guardianSchoolRecords' => $guardianSchoolRecords ?? collect(),
                     'homeLocation' => $homeLocation ?? null,
                 ])
             </form>
         </section>
     @endcomponent
     @include('dashboard.guardians._home_location_map_script')
+    @if(!empty($guardianSchoolRecords) && $guardianSchoolRecords->count() > 1)
+        <script>
+        (function () {
+            const switcher = document.querySelector('[data-guardian-school-switcher]');
+            if (!switcher) {
+                return;
+            }
+            switcher.addEventListener('change', function () {
+                const url = String(switcher.value || '');
+                if (url && url.startsWith('http')) {
+                    window.location.href = url;
+                }
+            });
+        })();
+        </script>
+    @endif
 @endsection

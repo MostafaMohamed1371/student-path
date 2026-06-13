@@ -393,6 +393,8 @@ return [
     'guardian_choose_school_to_delete' => 'Choose school to delete',
     'guardian_choose_school_to_delete_help' => ':name is linked to more than one school. Choose which school profile you want to delete.',
     'guardian_confirm_delete_help' => 'Delete :name from :school? This removes the guardian profile for that school only.',
+    'guardian_edit_school_locked_help' => 'This profile is for the selected school only. To edit the same parent at another school, use Edit from the guardians list.',
+    'guardian_edit_school_switch_help' => 'Choose another assigned school to open that school profile for this parent.',
     'guardian_updated' => 'Guardian updated successfully.',
     'guardian_deleted' => 'Guardian deleted successfully.',
     'trip_route_from_driver_route' => 'Route path (start → school) and distance were filled from this driver’s transport route start on the map. Students on that route are pre-selected.',
