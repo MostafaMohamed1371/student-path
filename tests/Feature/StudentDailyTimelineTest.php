@@ -59,10 +59,50 @@ class StudentDailyTimelineTest extends TestCase
             ->assertJsonPath('data.milestones.0.code', 'morning_pickup_home')
             ->assertJsonPath('data.milestones.0.status', 'boarded')
             ->assertJsonPath('data.milestones.0.status_color', '#00796B')
+            ->assertJsonPath('data.milestones.0.scheduled_time', '07:15')
             ->assertJsonPath('data.milestones.1.code', 'morning_arrive_school')
             ->assertJsonPath('data.milestones.1.status', 'completed')
+            ->assertJsonPath('data.milestones.1.scheduled_time', '07:45')
             ->assertJsonPath('data.milestones.2.status', 'scheduled')
             ->assertJsonPath('data.milestones.2.status_color', '#78909C');
+    }
+
+    public function test_daily_timeline_evening_milestones_use_return_trip_start_and_end_times(): void
+    {
+        ['student' => $student, 'parent' => $parent, 'school' => $school, 'driver' => $driver] = $this->seedStudentWithRoute();
+        $day = now()->startOfDay();
+
+        $returnTrip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => TripType::MORNING_RETURN->value,
+            'bus_number' => 'BUS-TL-RET',
+            'route_title' => 'Return Route',
+            'location' => 'School to home',
+            'students_count' => 1,
+            'distance_km' => 0,
+            'start_time' => $day->copy()->setTime(12, 30),
+            'end_time' => $day->copy()->setTime(13, 15),
+            'status' => 'ACTIVE',
+        ]);
+
+        TripHistoryStudent::query()->create([
+            'trip_history_id' => $returnTrip->id,
+            'student_id' => $student->id,
+            'status' => StudentTripStopStatus::ON_WAY->value,
+            'sort_order' => 0,
+        ]);
+
+        Sanctum::actingAs($parent);
+
+        $this->getJson('/api/students/'.$student->id.'/daily-timeline?date='.$day->toDateString())
+            ->assertOk()
+            ->assertJsonPath('data.milestones.2.code', 'evening_pickup_school')
+            ->assertJsonPath('data.milestones.2.scheduled_time', '12:30')
+            ->assertJsonPath('data.milestones.2.status', 'on_way')
+            ->assertJsonPath('data.milestones.3.code', 'evening_arrive_home')
+            ->assertJsonPath('data.milestones.3.scheduled_time', '13:15')
+            ->assertJsonPath('data.milestones.3.status', 'scheduled');
     }
 
     public function test_daily_timeline_marks_milestones_absent_when_parent_reported(): void

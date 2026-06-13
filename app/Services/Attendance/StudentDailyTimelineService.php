@@ -37,16 +37,17 @@ final class StudentDailyTimelineService
         $tripsByType = $this->tripsByType($tripRows);
 
         $morningPickup = $tripsByType[TripType::MORNING_PICKUP->value] ?? null;
-        $eveningPickup = $tripsByType[TripType::EVENING_PICKUP->value] ?? null;
+        $morningReturn = $tripsByType[TripType::MORNING_RETURN->value] ?? null;
         $eveningReturn = $tripsByType[TripType::EVENING_RETURN->value] ?? null;
+        $returnTrip = $this->resolveReturnTripContext($morningReturn, $eveningReturn);
 
         $defaults = config('trips.default_daily_timeline', []);
 
         $milestones = [
             $this->buildMorningPickupHome($student, $day, $morningPickup, $isAbsent, $defaults),
             $this->buildMorningArriveSchool($day, $morningPickup, $isAbsent, $defaults),
-            $this->buildEveningPickupSchool($day, $eveningPickup, $isAbsent, $defaults),
-            $this->buildEveningArriveHome($day, $eveningPickup, $eveningReturn, $isAbsent, $defaults),
+            $this->buildEveningPickupSchool($day, $returnTrip, $isAbsent, $defaults),
+            $this->buildEveningArriveHome($day, $returnTrip, $isAbsent, $defaults),
         ];
 
         return [
@@ -147,14 +148,13 @@ final class StudentDailyTimelineService
      */
     private function buildEveningArriveHome(
         Carbon $day,
-        ?array $eveningPickup,
-        ?array $eveningReturn,
+        ?array $returnTrip,
         bool $isAbsent,
         array $defaults,
     ): array {
         $code = StudentTimelineMilestoneCode::EveningArriveHome;
-        $trip = $eveningReturn['trip'] ?? $eveningPickup['trip'] ?? null;
-        $stop = $eveningReturn['stop'] ?? $eveningPickup['stop'] ?? null;
+        $trip = $returnTrip['trip'] ?? null;
+        $stop = $returnTrip['stop'] ?? null;
         $scheduled = $this->scheduledAt($day, $trip, (string) ($defaults['evening_home_arrival'] ?? '16:15'), useEndTime: true);
 
         if ($isAbsent) {
@@ -340,5 +340,25 @@ final class StudentDailyTimelineService
         }
 
         return $map;
+    }
+
+    /**
+     * Return leg for milestones 3–4: school pickup → home (MORNING_RETURN or EVENING_RETURN).
+     *
+     * @return array{stop: TripHistoryStudent, trip: TripHistory}|null
+     */
+    private function resolveReturnTripContext(
+        ?array $morningReturn,
+        ?array $eveningReturn,
+    ): ?array {
+        if ($morningReturn !== null) {
+            return $morningReturn;
+        }
+
+        if ($eveningReturn !== null) {
+            return $eveningReturn;
+        }
+
+        return null;
     }
 }
