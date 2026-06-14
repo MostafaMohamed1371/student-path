@@ -32,6 +32,9 @@ class StoreSchoolRequest extends FormRequest
             'adminPhone' => ['nullable', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
             'authorizedPersonName' => ['nullable', 'string', 'max:255'],
             'authorizedPersonPhone' => ['nullable', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
+            'complaintsSupportPhone' => ['nullable', 'string', 'min:3', 'max:32'],
+            'complaintsSupportWhatsapp' => ['nullable', 'string', 'min:3', 'max:32'],
+            'complaintsSupportHours' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string'],
             'attachment' => ['nullable', 'file', 'max:4096'],
         ];

@@ -26,6 +26,9 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
     'admin_phone',
     'authorized_person_name',
     'authorized_person_phone',
+    'complaints_support_phone',
+    'complaints_support_whatsapp',
+    'complaints_support_hours',
     'notes',
     'attachment',
 ])]

@@ -5,9 +5,13 @@ namespace App\Http\Controllers\Api\Legacy;
 use App\Http\Controllers\Api\Legacy\Concerns\RespondsWithLegacySuccess;
 use App\Http\Controllers\Controller;
 use App\Models\SupportComplaint;
+use App\Models\User;
+use App\Services\Support\SupportContactService;
+use App\Support\SupportComplaintReference;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Laravel\Sanctum\PersonalAccessToken;
 
 /**
  * Legacy contract: GET /api/support/info, categories; POST /api/support/complaint.
@@ -16,12 +20,13 @@ class LegacySupportController extends Controller
 {
     use RespondsWithLegacySuccess;
 
-    public function info(): JsonResponse
+    public function info(Request $request, SupportContactService $supportContact): JsonResponse
     {
         $cfg = config('mobile_legacy_api.support', []);
+        $school = $supportContact->schoolForUser($this->optionalAuthenticatedUser($request));
 
         return $this->legacySuccess([
-            'contactMethods' => $cfg['contact_methods'] ?? [],
+            'contactMethods' => $supportContact->contactMethodsFor($school),
             'faqs' => $cfg['faqs'] ?? [],
         ]);
     }
@@ -60,7 +65,7 @@ class LegacySupportController extends Controller
             'status' => 'RECEIVED',
         ]);
 
-        $complaintNumber = '#CMP-'.now()->format('Y').'-'.str_pad((string) $complaint->id, 4, '0', STR_PAD_LEFT);
+        $complaintNumber = SupportComplaintReference::format((int) $complaint->id, $complaint->created_at);
         $complaint->forceFill(['complaint_number' => $complaintNumber])->save();
 
         $ar = app()->getLocale() === 'ar';
@@ -74,5 +79,23 @@ class LegacySupportController extends Controller
             'submittedAt' => $complaint->created_at?->toIso8601String(),
             'attachmentCount' => count($paths),
         ], $msg, 201);
+    }
+
+    private function optionalAuthenticatedUser(Request $request): ?User
+    {
+        $user = $request->user('sanctum') ?? $request->user();
+        if ($user instanceof User) {
+            return $user;
+        }
+
+        $token = trim((string) $request->bearerToken());
+        if ($token === '') {
+            return null;
+        }
+
+        $accessToken = PersonalAccessToken::findToken($token);
+        $tokenUser = $accessToken?->tokenable;
+
+        return $tokenUser instanceof User ? $tokenUser : null;
     }
 }

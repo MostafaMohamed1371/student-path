@@ -10,6 +10,7 @@ use App\Http\Requests\Web\StoreDashboardSupportComplaintRequest;
 use App\Http\Requests\Web\UpdateDashboardSupportComplaintRequest;
 use App\Models\SupportComplaint;
 use App\Models\User;
+use App\Support\SupportComplaintReference;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -70,7 +71,7 @@ class DashboardSupportComplaintController extends Controller
             'status' => 'RECEIVED',
         ]);
 
-        $complaintNumber = '#CMP-'.now()->format('Y').'-'.str_pad((string) $complaint->id, 4, '0', STR_PAD_LEFT);
+        $complaintNumber = SupportComplaintReference::format((int) $complaint->id, $complaint->created_at);
         $complaint->forceFill(['complaint_number' => $complaintNumber])->save();
 
         return redirect()->route('dashboard.support_complaints.show', $complaint)

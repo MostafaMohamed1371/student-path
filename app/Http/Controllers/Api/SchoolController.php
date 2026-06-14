@@ -64,6 +64,9 @@ class SchoolController extends Controller
             'admin_phone' => $validated['adminPhone'] ?? null,
             'authorized_person_name' => $validated['authorizedPersonName'] ?? null,
             'authorized_person_phone' => $validated['authorizedPersonPhone'] ?? null,
+            'complaints_support_phone' => $validated['complaintsSupportPhone'] ?? null,
+            'complaints_support_whatsapp' => $validated['complaintsSupportWhatsapp'] ?? null,
+            'complaints_support_hours' => $validated['complaintsSupportHours'] ?? null,
             'notes' => $validated['notes'] ?? null,
             'attachment' => $request->hasFile('attachment')
                 ? $request->file('attachment')->store('schools', 'public')
@@ -98,6 +101,9 @@ class SchoolController extends Controller
             'admin_phone' => $validated['adminPhone'] ?? $school->admin_phone,
             'authorized_person_name' => $validated['authorizedPersonName'] ?? $school->authorized_person_name,
             'authorized_person_phone' => $validated['authorizedPersonPhone'] ?? $school->authorized_person_phone,
+            'complaints_support_phone' => $validated['complaintsSupportPhone'] ?? $school->complaints_support_phone,
+            'complaints_support_whatsapp' => $validated['complaintsSupportWhatsapp'] ?? $school->complaints_support_whatsapp,
+            'complaints_support_hours' => $validated['complaintsSupportHours'] ?? $school->complaints_support_hours,
             'notes' => $validated['notes'] ?? $school->notes,
         ];
 

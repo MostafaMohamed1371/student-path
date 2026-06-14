@@ -33,6 +33,9 @@ class SchoolResource extends JsonResource
             'adminPhone' => $this->admin_phone,
             'authorizedPersonName' => $this->authorized_person_name,
             'authorizedPersonPhone' => $this->authorized_person_phone,
+            'complaintsSupportPhone' => $this->complaints_support_phone,
+            'complaintsSupportWhatsapp' => $this->complaints_support_whatsapp,
+            'complaintsSupportHours' => $this->complaints_support_hours,
             'notes' => $this->notes,
             'attachment' => $attachmentPath,
         ];

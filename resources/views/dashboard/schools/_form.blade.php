@@ -90,6 +90,28 @@
 </div>
 
 <div style="margin-top: 12px;">
+    <h3 style="margin: 0 0 10px; font-size: 18px;">{{ __('dashboard.complaints_support_contact') }}</h3>
+    <p class="help" style="margin: 0 0 10px;">{{ __('dashboard.complaints_support_contact_help') }}</p>
+</div>
+
+<div class="form-grid">
+    <div>
+        <label class="field-label" for="complaints_support_phone">{{ __('dashboard.complaints_support_phone') }}</label>
+        <input class="input" id="complaints_support_phone" name="complaints_support_phone" value="{{ old('complaints_support_phone', $school->complaints_support_phone ?? '') }}" placeholder="6677" />
+    </div>
+
+    <div>
+        <label class="field-label" for="complaints_support_whatsapp">{{ __('dashboard.complaints_support_whatsapp') }}</label>
+        <input class="input" id="complaints_support_whatsapp" name="complaints_support_whatsapp" value="{{ old('complaints_support_whatsapp', $school->complaints_support_whatsapp ?? '') }}" placeholder="+9647701234567" />
+    </div>
+
+    <div style="grid-column: 1 / -1;">
+        <label class="field-label" for="complaints_support_hours">{{ __('dashboard.complaints_support_hours') }}</label>
+        <input class="input" id="complaints_support_hours" name="complaints_support_hours" value="{{ old('complaints_support_hours', $school->complaints_support_hours ?? '') }}" />
+    </div>
+</div>
+
+<div style="margin-top: 12px;">
     <label class="field-label" for="notes">{{ __('dashboard.notes') }}</label>
     <textarea class="input" id="notes" name="notes" rows="4">{{ old('notes', $school->notes ?? '') }}</textarea>
 </div>

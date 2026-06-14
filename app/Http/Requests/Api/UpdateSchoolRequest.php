@@ -34,6 +34,9 @@ class UpdateSchoolRequest extends FormRequest
             'adminPhone' => ['sometimes', 'nullable', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
             'authorizedPersonName' => ['sometimes', 'nullable', 'string', 'max:255'],
             'authorizedPersonPhone' => ['sometimes', 'nullable', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
+            'complaintsSupportPhone' => ['sometimes', 'nullable', 'string', 'min:3', 'max:32'],
+            'complaintsSupportWhatsapp' => ['sometimes', 'nullable', 'string', 'min:3', 'max:32'],
+            'complaintsSupportHours' => ['sometimes', 'nullable', 'string', 'max:255'],
             'notes' => ['sometimes', 'nullable', 'string'],
             'attachment' => ['sometimes', 'nullable', 'file', 'max:4096'],
         ];

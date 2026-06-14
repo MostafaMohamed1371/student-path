@@ -106,6 +106,9 @@ class DashboardSchoolController extends Controller
             'admin_phone' => ['nullable', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
             'authorized_person_name' => ['nullable', 'string', 'max:255'],
             'authorized_person_phone' => ['nullable', 'string', 'size:10', 'regex:/^[1-9]\d{9}$/'],
+            'complaints_support_phone' => ['nullable', 'string', 'min:3', 'max:32'],
+            'complaints_support_whatsapp' => ['nullable', 'string', 'min:3', 'max:32'],
+            'complaints_support_hours' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string'],
             'attachment' => ['nullable', 'file', 'max:4096'],
         ]);
