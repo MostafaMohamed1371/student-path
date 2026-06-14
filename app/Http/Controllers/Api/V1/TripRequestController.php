@@ -200,6 +200,8 @@ class TripRequestController extends Controller
             'cancelled_at' => now(),
         ])->save();
 
+        $this->tripRequestPairingService->handleParentCancellation($trip_request->fresh(['tripHistory']));
+
         return $this->parentSuccess($trip_request->fresh(), 'Trip request cancelled');
     }
 

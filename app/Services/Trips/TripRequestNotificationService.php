@@ -72,7 +72,7 @@ final class TripRequestNotificationService
 
         if ($status === 'accepted') {
             $title = 'تم قبول طلب الرحلة';
-            $body = "قبل السائق {$driverName} طلب الرحلة للطالب {$studentName}.";
+            $body = "قبل السائق {$driverName} طلب الرحلة للطالب {$studentName} (الذهاب والعودة).";
             $type = 'TRIP_REQUEST_ACCEPTED';
         } else {
             $title = 'تم رفض طلب الرحلة';
@@ -92,5 +92,56 @@ final class TripRequestNotificationService
                 'status' => $status,
             ],
         ]);
+    }
+
+    public function notifyDriverOfCancelledRequest(TripRequest $tripRequest): void
+    {
+        if (! config('trips.notifications_enabled', true)) {
+            return;
+        }
+
+        $tripRequest->loadMissing(['driver', 'student', 'user.guardian', 'student.guardian', 'tripHistory']);
+
+        $driverUserId = $tripRequest->driver?->user_id;
+        if ($driverUserId === null || (int) $driverUserId <= 0) {
+            return;
+        }
+
+        $studentName = trim((string) ($tripRequest->student?->full_name ?? ''));
+        if ($studentName === '') {
+            $studentName = 'الطالب';
+        }
+
+        $parentName = $tripRequest->parentDisplayName();
+        if ($parentName === '—') {
+            $parentName = 'ولي الأمر';
+        }
+
+        $slotKey = app(TripRequestSlotKeyResolver::class)->slotKeyForRequest($tripRequest);
+        $slotLabel = $this->slotLabel($slotKey);
+
+        InAppNotification::query()->create([
+            'user_id' => (int) $driverUserId,
+            'title' => 'إلغاء طلب رحلة',
+            'body' => "ألغى {$parentName} طلب {$slotLabel} للطالب {$studentName}.",
+            'data' => [
+                'type' => 'TRIP_REQUEST_CANCELLED',
+                'trip_request_id' => $tripRequest->id,
+                'student_id' => $tripRequest->student_id,
+                'trip_slot' => $slotKey,
+                'status' => 'cancelled',
+            ],
+        ]);
+    }
+
+    private function slotLabel(?string $slotKey): string
+    {
+        return match ($slotKey) {
+            'MORNING_PICKUP' => 'الذهاب الصباحي',
+            'MORNING_RETURN' => 'العودة الصباحية',
+            'EVENING_PICKUP' => 'الذهاب المسائي',
+            'EVENING_RETURN' => 'العودة المسائية',
+            default => 'الرحلة',
+        };
     }
 }

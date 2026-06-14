@@ -19,6 +19,7 @@ use App\Models\User;
 use App\Services\Trips\TripRequestAcceptanceService;
 use App\Services\Trips\TripRequestConflictGuard;
 use App\Services\Trips\TripRequestCreator;
+use App\Services\Trips\TripRequestPairingService;
 use App\Services\Trips\TripRequestSubmissionPlanner;
 use App\Services\Trips\DriverShiftResolver;
 use App\Support\ParentContext;
@@ -300,6 +301,11 @@ class DashboardTripRequestController extends Controller
         $attributes['status'] = $nextStatus;
         if ($nextStatus === 'cancelled') {
             $attributes['cancelled_at'] = $trip_request->cancelled_at ?? now();
+            $trip_request->fill($attributes)->save();
+            app(TripRequestPairingService::class)->handleParentCancellation($trip_request->fresh(['tripHistory']));
+
+            return redirect()->route('dashboard.trip_requests.show', $trip_request)
+                ->with('success', __('dashboard.trip_request_updated'));
         } elseif ($previousStatus === 'cancelled' && $nextStatus !== 'cancelled') {
             $attributes['cancelled_at'] = null;
         }

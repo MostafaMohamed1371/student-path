@@ -85,13 +85,17 @@ Examples that already create in-app notifications:
 
 - Chat messages (`CHAT_MESSAGE` in `data.type`)
 - Trip delay alerts (`DELAY_ALERT`)
-- SOS (`SOS_TRIGGERED`)
+- SOS triggered (`SOS_TRIGGERED`) and SOS stopped (`SOS_STOPPED`)
 - Trip started (`TRIP_STARTED` / `RETURN_TRIP_STARTED`) — `POST /api/trips/{id}/start`
 - Trip ended (`TRIP_COMPLETED` / `RETURN_TRIP_COMPLETED`) — `PUT /api/trips/end-trip` or finalize
+- Bus on the way to student (`TRIP_STUDENT_ON_WAY`) — `PUT /api/update-status` with `new_status: ON_WAY`
 - Bus arrived at student (`TRIP_STUDENT_ARRIVED`) — `PUT /api/update-status` with `new_status: ARRIVED`
+- Student boarded (`TRIP_STUDENT_BOARDED`) — `PUT /api/update-status` with `new_status: BOARDED`
 - New pending trip request for assigned driver (`TRIP_REQUEST`) — `POST /api/trip-requests` or dashboard **Add trip request** (only when a new pending row is created, not on duplicate submit)
 - Trip request accepted by driver (`TRIP_REQUEST_ACCEPTED`) — driver accepts via `PUT /api/trip-requests/{id}`, `PUT /api/orders/{id}`, or dashboard approve
 - Trip request rejected by driver (`TRIP_REQUEST_REJECTED`) — driver rejects via the same endpoints (auto-rejected competing requests do **not** notify the parent)
+- Trip request cancelled by parent (`TRIP_REQUEST_CANCELLED`) — `POST /api/trip-requests/{id}/cancel` or dashboard status **cancelled** (also cancels paired pending companion request)
+- Parent absence report (`ABSENCE`) — `POST /api/absences` notifies driver and school staff
 
 Payload:
 
@@ -133,7 +137,7 @@ Groups:
 
 | Group | Keys | Used for push when `data.type` is |
 |-------|------|-----------------------------------|
-| `tripNotifications` | `busMovement`, `busArrival`, `returnTrip`, `driverDelay`, `sos` | `TRIP_STARTED` / `TRIP_COMPLETED` → `busMovement`; `RETURN_TRIP_*` → `returnTrip`; `TRIP_STUDENT_ARRIVED` → `busArrival`; `DELAY_ALERT` → `driverDelay`; `SOS_TRIGGERED` → `sos` |
+| `tripNotifications` | `busMovement`, `busArrival`, `returnTrip`, `driverDelay`, `sos` | `TRIP_STARTED` / `TRIP_COMPLETED` / `TRIP_STUDENT_ON_WAY` / `TRIP_STUDENT_BOARDED` / `TRIP_REQUEST*` / `ABSENCE` → `busMovement`; `RETURN_TRIP_*` → `returnTrip`; `TRIP_STUDENT_ARRIVED` → `busArrival`; `DELAY_ALERT` → `driverDelay`; `SOS_TRIGGERED` / `SOS_STOPPED` → `sos` |
 | `chatNotifications` | `messages` | `CHAT_MESSAGE` |
 | `paymentNotifications` | `installmentReminder`, `paymentConfirmation` | `WALLET_PAYMENT` |
 | `systemNotifications` | `appUpdates` | (reserved) |

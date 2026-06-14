@@ -112,7 +112,7 @@ class TripRequestSlotConflictTest extends TestCase
         ])->assertStatus(201);
 
         $this->assertSame(
-            2,
+            4,
             TripRequest::query()
                 ->where('student_id', $student->id)
                 ->where('status', 'pending')
@@ -333,14 +333,42 @@ class TripRequestSlotConflictTest extends TestCase
 
         $requestId = (int) $created->json('data.id');
 
+        $notifications = InAppNotification::query()
+            ->where('user_id', $driverAUser->id)
+            ->get();
+
+        $this->assertGreaterThanOrEqual(1, $notifications->count());
+        $this->assertTrue(
+            $notifications->contains(fn ($row) => ($row->data['type'] ?? null) === 'TRIP_REQUEST'
+                && (int) ($row->data['trip_request_id'] ?? 0) === $requestId),
+        );
+    }
+
+    public function test_parent_cancel_notifies_driver_via_fcm_row(): void
+    {
+        [$school, $student, $user, $driverA] = $this->seedStudentWithDriver('Driver A');
+        $driverAUser = User::query()->findOrFail((int) $driverA->user_id);
+        $pickupTripA = $this->makeTrip($school, $driverA, TripType::MORNING_PICKUP);
+
+        $requestA = TripRequest::query()->create([
+            'user_id' => $user->id,
+            'student_id' => $student->id,
+            'driver_id' => $driverA->id,
+            'trip_history_id' => $pickupTripA->id,
+            'status' => 'pending',
+        ]);
+
+        Sanctum::actingAs($user);
+        $this->postJson('/api/trip-requests/'.$requestA->id.'/cancel')->assertOk();
+
         $notification = InAppNotification::query()
             ->where('user_id', $driverAUser->id)
             ->latest('id')
             ->first();
 
         $this->assertNotNull($notification);
-        $this->assertSame('TRIP_REQUEST', $notification->data['type'] ?? null);
-        $this->assertSame($requestId, $notification->data['trip_request_id'] ?? null);
+        $this->assertSame('TRIP_REQUEST_CANCELLED', $notification->data['type'] ?? null);
+        $this->assertSame($requestA->id, $notification->data['trip_request_id'] ?? null);
     }
 
     public function test_accepting_pickup_does_not_reject_pending_return_request(): void

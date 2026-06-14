@@ -179,6 +179,56 @@ class TripLifecycleNotificationTest extends TestCase
         $this->assertSame('TRIP_STUDENT_ARRIVED', $row?->data['type'] ?? null);
     }
 
+    public function test_student_on_way_notifies_guardian(): void
+    {
+        $fixture = $this->seedDriverTripFixture();
+        $trip = $fixture['trip'];
+        $trip->forceFill(['driver_started_at' => now(), 'status' => 'ACTIVE'])->save();
+
+        Sanctum::actingAs($fixture['driverUser']);
+
+        $this->putJson('/api/update-status', [
+            'student_id' => 'ST-'.str_pad((string) $fixture['student']->id, 3, '0', STR_PAD_LEFT),
+            'new_status' => 'ON_WAY',
+            'driver_lat' => 33.31,
+            'driver_lng' => 44.36,
+        ])->assertOk();
+
+        $row = InAppNotification::query()
+            ->where('user_id', $fixture['guardianUser']->id)
+            ->latest('id')
+            ->first();
+
+        $this->assertSame('TRIP_STUDENT_ON_WAY', $row?->data['type'] ?? null);
+    }
+
+    public function test_student_boarded_notifies_guardian(): void
+    {
+        $fixture = $this->seedDriverTripFixture();
+        $trip = $fixture['trip'];
+        $trip->forceFill(['driver_started_at' => now(), 'status' => 'ACTIVE'])->save();
+
+        TripHistoryStudent::query()
+            ->where('trip_history_id', $trip->id)
+            ->update(['status' => 'ARRIVED']);
+
+        Sanctum::actingAs($fixture['driverUser']);
+
+        $this->putJson('/api/update-status', [
+            'student_id' => 'ST-'.str_pad((string) $fixture['student']->id, 3, '0', STR_PAD_LEFT),
+            'new_status' => 'BOARDED',
+            'driver_lat' => 33.31,
+            'driver_lng' => 44.36,
+        ])->assertOk();
+
+        $row = InAppNotification::query()
+            ->where('user_id', $fixture['guardianUser']->id)
+            ->latest('id')
+            ->first();
+
+        $this->assertSame('TRIP_STUDENT_BOARDED', $row?->data['type'] ?? null);
+    }
+
     public function test_end_trip_notifies_guardian_with_trip_completed(): void
     {
         $fixture = $this->seedDriverTripFixture();

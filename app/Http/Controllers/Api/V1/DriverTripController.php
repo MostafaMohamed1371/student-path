@@ -9,13 +9,12 @@ use App\Http\Controllers\Api\V1\Concerns\FormatsParentApiResponse;
 use App\Http\Controllers\Controller;
 use App\Models\DelayAlert;
 use App\Models\Driver;
-use App\Models\InAppNotification;
 use App\Models\SosAlert;
 use App\Models\TripFeedback;
 use App\Models\TripHistory;
-use App\Models\User;
 use App\Services\Trips\DriverShiftResolver;
 use App\Services\Trips\DriverTripModuleService;
+use App\Services\Trips\TripNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -27,6 +26,7 @@ class DriverTripController extends Controller
 
     public function __construct(
         private readonly DriverTripModuleService $driverTripModuleService,
+        private readonly TripNotificationService $tripNotifications,
     ) {}
 
     public function scheduledTrips(Request $request): JsonResponse
@@ -326,31 +326,11 @@ class DriverTripController extends Controller
             'driver_lng' => (float) $validated['driver_lng'],
         ]);
 
-        $trip->loadMissing('tripHistoryStudents.student');
-        $guardianIds = $trip->tripHistoryStudents
-            ->map(fn ($ths) => $ths->student?->guardian_id)
-            ->filter(fn ($id) => is_int($id) || ctype_digit((string) $id))
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
-
-        if ($guardianIds !== []) {
-            $users = User::query()->whereIn('guardian_id', $guardianIds)->get();
-            foreach ($users as $u) {
-                InAppNotification::query()->create([
-                    'user_id' => $u->id,
-                    'title' => 'تنبيه تأخير الرحلة',
-                    'body' => 'تم إرسال بلاغ تأخير لمدة '.$validated['delay_duration_minutes'].' دقيقة',
-                    'data' => [
-                        'type' => 'DELAY_ALERT',
-                        'trip_id' => $this->driverTripModuleService->externalTripId($trip),
-                        'reason_type' => (string) $validated['reason_type'],
-                        'delay_duration_minutes' => (int) $validated['delay_duration_minutes'],
-                    ],
-                ]);
-            }
-        }
+        $this->tripNotifications->notifyDelayAlert(
+            $trip,
+            (int) $validated['delay_duration_minutes'],
+            (string) $validated['reason_type'],
+        );
 
         return $this->parentSuccess(null, 'تم إرسال بلاغ التأخير وتنبيه أولياء الأمور بنجاح');
     }
@@ -437,38 +417,7 @@ class DriverTripController extends Controller
             'triggered_at' => $triggeredAt,
         ]);
 
-        $trip->loadMissing('tripHistoryStudents.student');
-        $guardianIds = $trip->tripHistoryStudents
-            ->map(fn ($ths) => $ths->student?->guardian_id)
-            ->filter(fn ($id) => is_int($id) || ctype_digit((string) $id))
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
-
-        $usersToNotify = User::query()
-            ->when($guardianIds !== [], fn ($q) => $q->orWhereIn('guardian_id', $guardianIds))
-            ->orWhere(function ($q) use ($trip): void {
-                $q->where('is_admin', true)
-                    ->where(function ($q2) use ($trip): void {
-                        $q2->whereNull('school_id')->orWhere('school_id', $trip->school_id);
-                    });
-            })
-            ->get()
-            ->unique('id');
-
-        foreach ($usersToNotify as $u) {
-            InAppNotification::query()->create([
-                'user_id' => $u->id,
-                'title' => 'نداء استغاثة طارئ',
-                'body' => 'تم إرسال نداء استغاثة من السائق ويجري تتبع الموقع',
-                'data' => [
-                    'type' => 'SOS_TRIGGERED',
-                    'sos_id' => 'SOS-'.$sos->id,
-                    'trip_id' => $this->driverTripModuleService->externalTripId($trip),
-                ],
-            ]);
-        }
+        $this->tripNotifications->notifySosTriggered($trip, $sos);
 
         return $this->parentSuccess([
             'sos_id' => 'SOS-'.$sos->id,
@@ -513,6 +462,15 @@ class DriverTripController extends Controller
             'final_lat' => (float) $validated['final_lat'],
             'final_lng' => (float) $validated['final_lng'],
         ])->save();
+
+        $trip = TripHistory::query()->find((int) $row->trip_history_id);
+        if ($trip instanceof TripHistory) {
+            $this->tripNotifications->notifySosStopped(
+                $trip,
+                $row->fresh(),
+                isset($validated['reason']) ? (string) $validated['reason'] : null,
+            );
+        }
 
         return $this->parentSuccess(null, 'تم إنهاء حالة الطوارئ بنجاح');
     }

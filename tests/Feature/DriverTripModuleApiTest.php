@@ -356,8 +356,8 @@ class DriverTripModuleApiTest extends TestCase
         $this->getJson('/api/driver-overview')
             ->assertOk()
             ->assertJsonPath('data.all_students', 1)
-            ->assertJsonPath('data.all_available_seats', 24)
-            ->assertJsonPath('data.all_unavailable_seats', 0)
+            ->assertJsonPath('data.all_available_seats', 23)
+            ->assertJsonPath('data.all_unavailable_seats', 1)
             ->assertJsonPath('data.available_morning_seats', 23)
             ->assertJsonPath('data.available_evening_seats', 24)
             ->assertJsonPath('data.shift_period', null)
@@ -454,9 +454,226 @@ class DriverTripModuleApiTest extends TestCase
         $this->getJson('/api/driver-overview')
             ->assertOk()
             ->assertJsonPath('data.shift_period', 'MORNING')
+            ->assertJsonPath('data.all_students', 1)
+            ->assertJsonPath('data.all_available_seats', 19)
+            ->assertJsonPath('data.all_unavailable_seats', 1)
             ->assertJsonPath('data.available_morning_seats', 19)
             ->assertJsonPath('data.available_evening_seats', 20)
             ->assertJsonPath('data.available_seats_for_shift', 19);
+    }
+
+    public function test_driver_overview_morning_shift_aligns_totals_with_rostered_students(): void
+    {
+        $school = School::query()->create([
+            'name_ar' => 'OV3B',
+            'name_en' => 'OV3B',
+            'province' => 'P',
+            'district' => '1',
+            'address' => 'A',
+            'status' => 'active',
+        ]);
+
+        $driverUser = User::factory()->create(['phone' => '9647909000918']);
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'D',
+            'father_name' => 'D',
+            'grandfather_name' => 'D',
+            'last_name' => 'OV3B',
+            'age' => 30,
+            'id_card_number' => 'IDC-OV3B',
+            'license_number' => 'LIC-OV3B',
+            'primary_phone' => '7770000918',
+            'emergency_phone' => '7770001918',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+            'shift_period' => 'MORNING',
+        ]);
+
+        Bus::query()->create([
+            'user_id' => $driverUser->id,
+            'driver_id' => $driver->id,
+            'name' => 'B3B',
+            'number' => 'B-OV3B',
+            'type' => 'Bus',
+            'city' => 'Baghdad',
+            'capacity' => 24,
+            'color' => 'yellow',
+            'fuel_type' => 'diesel',
+            'status' => 'active',
+        ]);
+
+        $pickupTrip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => 'MORNING_PICKUP',
+            'bus_number' => 'B-OV3B',
+            'route_title' => 'Pickup',
+            'location' => 'L',
+            'students_count' => 2,
+            'distance_km' => 2,
+            'start_time' => now()->setTime(7, 0, 0),
+            'end_time' => null,
+            'status' => 'PRESENT',
+            'students_preview' => [],
+        ]);
+
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'G OV3B',
+            'phone' => '7300000918',
+            'status' => 'active',
+        ]);
+
+        foreach (['Student A', 'Student B'] as $index => $name) {
+            $student = Student::query()->create([
+                'school_id' => $school->id,
+                'guardian_id' => $guardian->id,
+                'full_name' => $name,
+                'gender' => 'male',
+                'grade' => '1',
+                'student_phone' => '74000009'.(18 + $index),
+                'guardian_name' => $guardian->full_name,
+                'guardian_primary_phone' => $guardian->phone,
+                'relationship' => 'father',
+                'district_area' => 'D',
+                'nearest_landmark' => 'L',
+                'status' => 'active',
+            ]);
+
+            TripHistoryStudent::query()->create([
+                'trip_history_id' => $pickupTrip->id,
+                'student_id' => $student->id,
+                'sort_order' => $index,
+                'status' => 'IDLE',
+            ]);
+        }
+
+        Sanctum::actingAs($driverUser);
+
+        $this->getJson('/api/driver-overview')
+            ->assertOk()
+            ->assertJsonPath('data.shift_period', 'MORNING')
+            ->assertJsonPath('data.all_students', 2)
+            ->assertJsonPath('data.all_available_seats', 22)
+            ->assertJsonPath('data.all_unavailable_seats', 2)
+            ->assertJsonPath('data.available_morning_seats', 22)
+            ->assertJsonPath('data.available_seats_for_shift', 22);
+    }
+
+    public function test_driver_overview_counts_same_student_once_on_pickup_and_return(): void
+    {
+        $school = School::query()->create([
+            'name_ar' => 'OV3C',
+            'name_en' => 'OV3C',
+            'province' => 'P',
+            'district' => '1',
+            'address' => 'A',
+            'status' => 'active',
+        ]);
+
+        $driverUser = User::factory()->create(['phone' => '9647909000919']);
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'D',
+            'father_name' => 'D',
+            'grandfather_name' => 'D',
+            'last_name' => 'OV3C',
+            'age' => 30,
+            'id_card_number' => 'IDC-OV3C',
+            'license_number' => 'LIC-OV3C',
+            'primary_phone' => '7770000919',
+            'emergency_phone' => '7770001919',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+            'shift_period' => 'MORNING',
+        ]);
+
+        Bus::query()->create([
+            'user_id' => $driverUser->id,
+            'driver_id' => $driver->id,
+            'name' => 'B3C',
+            'number' => 'B-OV3C',
+            'type' => 'Bus',
+            'city' => 'Baghdad',
+            'capacity' => 24,
+            'color' => 'yellow',
+            'fuel_type' => 'diesel',
+            'status' => 'active',
+        ]);
+
+        $pickupTrip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => 'MORNING_PICKUP',
+            'bus_number' => 'B-OV3C',
+            'route_title' => 'Pickup',
+            'location' => 'L',
+            'students_count' => 1,
+            'distance_km' => 2,
+            'start_time' => now()->setTime(7, 0, 0),
+            'end_time' => null,
+            'status' => 'PRESENT',
+            'students_preview' => [],
+        ]);
+
+        $returnTrip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => 'MORNING_RETURN',
+            'bus_number' => 'B-OV3C',
+            'route_title' => 'Return',
+            'location' => 'L',
+            'students_count' => 1,
+            'distance_km' => 2,
+            'start_time' => now()->setTime(13, 0, 0),
+            'end_time' => null,
+            'status' => 'PRESENT',
+            'students_preview' => [],
+        ]);
+
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'G OV3C',
+            'phone' => '7300000919',
+            'status' => 'active',
+        ]);
+
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'Student One',
+            'gender' => 'male',
+            'grade' => '1',
+            'student_phone' => '7400000919',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'father',
+            'district_area' => 'D',
+            'nearest_landmark' => 'L',
+            'status' => 'active',
+        ]);
+
+        foreach ([$pickupTrip, $returnTrip] as $index => $trip) {
+            TripHistoryStudent::query()->create([
+                'trip_history_id' => $trip->id,
+                'student_id' => $student->id,
+                'sort_order' => $index,
+                'status' => 'IDLE',
+            ]);
+        }
+
+        Sanctum::actingAs($driverUser);
+
+        $this->getJson('/api/driver-overview')
+            ->assertOk()
+            ->assertJsonPath('data.all_students', 1)
+            ->assertJsonPath('data.all_unavailable_seats', 1)
+            ->assertJsonPath('data.all_available_seats', 23)
+            ->assertJsonPath('data.available_morning_seats', 23)
+            ->assertJsonPath('data.available_seats_for_shift', 23);
     }
 
     public function test_driver_overview_morning_driver_null_trip_type_counts_morning_not_evening_by_clock(): void
@@ -549,6 +766,9 @@ class DriverTripModuleApiTest extends TestCase
         $this->getJson('/api/driver-overview')
             ->assertOk()
             ->assertJsonPath('data.shift_period', 'MORNING')
+            ->assertJsonPath('data.all_students', 1)
+            ->assertJsonPath('data.all_available_seats', 23)
+            ->assertJsonPath('data.all_unavailable_seats', 1)
             ->assertJsonPath('data.available_morning_seats', 23)
             ->assertJsonPath('data.available_evening_seats', 24)
             ->assertJsonPath('data.available_seats_for_shift', 23);
@@ -1612,6 +1832,15 @@ class DriverTripModuleApiTest extends TestCase
         $this->assertDatabaseHas('sos_alerts', [
             'status' => 'STOPPED',
             'stop_reason' => 'Resolved',
+        ]);
+
+        $this->assertDatabaseHas('in_app_notifications', [
+            'user_id' => $guardianUser->id,
+            'title' => 'انتهاء نداء الاستغاثة',
+        ]);
+        $this->assertDatabaseHas('in_app_notifications', [
+            'user_id' => $adminUser->id,
+            'title' => 'انتهاء نداء الاستغاثة',
         ]);
 
         $row = SosAlert::query()->latest('id')->first();

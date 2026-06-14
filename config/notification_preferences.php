@@ -44,11 +44,16 @@ return [
         'TRIP_REQUEST' => ['tripNotifications', 'busMovement'],
         'TRIP_REQUEST_ACCEPTED' => ['tripNotifications', 'busMovement'],
         'TRIP_REQUEST_REJECTED' => ['tripNotifications', 'busMovement'],
+        'TRIP_REQUEST_CANCELLED' => ['tripNotifications', 'busMovement'],
+        'ABSENCE' => ['tripNotifications', 'busMovement'],
         'TRIP_STARTED' => ['tripNotifications', 'busMovement'],
         'TRIP_COMPLETED' => ['tripNotifications', 'busMovement'],
         'RETURN_TRIP_STARTED' => ['tripNotifications', 'returnTrip'],
         'RETURN_TRIP_COMPLETED' => ['tripNotifications', 'returnTrip'],
+        'TRIP_STUDENT_ON_WAY' => ['tripNotifications', 'busMovement'],
         'TRIP_STUDENT_ARRIVED' => ['tripNotifications', 'busArrival'],
+        'TRIP_STUDENT_BOARDED' => ['tripNotifications', 'busMovement'],
+        'SOS_STOPPED' => ['tripNotifications', 'sos'],
     ],
 
 ];

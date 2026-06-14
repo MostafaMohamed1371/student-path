@@ -19,6 +19,7 @@ final class TripRequestPairingService
         private readonly TripRequestSlotKeyResolver $slotKeyResolver,
         private readonly PickupReturnTripPairPlanner $pairPlanner,
         private readonly TripRequestCreator $tripRequestCreator,
+        private readonly TripRequestNotificationService $notificationService,
     ) {}
 
     public function isPickupSlot(?string $slotKey): bool
@@ -144,6 +145,51 @@ final class TripRequestPairingService
         }
 
         $companion->update(['status' => 'accepted']);
+    }
+
+    /**
+     * Cancel the paired pending request when the parent cancels pickup or return.
+     */
+    public function cancelPendingCompanionRequests(TripRequest $request): void
+    {
+        $request->loadMissing('tripHistory');
+        $slotKey = $this->slotKeyResolver->slotKeyForRequest($request);
+        $companionSlot = match ($slotKey) {
+            TripType::MORNING_PICKUP->value => TripType::MORNING_RETURN->value,
+            TripType::EVENING_PICKUP->value => TripType::EVENING_RETURN->value,
+            TripType::MORNING_RETURN->value => TripType::MORNING_PICKUP->value,
+            TripType::EVENING_RETURN->value => TripType::EVENING_PICKUP->value,
+            default => null,
+        };
+
+        if ($companionSlot === null
+            || $request->user_id === null
+            || $request->student_id === null
+            || $request->driver_id === null) {
+            return;
+        }
+
+        TripRequest::query()
+            ->where('user_id', (int) $request->user_id)
+            ->where('student_id', (int) $request->student_id)
+            ->where('driver_id', (int) $request->driver_id)
+            ->where('status', 'pending')
+            ->where('id', '!=', (int) $request->id)
+            ->with('tripHistory')
+            ->get()
+            ->filter(fn (TripRequest $row): bool => $this->slotKeyResolver->slotKeyForRequest($row) === $companionSlot)
+            ->each(function (TripRequest $row): void {
+                $row->forceFill([
+                    'status' => 'cancelled',
+                    'cancelled_at' => now(),
+                ])->save();
+            });
+    }
+
+    public function handleParentCancellation(TripRequest $request): void
+    {
+        $this->cancelPendingCompanionRequests($request);
+        $this->notificationService->notifyDriverOfCancelledRequest($request);
     }
 
     private function resolveCompanionTripForAcceptance(

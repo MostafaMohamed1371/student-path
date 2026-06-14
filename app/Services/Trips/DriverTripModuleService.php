@@ -56,22 +56,10 @@ final class DriverTripModuleService
 
         $tripIdsToday = $todayTrips->pluck('id')->all();
 
-        $allStudents = $tripIdsToday === []
-            ? 0
-            : (int) TripHistoryStudent::query()->whereIn('trip_history_id', $tripIdsToday)->count();
-
         $driver->loadMissing('bus');
         $capacity = max(0, (int) ($driver->bus?->capacity ?? 0));
 
         $active = $this->activeTripForDriver($driver);
-        $unavailableSeats = 0;
-        if ($active) {
-            $unavailableSeats = (int) TripHistoryStudent::query()
-                ->where('trip_history_id', $active->id)
-                ->where('status', StudentTripStopStatus::BOARDED->value)
-                ->count();
-        }
-        $allAvailableSeats = max(0, $capacity - $unavailableSeats);
 
         $morningTripIds = $todayTrips
             ->filter(fn (TripHistory $t): bool => $this->effectiveTripDayPart($t, $driver, $tz) === DriverShiftResolver::MORNING)
@@ -82,11 +70,11 @@ final class DriverTripModuleService
             ->pluck('id')
             ->all();
 
-        $peakMorningStudents = $this->peakStudentCountOnTrips($morningTripIds);
-        $peakEveningStudents = $this->peakStudentCountOnTrips($eveningTripIds);
+        $assignedMorningStudents = $this->distinctStudentCountOnTrips($morningTripIds);
+        $assignedEveningStudents = $this->distinctStudentCountOnTrips($eveningTripIds);
 
-        $availableMorningSeats = max(0, $capacity - $peakMorningStudents);
-        $availableEveningSeats = max(0, $capacity - $peakEveningStudents);
+        $availableMorningSeats = max(0, $capacity - $assignedMorningStudents);
+        $availableEveningSeats = max(0, $capacity - $assignedEveningStudents);
 
         $rawShift = strtoupper(trim((string) ($driver->shift_period ?? '')));
         $shiftPeriod = in_array($rawShift, [DriverShiftResolver::MORNING, DriverShiftResolver::EVENING], true)
@@ -98,6 +86,26 @@ final class DriverTripModuleService
             DriverShiftResolver::EVENING => $availableEveningSeats,
             default => null,
         };
+
+        if ($shiftPeriod === DriverShiftResolver::MORNING) {
+            $allStudents = $assignedMorningStudents;
+            $unavailableSeats = $assignedMorningStudents;
+        } elseif ($shiftPeriod === DriverShiftResolver::EVENING) {
+            $allStudents = $assignedEveningStudents;
+            $unavailableSeats = $assignedEveningStudents;
+        } else {
+            $allStudents = $this->distinctStudentCountOnTrips($tripIdsToday);
+            if ($active) {
+                $unavailableSeats = (int) TripHistoryStudent::query()
+                    ->where('trip_history_id', $active->id)
+                    ->where('status', StudentTripStopStatus::BOARDED->value)
+                    ->count();
+            } else {
+                $unavailableSeats = $this->distinctStudentCountOnTrips($tripIdsToday);
+            }
+        }
+
+        $allAvailableSeats = max(0, $capacity - $unavailableSeats);
 
         return [
             'all_students' => $allStudents,
@@ -111,24 +119,20 @@ final class DriverTripModuleService
     }
 
     /**
-     * Largest number of students assigned to a single trip in the set (one bus leg).
+     * Distinct students rostered on the given trips (pickup + return does not double-count).
      *
      * @param  list<int>  $tripIds
      */
-    private function peakStudentCountOnTrips(array $tripIds): int
+    private function distinctStudentCountOnTrips(array $tripIds): int
     {
         if ($tripIds === []) {
             return 0;
         }
 
-        $max = TripHistoryStudent::query()
+        return (int) TripHistoryStudent::query()
             ->whereIn('trip_history_id', $tripIds)
-            ->selectRaw('trip_history_id, COUNT(*) as c')
-            ->groupBy('trip_history_id')
-            ->pluck('c')
-            ->max();
-
-        return (int) ($max ?? 0);
+            ->distinct()
+            ->count('student_id');
     }
 
     /**
@@ -1022,6 +1026,20 @@ final class DriverTripModuleService
             $student = Student::query()->find($studentId);
             if ($student) {
                 $this->tripNotifications->notifyStudentArrived($trip, $student);
+            }
+        }
+
+        if ($newStatus === StudentTripStopStatus::ON_WAY) {
+            $student = Student::query()->find($studentId);
+            if ($student) {
+                $this->tripNotifications->notifyStudentOnWay($trip, $student);
+            }
+        }
+
+        if ($newStatus === StudentTripStopStatus::BOARDED) {
+            $student = Student::query()->find($studentId);
+            if ($student) {
+                $this->tripNotifications->notifyStudentBoarded($trip, $student);
             }
         }
 
