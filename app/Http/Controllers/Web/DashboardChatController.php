@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Events\ChatTypingStatusUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\ChatConversation;
 use App\Models\ChatMessage;
@@ -79,6 +80,8 @@ class DashboardChatController extends Controller
             'pusherKey' => $pusherKey,
             'pusherCluster' => $pusherCluster,
             'eventName' => (string) config('chat.event_name', 'message.sent'),
+            'typingEventName' => (string) config('chat.typing_event_name', 'typing.updated'),
+            'staffUserId' => (int) $staff->id,
             'isBlocked' => $isBlocked,
         ]);
     }
@@ -146,6 +149,27 @@ class DashboardChatController extends Controller
         }
 
         return response()->json(['message' => $this->messenger->formatMessage($message)], 201);
+    }
+
+    public function typing(Request $request, ChatConversation $conversation): JsonResponse
+    {
+        $this->ensureSupportStaff();
+        abort_unless($conversation->canBeAccessedBy($request->user()), 404);
+
+        $validated = $request->validate([
+            'is_typing' => ['required', 'boolean'],
+        ]);
+
+        $user = $request->user();
+
+        ChatTypingStatusUpdated::dispatch(
+            $conversation->id,
+            (int) $user->id,
+            (string) ($user->name ?? ''),
+            (bool) $validated['is_typing'],
+        );
+
+        return response()->json(['message' => 'Typing status updated.']);
     }
 
     public function markRead(Request $request, ChatConversation $conversation): JsonResponse

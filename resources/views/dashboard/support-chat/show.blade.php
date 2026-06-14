@@ -119,6 +119,14 @@
             color: var(--text-muted);
         }
 
+        .chat-typing-indicator {
+            margin: 0 0 8px;
+            font-size: 13px;
+            color: var(--text-muted);
+            font-style: italic;
+            min-height: 18px;
+        }
+
         .chat-realtime-off,
         .chat-blocked-notice {
             margin: 0 0 12px;
@@ -231,6 +239,7 @@
                         <input type="file" id="chat-attachment" name="attachment" accept="image/*,.pdf,.doc,.docx,.xlsx,.txt,.zip" @disabled(! $canCompose)>
                     </label>
                 </form>
+                <p id="chat-typing-indicator" class="chat-typing-indicator" aria-live="polite"></p>
                 <p id="chat-status" class="chat-status-pill" style="margin:8px 0 0;"></p>
             </section>
         </div>
@@ -244,9 +253,14 @@
             const bodyInput = document.getElementById('chat-body');
             const attachmentInput = document.getElementById('chat-attachment');
             const statusEl = document.getElementById('chat-status');
+            const typingEl = document.getElementById('chat-typing-indicator');
             const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
             const messagesUrl = @json(route('dashboard.support_chat.messages', $conversation));
             const sendUrl = @json(route('dashboard.support_chat.messages.store', $conversation));
+            const typingUrl = @json(route('dashboard.support_chat.typing', $conversation));
+            const staffUserId = @json($staffUserId ?? 0);
+            const typingLabelTemplate = @json(__('dashboard.support_chat_user_typing', ['name' => '__NAME__']));
+            const canCompose = @json($canCompose);
             const renderedIds = new Set(
                 Array.from(messagesEl.querySelectorAll('[data-message-id]')).map((el) => Number(el.dataset.messageId))
             );
@@ -302,6 +316,7 @@
                 if (!body && !file) {
                     return;
                 }
+                await sendTypingStatus(false);
                 statusEl.textContent = @json(__('dashboard.support_chat_sending'));
                 const formData = new FormData();
                 if (body) {
@@ -341,8 +356,65 @@
                 await sendMessage();
             });
 
-            @if ($chatEnabled && $canCompose)
+            let typingIdleTimer = null;
+            let typingActive = false;
+
+            function setRemoteTypingIndicator(userName, isTyping) {
+                if (!typingEl) {
+                    return;
+                }
+                typingEl.textContent = isTyping
+                    ? typingLabelTemplate.replace('__NAME__', userName || '')
+                    : '';
+            }
+
+            async function sendTypingStatus(isTyping) {
+                if (!canCompose || !typingUrl) {
+                    return;
+                }
+                if (typingActive === isTyping) {
+                    return;
+                }
+                typingActive = isTyping;
+                try {
+                    await fetch(typingUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrf,
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: JSON.stringify({ is_typing: isTyping }),
+                    });
+                } catch (_) {}
+            }
+
+            bodyInput?.addEventListener('input', () => {
+                if (!canCompose) {
+                    return;
+                }
+                const hasText = bodyInput.value.trim().length > 0;
+                if (hasText) {
+                    void sendTypingStatus(true);
+                    clearTimeout(typingIdleTimer);
+                    typingIdleTimer = setTimeout(() => {
+                        void sendTypingStatus(false);
+                    }, 1500);
+                } else {
+                    clearTimeout(typingIdleTimer);
+                    void sendTypingStatus(false);
+                }
+            });
+
+            bodyInput?.addEventListener('blur', () => {
+                clearTimeout(typingIdleTimer);
+                void sendTypingStatus(false);
+            });
+
+            @if ($chatEnabled)
             const eventName = @json($eventName);
+            const typingEventName = @json($typingEventName ?? 'typing.updated');
             const pusherScript = document.createElement('script');
             pusherScript.src = 'https://js.pusher.com/8.4.0-rc2/pusher.min.js';
             pusherScript.onload = function () {
@@ -368,6 +440,13 @@
                             if (event?.message) {
                                 appendMessage(event.message);
                             }
+                        })
+                        .listen('.' + typingEventName, (event) => {
+                            const userId = Number(event?.user?.id || 0);
+                            if (userId > 0 && userId === staffUserId) {
+                                return;
+                            }
+                            setRemoteTypingIndicator(event?.user?.name || '', Boolean(event?.is_typing));
                         });
                 };
                 document.body.appendChild(echoScript);

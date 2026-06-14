@@ -95,6 +95,7 @@ return [
     'support_chat_send' => 'إرسال',
     'support_chat_sending' => 'جاري الإرسال…',
     'support_chat_send_failed' => 'تعذر إرسال الرسالة.',
+    'support_chat_user_typing' => ':name يكتب الآن…',
     'support_chat_pusher_disabled' => 'التحديث الفوري غير مفعّل (تحقق من BROADCAST_CONNECTION و PUSHER_* في .env). الرسائل تُحفظ؛ حدّث الصفحة لرؤية الردود الجديدة.',
     'support_chat_delete' => 'حذف المحادثة',
     'support_chat_delete_confirm' => 'حذف هذه المحادثة نهائياً؟ ستُخفى من التطبيق ولوحة التحكم.',

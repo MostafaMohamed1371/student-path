@@ -180,6 +180,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/dashboard/support-chat/{conversation}', [DashboardChatController::class, 'show'])->name('dashboard.support_chat.show');
     Route::get('/dashboard/support-chat/{conversation}/messages', [DashboardChatController::class, 'messages'])->name('dashboard.support_chat.messages');
     Route::post('/dashboard/support-chat/{conversation}/messages', [DashboardChatController::class, 'storeMessage'])->name('dashboard.support_chat.messages.store');
+    Route::post('/dashboard/support-chat/{conversation}/typing', [DashboardChatController::class, 'typing'])->name('dashboard.support_chat.typing');
     Route::post('/dashboard/support-chat/{conversation}/read', [DashboardChatController::class, 'markRead'])->name('dashboard.support_chat.read');
     Route::post('/dashboard/support-chat/{conversation}/close', [DashboardChatController::class, 'close'])->name('dashboard.support_chat.close');
     Route::post('/dashboard/support-chat/{conversation}/reopen', [DashboardChatController::class, 'reopen'])->name('dashboard.support_chat.reopen');

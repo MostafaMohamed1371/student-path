@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Events\ChatMessageSent;
+use App\Events\ChatTypingStatusUpdated;
 use App\Models\ChatConversation;
 use App\Models\ChatReport;
 use App\Models\User;
@@ -31,7 +32,7 @@ class DashboardSupportChatTest extends TestCase
 
     public function test_admin_can_view_list_and_reply(): void
     {
-        Event::fake([ChatMessageSent::class]);
+        Event::fake([ChatMessageSent::class, ChatTypingStatusUpdated::class]);
 
         $parent = User::factory()->create(['is_admin' => false, 'name' => 'Parent One']);
         $admin = User::factory()->create(['is_admin' => true, 'name' => 'Support Admin']);
@@ -66,6 +67,17 @@ class DashboardSupportChatTest extends TestCase
             ->assertJsonPath('message.sender.is_staff', true);
 
         Event::assertDispatched(ChatMessageSent::class);
+
+        $this->postJson(route('dashboard.support_chat.typing', $conversation), [
+            'is_typing' => true,
+        ])
+            ->assertOk();
+
+        Event::assertDispatched(ChatTypingStatusUpdated::class, function (ChatTypingStatusUpdated $event) use ($admin, $conversation): bool {
+            return $event->conversationId === (int) $conversation->id
+                && $event->userId === (int) $admin->id
+                && $event->isTyping === true;
+        });
 
         $this->assertDatabaseHas('chat_messages', [
             'chat_conversation_id' => $conversation->id,

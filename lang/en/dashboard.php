@@ -95,6 +95,7 @@ return [
     'support_chat_send' => 'Send',
     'support_chat_sending' => 'Sending…',
     'support_chat_send_failed' => 'Could not send message.',
+    'support_chat_user_typing' => ':name is typing…',
     'support_chat_pusher_disabled' => 'Realtime is off (check BROADCAST_CONNECTION and PUSHER_* in .env). Messages still save; refresh to see new replies.',
     'support_chat_delete' => 'Delete conversation',
     'support_chat_delete_confirm' => 'Delete this conversation permanently? It will be hidden from the app and dashboard.',
