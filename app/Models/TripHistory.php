@@ -26,6 +26,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'final_lng',
     'status',
     'is_recurring_template',
+    'auto_schedule_work_days',
     'recurring_template_id',
     'note',
     'students_preview',
@@ -37,6 +38,7 @@ class TripHistory extends Model
         return [
             'students_preview' => 'array',
             'is_recurring_template' => 'boolean',
+            'auto_schedule_work_days' => 'boolean',
             'start_time' => 'datetime',
             'driver_started_at' => 'datetime',
             'end_time' => 'datetime',

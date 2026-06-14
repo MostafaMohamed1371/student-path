@@ -221,6 +221,31 @@ class RecurringTripSpawnerTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_assigning_students_without_auto_schedule_does_not_register_template(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-08 08:00:00', 'UTC'));
+
+        [$school, $driver, $student, $staff, $trip] = $this->seedAssignableTrip();
+        $trip->update(['auto_schedule_work_days' => false]);
+        $school->update(['work_days' => ['monday']]);
+
+        $this->actingAs($staff);
+
+        $this->post(route('dashboard.trips.assign_students.store'), [
+            'trip_ids' => [$trip->id],
+            'student_ids' => [$student->id],
+        ])->assertRedirect();
+
+        $trip->refresh();
+        $this->assertFalse($trip->is_recurring_template);
+        $this->assertSame(
+            0,
+            TripHistory::query()->where('recurring_template_id', $trip->id)->count(),
+        );
+
+        Carbon::setTestNow();
+    }
+
     /**
      * @return array{0: School, 1: Driver, 2: Student, 3: User}
      */
@@ -337,6 +362,7 @@ class RecurringTripSpawnerTest extends TestCase
             'start_time' => now()->setTime(7, 15),
             'end_time' => now()->setTime(7, 45),
             'status' => 'ACTIVE',
+            'auto_schedule_work_days' => true,
             'students_preview' => [],
         ]);
 

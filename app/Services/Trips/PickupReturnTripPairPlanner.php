@@ -85,6 +85,7 @@ final class PickupReturnTripPairPlanner
             'end_time' => $returnEnd,
             'status' => (string) ($pickupAttributes['status'] ?? 'PRESENT'),
             'note' => $this->returnTripNote($pickupAttributes['note'] ?? null),
+            'auto_schedule_work_days' => (bool) ($pickupAttributes['auto_schedule_work_days'] ?? false),
             'students_preview' => [],
         ];
     }
@@ -185,6 +186,7 @@ final class PickupReturnTripPairPlanner
             'end_time' => $pickupTrip->end_time,
             'status' => (string) ($pickupTrip->status ?? 'PRESENT'),
             'note' => $pickupTrip->note,
+            'auto_schedule_work_days' => (bool) $pickupTrip->auto_schedule_work_days,
         ];
     }
 

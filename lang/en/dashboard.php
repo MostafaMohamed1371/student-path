@@ -425,6 +425,8 @@ return [
     'trip_created' => 'Trip created successfully.',
     'trip_created_assign_students_next' => 'Trip created. Now assign students to this trip.',
     'trip_create_students_later_help' => 'Students are assigned on a separate step after the trip is created (Assign students to trip).',
+    'trip_auto_schedule_work_days' => 'Pin trip on school work days',
+    'trip_auto_schedule_work_days_help' => 'When checked, after you assign students this trip repeats on every school working day (from the school work schedule). When unchecked, only this day’s pickup and return trips are created.',
     'trip_edit_students_on_assign_page' => 'To add or change students, use',
     'trip_assign_students_intro' => 'Choose a school, optionally filter by driver, select one or more trips, then pick students eligible for all selected trips.',
     'trip_assign_filter_all_drivers' => 'All drivers',

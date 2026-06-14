@@ -84,6 +84,22 @@
                     <a href="{{ route('dashboard.trips.assign_students', ['school_id' => $trip->school_id, 'trip_id' => $trip->id]) }}">{{ __('dashboard.menu_assign_trip_students') }}</a>
                 </p>
 
+                @if($trip->recurring_template_id === null)
+                    <label class="checkbox-field" for="trip_auto_schedule_work_days">
+                        <input
+                            type="checkbox"
+                            id="trip_auto_schedule_work_days"
+                            name="auto_schedule_work_days"
+                            value="1"
+                            @checked((bool) old('auto_schedule_work_days', $trip->auto_schedule_work_days))
+                        >
+                        <span class="checkbox-field__content">
+                            <span class="checkbox-field__title">{{ __('dashboard.trip_auto_schedule_work_days') }}</span>
+                            <span class="checkbox-field__help">{{ __('dashboard.trip_auto_schedule_work_days_help') }}</span>
+                        </span>
+                    </label>
+                @endif
+
                 <label style="grid-column:1 / -1;"><span>{{ __('dashboard.notes') }}</span><textarea name="note" rows="3">{{ old('note', $trip->note) }}</textarea></label>
 
                 <div style="grid-column:1 / -1;display:flex;gap:10px;flex-wrap:wrap;">

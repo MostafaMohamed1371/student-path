@@ -79,6 +79,20 @@
 
                 <p class="help" style="grid-column:1 / -1;margin:0;">{{ __('dashboard.trip_create_students_later_help') }}</p>
 
+                <label class="checkbox-field" for="trip_auto_schedule_work_days">
+                    <input
+                        type="checkbox"
+                        id="trip_auto_schedule_work_days"
+                        name="auto_schedule_work_days"
+                        value="1"
+                        @checked((bool) old('auto_schedule_work_days'))
+                    >
+                    <span class="checkbox-field__content">
+                        <span class="checkbox-field__title">{{ __('dashboard.trip_auto_schedule_work_days') }}</span>
+                        <span class="checkbox-field__help">{{ __('dashboard.trip_auto_schedule_work_days_help') }}</span>
+                    </span>
+                </label>
+
                 <label style="grid-column:1 / -1;"><span>{{ __('dashboard.notes') }}</span><textarea name="note" rows="3">{{ old('note') }}</textarea></label>
 
                 <div style="grid-column:1 / -1;display:flex;gap:10px;flex-wrap:wrap;">

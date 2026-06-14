@@ -521,6 +521,51 @@
             box-shadow: 0 0 0 3px rgba(26, 39, 68, 0.12);
         }
 
+        .form-grid label.checkbox-field {
+            grid-column: 1 / -1;
+            flex-direction: row;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            background: #f8fafc;
+            cursor: pointer;
+        }
+
+        .form-grid label.checkbox-field > span {
+            font-weight: 400;
+        }
+
+        .form-grid label.checkbox-field input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            min-width: 18px;
+            margin: 2px 0 0;
+            padding: 0;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+
+        .form-grid .checkbox-field__content {
+            min-width: 0;
+        }
+
+        .form-grid .checkbox-field__title {
+            display: block;
+            font-size: 14px;
+            color: #334155;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+
+        .form-grid .checkbox-field__help {
+            margin: 4px 0 0;
+            font-size: 13px;
+            color: #64748b;
+            line-height: 1.5;
+        }
+
         @media (max-width: 520px) {
             .login-card {
                 padding: 22px;
