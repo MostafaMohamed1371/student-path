@@ -324,4 +324,34 @@ class UserChatApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.message_type', 'image');
     }
+
+    public function test_broadcasting_auth_allows_conversation_owner(): void
+    {
+        config([
+            'broadcasting.default' => 'pusher',
+            'broadcasting.connections.pusher.key' => 'test-key',
+            'broadcasting.connections.pusher.secret' => 'test-secret',
+            'broadcasting.connections.pusher.app_id' => 'test-app',
+            'broadcasting.connections.pusher.options.cluster' => 'mt1',
+            'broadcasting.connections.pusher.options.useTLS' => true,
+        ]);
+        app(\Illuminate\Broadcasting\BroadcastManager::class)->forgetDrivers();
+        require base_path('routes/channels.php');
+
+        $user = User::factory()->create(['is_admin' => false]);
+        $conversation = ChatConversation::query()->create([
+            'user_id' => $user->id,
+            'status' => 'open',
+        ]);
+
+        $token = $user->createToken('broadcast-test')->plainTextToken;
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->post('/broadcasting/auth', [
+                'socket_id' => '1234.5678',
+                'channel_name' => 'private-chat.'.$conversation->id,
+            ], ['Accept' => 'application/json'])
+            ->assertOk()
+            ->assertJsonStructure(['auth']);
+    }
 }

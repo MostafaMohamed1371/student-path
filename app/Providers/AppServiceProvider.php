@@ -39,6 +39,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        if (
+            filled(config('broadcasting.connections.pusher.key'))
+            && ! $this->app->environment('testing')
+        ) {
+            config(['broadcasting.default' => 'pusher']);
+        }
+
         $this->app->bind(SmsSender::class, function ($app) {
             if (config('standingtech.mock')) {
                 return $app->make(FakeSmsSender::class);
@@ -124,8 +131,8 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
         });
 
-        Broadcast::routes(['middleware' => ['auth:sanctum']]);
-        Broadcast::routes(['middleware' => ['web', 'auth']]);
+        // Single route: Bearer token (mobile) + session cookie (dashboard) via Sanctum.
+        Broadcast::routes(['middleware' => ['web', 'auth:sanctum']]);
 
         InAppNotification::observe(InAppNotificationObserver::class);
 

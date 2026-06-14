@@ -37,7 +37,7 @@ Broadcast::channel('trip.{tripHistoryId}', function ($user, string $tripHistoryI
     }
 
     return false;
-});
+}, ['guards' => ['sanctum', 'web']]);
 
 /*
 | Support live chat (Pusher): private channel "chat.{conversationId}".
@@ -53,4 +53,4 @@ Broadcast::channel('chat.{conversationId}', function ($user, string $conversatio
         'name' => $user->name,
         'is_staff' => (bool) $user->is_admin,
     ];
-});
+}, ['guards' => ['sanctum', 'web']]);
