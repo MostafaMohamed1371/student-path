@@ -157,7 +157,7 @@
                 <a href="{{ route('dashboard.trip_requests.index') }}" class="btn-primary" style="width: auto; padding: 10px 14px; text-decoration: none;">{{ __('dashboard.menu_trip_requests') }}</a>
                 <a href="{{ route('dashboard.absences.index') }}" class="btn-primary" style="width: auto; padding: 10px 14px; text-decoration: none;">{{ __('dashboard.menu_absences') }}</a>
                 <a href="{{ route('dashboard.support_complaints.index') }}" class="btn-primary" style="width: auto; padding: 10px 14px; text-decoration: none;">{{ __('dashboard.menu_support_complaints') }}</a>
-                @if(auth()->user()?->is_admin)
+                @if(auth()->user()?->is_admin || auth()->user()?->school_id)
                     <a href="{{ route('dashboard.support_chat.index') }}" class="btn-primary" style="width: auto; padding: 10px 14px; text-decoration: none;">{{ __('dashboard.menu_support_chat') }}</a>
                 @endif
             </div>

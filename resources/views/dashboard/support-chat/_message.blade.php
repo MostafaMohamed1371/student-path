@@ -1,5 +1,5 @@
 @php
-    $isStaff = (bool) ($message->sender?->is_admin ?? false);
+    $isStaff = (bool) ($message->sender?->isChatStaff() ?? false);
     $meta = is_array($message->meta) ? $message->meta : [];
     $attachment = $meta['attachment'] ?? null;
     $isDeleted = (bool) ($meta['is_deleted'] ?? false);

@@ -42,7 +42,7 @@ class ChatConversationLifecycle
 
         if ((int) $conversation->user_id === (int) $viewer->id) {
             $conversation->forceFill(['user_last_read_at' => null])->save();
-        } elseif ($viewer->is_admin) {
+        } elseif ($viewer->isChatStaff()) {
             $conversation->forceFill(['staff_last_read_at' => null])->save();
         }
 
@@ -166,7 +166,7 @@ class ChatConversationLifecycle
             ]);
         }
 
-        if (! $actor->is_admin && (int) $conversation->user_id !== (int) $actor->id) {
+        if (! $actor->isChatStaff() && (int) $conversation->user_id !== (int) $actor->id) {
             throw ValidationException::withMessages([
                 'conversation' => ['You cannot delete this conversation.'],
             ]);

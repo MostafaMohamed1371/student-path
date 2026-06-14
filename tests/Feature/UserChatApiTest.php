@@ -2,11 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Enums\PhoneAccountType;
 use App\Events\ChatMessageSent;
 use App\Events\ChatTypingStatusUpdated;
 use App\Models\ChatConversation;
 use App\Models\ChatMessage;
 use App\Models\InAppNotification;
+use App\Models\School;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -21,12 +23,17 @@ class UserChatApiTest extends TestCase
 
     public function test_postman_list_start_messages_read_flow(): void
     {
-        $admin = User::factory()->create(['is_admin' => true, 'name' => 'Support Agent']);
-        $user = User::factory()->create(['is_admin' => false, 'name' => 'Parent User']);
+        $school = $this->createSchool();
+        $schoolStaff = $this->createSchoolStaff($school);
+        $user = User::factory()->create([
+            'is_admin' => false,
+            'name' => 'Parent User',
+            'school_id' => $school->id,
+        ]);
         Sanctum::actingAs($user);
 
         $start = $this->postJson('/api/user/chats/start', [
-            'participant_id' => $admin->id,
+            'participant_id' => $schoolStaff->id,
             'post_id' => 1,
         ])
             ->assertCreated()
@@ -50,7 +57,7 @@ class UserChatApiTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'data');
 
-        Sanctum::actingAs($admin);
+        Sanctum::actingAs($schoolStaff);
 
         $this->postJson("/api/user/chats/{$chatId}/read")
             ->assertOk()
@@ -61,12 +68,14 @@ class UserChatApiTest extends TestCase
     {
         Event::fake([ChatMessageSent::class]);
 
-        $admin = User::factory()->create(['is_admin' => true]);
-        $user = User::factory()->create(['is_admin' => false]);
+        $school = $this->createSchool();
+        $schoolStaff = $this->createSchoolStaff($school);
+        $user = User::factory()->create(['is_admin' => false, 'school_id' => $school->id]);
 
         $conversation = ChatConversation::query()->create([
             'user_id' => $user->id,
-            'participant_id' => $admin->id,
+            'school_id' => $school->id,
+            'participant_id' => $schoolStaff->id,
             'status' => 'open',
         ]);
 
@@ -86,7 +95,7 @@ class UserChatApiTest extends TestCase
 
         $messageId = (int) $offerResponse->json('data.id');
 
-        Sanctum::actingAs($admin);
+        Sanctum::actingAs($schoolStaff);
 
         $this->postJson("/api/user/chats/{$conversation->id}/messages/{$messageId}/offer/reject", [
             'reason' => 'السعر غير مناسب',
@@ -151,17 +160,19 @@ class UserChatApiTest extends TestCase
 
     public function test_pin_read_unread_block_and_unread_count(): void
     {
-        $admin = User::factory()->create(['is_admin' => true]);
-        $user = User::factory()->create(['is_admin' => false]);
+        $school = $this->createSchool();
+        $schoolStaff = $this->createSchoolStaff($school);
+        $user = User::factory()->create(['is_admin' => false, 'school_id' => $school->id]);
 
         $conversation = ChatConversation::query()->create([
             'user_id' => $user->id,
-            'participant_id' => $admin->id,
+            'school_id' => $school->id,
+            'participant_id' => $schoolStaff->id,
             'status' => 'open',
         ]);
 
         $conversation->messages()->create([
-            'user_id' => $admin->id,
+            'user_id' => $schoolStaff->id,
             'body' => 'Hello',
             'message_type' => 'text',
             'read_at' => null,
@@ -213,16 +224,22 @@ class UserChatApiTest extends TestCase
 
     public function test_delete_conversation_report_and_in_app_notification(): void
     {
-        $admin = User::factory()->create(['is_admin' => true, 'name' => 'Support']);
-        $user = User::factory()->create(['is_admin' => false, 'name' => 'Parent']);
+        $school = $this->createSchool();
+        $schoolStaff = $this->createSchoolStaff($school);
+        $user = User::factory()->create([
+            'is_admin' => false,
+            'name' => 'Parent',
+            'school_id' => $school->id,
+        ]);
 
         $conversation = ChatConversation::query()->create([
             'user_id' => $user->id,
-            'participant_id' => $admin->id,
+            'school_id' => $school->id,
+            'participant_id' => $schoolStaff->id,
             'status' => 'open',
         ]);
 
-        Sanctum::actingAs($admin);
+        Sanctum::actingAs($schoolStaff);
 
         $this->postJson("/api/user/chats/{$conversation->id}/messages", [
             'message_type' => 'text',
@@ -270,19 +287,21 @@ class UserChatApiTest extends TestCase
             ->assertOk()
             ->assertJsonCount(0, 'data');
 
-        $this->postJson('/api/user/chats/start', ['participant_id' => $admin->id])
+        $this->postJson('/api/user/chats/start', ['participant_id' => $schoolStaff->id])
             ->assertCreated()
             ->assertJsonPath('existing', false);
     }
 
     public function test_muted_user_does_not_receive_chat_notification(): void
     {
-        $admin = User::factory()->create(['is_admin' => true]);
-        $user = User::factory()->create(['is_admin' => false]);
+        $school = $this->createSchool();
+        $schoolStaff = $this->createSchoolStaff($school);
+        $user = User::factory()->create(['is_admin' => false, 'school_id' => $school->id]);
 
         $conversation = ChatConversation::query()->create([
             'user_id' => $user->id,
-            'participant_id' => $admin->id,
+            'school_id' => $school->id,
+            'participant_id' => $schoolStaff->id,
             'status' => 'open',
         ]);
 
@@ -292,7 +311,7 @@ class UserChatApiTest extends TestCase
             'is_muted' => true,
         ]);
 
-        Sanctum::actingAs($admin);
+        Sanctum::actingAs($schoolStaff);
 
         $this->postJson("/api/user/chats/{$conversation->id}/messages", [
             'message_type' => 'text',
@@ -353,5 +372,33 @@ class UserChatApiTest extends TestCase
             ], ['Accept' => 'application/json'])
             ->assertOk()
             ->assertJsonStructure(['auth']);
+    }
+
+    private function createSchool(string $nameEn = 'Test School'): School
+    {
+        return School::query()->create([
+            'name_en' => $nameEn,
+            'name_ar' => $nameEn,
+            'province' => 'Baghdad',
+            'district' => 'Karkh',
+            'address' => 'Test address',
+            'status' => 'active',
+        ]);
+    }
+
+    private function createSchoolStaff(School $school): User
+    {
+        static $phoneSeq = 7703000000;
+
+        return User::query()->create([
+            'name' => 'School Staff',
+            'phone' => (string) (++$phoneSeq),
+            'school_id' => $school->id,
+            'phone_account_type' => PhoneAccountType::School->value,
+            'password' => bcrypt('password'),
+            'is_admin' => false,
+            'is_active' => true,
+            'phone_verified_at' => now(),
+        ]);
     }
 }

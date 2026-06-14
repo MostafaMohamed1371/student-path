@@ -29,8 +29,7 @@ class DashboardChatController extends Controller
 
         $staff = $request->user();
 
-        $conversations = ChatConversation::query()
-            ->whereNull('deleted_at')
+        $conversations = $this->participants->visibleConversationsQuery($staff)
             ->with('user:id,name,phone')
             ->orderByDesc('last_message_at')
             ->orderByDesc('id')
@@ -60,7 +59,7 @@ class DashboardChatController extends Controller
         $conversation->markReadBy($request->user());
 
         $messages = $conversation->messages()
-            ->with('sender:id,name,is_admin')
+            ->with('sender:id,name,is_admin,school_id,phone_account_type')
             ->orderBy('id')
             ->limit(200)
             ->get();
@@ -96,7 +95,7 @@ class DashboardChatController extends Controller
         ]);
 
         $q = $conversation->messages()
-            ->with('sender:id,name,is_admin')
+            ->with('sender:id,name,is_admin,school_id,phone_account_type')
             ->orderBy('id');
 
         if (! empty($validated['after_id'])) {
@@ -256,6 +255,6 @@ class DashboardChatController extends Controller
 
     private function ensureSupportStaff(): void
     {
-        abort_unless(auth()->user()?->is_admin, 403);
+        abort_unless(auth()->user()?->isChatStaff(), 403);
     }
 }

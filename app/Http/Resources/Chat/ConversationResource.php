@@ -4,6 +4,7 @@ namespace App\Http\Resources\Chat;
 
 use App\Models\ChatConversation;
 use App\Models\User;
+use App\Services\Chat\ChatSchoolSupport;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -17,6 +18,7 @@ class ConversationResource extends JsonResource
     {
         $viewer = $request->user();
         $other = $this->resolveOtherUser($viewer);
+        $schoolSupport = app(ChatSchoolSupport::class);
 
         $lastMessage = $this->relationLoaded('messages')
             ? $this->messages->first()
@@ -32,6 +34,7 @@ class ConversationResource extends JsonResource
         return [
             'id' => $this->id,
             'post_id' => $this->post_id,
+            'school_id' => $this->school_id,
             'unread_count' => (int) ($this->getAttribute('unread_messages_count')
                 ?? ($viewer ? $this->unreadCountFor($viewer) : 0)),
             'is_pinned' => (bool) ($setting?->is_pinned ?? false),
@@ -41,11 +44,13 @@ class ConversationResource extends JsonResource
             'other_user' => $other ? [
                 'id' => $other->id,
                 'name' => $other->name ?? '',
-                'type' => $other->is_admin ? 'staff' : 'user',
+                'type' => $schoolSupport->isChatStaff($other) ? 'staff' : 'user',
                 'image' => $other->image,
             ] : [
                 'id' => null,
-                'name' => (string) config('chat.support_display_name', 'Support'),
+                'name' => $schoolSupport->displayNameForSchool(
+                    $this->school_id !== null ? (int) $this->school_id : null,
+                ),
                 'type' => 'staff',
                 'image' => null,
             ],
@@ -62,7 +67,7 @@ class ConversationResource extends JsonResource
             return null;
         }
 
-        if ($viewer->is_admin) {
+        if ($viewer->isChatStaff()) {
             return $this->relationLoaded('user') ? $this->user : $this->user()->first();
         }
 
@@ -70,6 +75,8 @@ class ConversationResource extends JsonResource
             return $this->relationLoaded('participant') ? $this->participant : $this->participant()->first();
         }
 
-        return User::query()->where('is_admin', true)->orderBy('id')->first();
+        return app(ChatSchoolSupport::class)->defaultStaffUserForSchool(
+            $this->school_id !== null ? (int) $this->school_id : null,
+        );
     }
 }

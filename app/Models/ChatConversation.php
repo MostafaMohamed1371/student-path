@@ -16,6 +16,7 @@ class ChatConversation extends Model
 {
     protected $fillable = [
         'user_id',
+        'school_id',
         'participant_id',
         'post_id',
         'status',
@@ -57,6 +58,11 @@ class ChatConversation extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function school(): BelongsTo
+    {
+        return $this->belongsTo(School::class);
+    }
+
     public function participant(): BelongsTo
     {
         return $this->belongsTo(User::class, 'participant_id');
@@ -92,7 +98,7 @@ class ChatConversation extends Model
             return $this->user_last_read_at;
         }
 
-        if ($viewer->is_admin) {
+        if ($viewer->isChatStaff()) {
             return $this->staff_last_read_at;
         }
 
@@ -114,7 +120,7 @@ class ChatConversation extends Model
             return;
         }
 
-        if ($viewer->is_admin) {
+        if ($viewer->isChatStaff()) {
             $this->forceFill(['staff_last_read_at' => $now])->save();
         }
     }
@@ -125,10 +131,10 @@ class ChatConversation extends Model
             return false;
         }
 
-        if ($user->is_admin) {
+        if ((int) $this->user_id === (int) $user->id) {
             return true;
         }
 
-        return (int) $this->user_id === (int) $user->id;
+        return app(\App\Services\Chat\ChatSchoolSupport::class)->canStaffAccessConversation($user, $this);
     }
 }

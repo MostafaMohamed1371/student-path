@@ -11,9 +11,13 @@ use Illuminate\Database\Eloquent\Builder;
 
 class ChatParticipantResolver
 {
+    public function __construct(
+        private readonly ChatSchoolSupport $schoolSupport,
+    ) {}
+
     public function otherUserId(ChatConversation $conversation, User $viewer): ?int
     {
-        if ($viewer->is_admin) {
+        if ($viewer->isChatStaff()) {
             return (int) $conversation->user_id;
         }
 
@@ -21,9 +25,11 @@ class ChatParticipantResolver
             return (int) $conversation->participant_id;
         }
 
-        $adminId = User::query()->where('is_admin', true)->orderBy('id')->value('id');
+        $staffId = $this->schoolSupport->defaultStaffUserForSchool(
+            $conversation->school_id !== null ? (int) $conversation->school_id : null,
+        )?->id;
 
-        return $adminId ? (int) $adminId : null;
+        return $staffId ? (int) $staffId : null;
     }
 
     public function isBlockedBetween(int $userId, int $otherUserId): bool
@@ -42,8 +48,17 @@ class ChatParticipantResolver
     {
         $query = ChatConversation::query();
 
-        if (! $user->is_admin) {
-            $query->where('user_id', $user->id);
+        if ($user->is_admin) {
+            // Global admins see all school conversations.
+        } elseif ($user->isSchoolChatStaff()) {
+            $schoolId = $user->scopingSchoolId();
+            if ($schoolId !== null) {
+                $query->where('chat_conversations.school_id', $schoolId);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+        } else {
+            $query->where('chat_conversations.user_id', $user->id);
         }
 
         $query->whereNull('chat_conversations.deleted_at');

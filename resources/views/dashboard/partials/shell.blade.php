@@ -28,8 +28,10 @@
             <a href="{{ route('dashboard.sos_alerts') }}" class="sidebar-link {{ request()->routeIs('dashboard.sos_alerts') ? 'is-active' : '' }}" style="padding-left: 1.25rem; font-size: 0.92rem;">{{ __('dashboard.menu_sos_alerts') }}</a>
             <a href="{{ route('dashboard.trip_finalization_reports') }}" class="sidebar-link {{ request()->routeIs('dashboard.trip_finalization_reports') ? 'is-active' : '' }}" style="padding-left: 1.25rem; font-size: 0.92rem;">{{ __('dashboard.menu_trip_finalization_reports') }}</a>
             <a href="{{ route('dashboard.support_complaints.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.support_complaints.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_support_complaints') }}</a>
-            @if(auth()->user()?->is_admin)
+            @if(auth()->user()?->is_admin || auth()->user()?->school_id)
                 <a href="{{ route('dashboard.support_chat.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.support_chat.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_support_chat') }}</a>
+            @endif
+            @if(auth()->user()?->is_admin)
                 <a href="{{ route('dashboard.chat_reports.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.chat_reports.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_chat_reports') }}</a>
                 <a href="{{ route('dashboard.users.index') }}" class="sidebar-link {{ request()->routeIs('dashboard.users.*') ? 'is-active' : '' }}">{{ __('dashboard.menu_users') }}</a>
             @endif

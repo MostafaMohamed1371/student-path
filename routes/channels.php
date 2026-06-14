@@ -51,6 +51,6 @@ Broadcast::channel('chat.{conversationId}', function ($user, string $conversatio
     return [
         'id' => $user->id,
         'name' => $user->name,
-        'is_staff' => (bool) $user->is_admin,
+        'is_staff' => (bool) $user->isChatStaff(),
     ];
 }, ['guards' => ['sanctum', 'web']]);

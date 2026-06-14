@@ -94,7 +94,7 @@ class ChatMessenger
 
         $conversation->forceFill(['last_message_at' => $message->created_at])->save();
 
-        $message->load('sender:id,name,is_admin,image');
+        $message->load('sender:id,name,is_admin,school_id,phone_account_type,image');
 
         $this->dispatchMessageSent($message);
         $this->notifyNewMessageSafely($message);
@@ -133,7 +133,7 @@ class ChatMessenger
      */
     public function formatMessage(ChatMessage $message): array
     {
-        $message->loadMissing('sender:id,name,is_admin,image');
+        $message->loadMissing('sender:id,name,is_admin,school_id,phone_account_type,image');
 
         return (new MessageResource($message))->resolve();
     }

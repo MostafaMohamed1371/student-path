@@ -19,14 +19,18 @@ class MessageResource extends JsonResource
         $attachment = $meta['attachment'] ?? null;
         $isDeleted = (bool) ($meta['is_deleted'] ?? false);
 
+        $isStaff = $this->sender !== null && (
+            $this->sender->isChatStaff()
+        );
+
         return [
             'id' => $this->id,
             'conversation_id' => $this->chat_conversation_id,
             'sender' => [
                 'id' => $this->sender?->id,
                 'name' => $this->sender?->name ?? '',
-                'type' => $this->sender?->is_admin ? 'staff' : 'user',
-                'is_staff' => (bool) ($this->sender?->is_admin ?? false),
+                'type' => $isStaff ? 'staff' : 'user',
+                'is_staff' => $isStaff,
                 'image' => $this->sender?->image,
             ],
             'body' => $isDeleted ? null : $this->body,

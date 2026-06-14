@@ -150,4 +150,18 @@ class User extends Authenticatable
     {
         return (bool) $this->is_admin || $this->school_id !== null;
     }
+
+    /** School account user (not global admin) who replies to parent/driver chats for their school. */
+    public function isSchoolChatStaff(): bool
+    {
+        return $this->school_id !== null
+            && ! $this->is_admin
+            && $this->phone_account_type === \App\Enums\PhoneAccountType::School->value;
+    }
+
+    /** Global admin or school account — anyone who can access support chat on the staff side. */
+    public function isChatStaff(): bool
+    {
+        return (bool) $this->is_admin || $this->isSchoolChatStaff();
+    }
 }

@@ -26,7 +26,7 @@ class ChatOfferActions
         $meta['action_at'] = now()->toIso8601String();
 
         $offer->update(['meta' => $meta]);
-        $offer->refresh()->load('sender:id,name,is_admin,image');
+        $offer->refresh()->load('sender:id,name,is_admin,school_id,phone_account_type,image');
 
         ChatOfferUpdated::dispatch($offer);
 
@@ -44,7 +44,7 @@ class ChatOfferActions
         $meta['reason'] = $reason;
 
         $offer->update(['meta' => $meta]);
-        $offer->refresh()->load('sender:id,name,is_admin,image');
+        $offer->refresh()->load('sender:id,name,is_admin,school_id,phone_account_type,image');
 
         ChatOfferUpdated::dispatch($offer);
 
@@ -72,7 +72,7 @@ class ChatOfferActions
         $meta['action_by'] = $actor->id;
         $meta['action_at'] = now()->toIso8601String();
         $offer->update(['meta' => $meta]);
-        $offer->refresh()->load('sender:id,name,is_admin,image');
+        $offer->refresh()->load('sender:id,name,is_admin,school_id,phone_account_type,image');
 
         ChatOfferUpdated::dispatch($offer);
 
@@ -123,7 +123,7 @@ class ChatOfferActions
 
         return ChatMessage::query()
             ->whereIn('id', $ids)
-            ->with('sender:id,name,is_admin,image')
+            ->with('sender:id,name,is_admin,school_id,phone_account_type,image')
             ->orderBy('id')
             ->get();
     }

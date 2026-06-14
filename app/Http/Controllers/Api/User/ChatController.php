@@ -14,6 +14,7 @@ use App\Services\Chat\ChatConversationLifecycle;
 use App\Services\Chat\ChatMessenger;
 use App\Services\Chat\ChatOfferActions;
 use App\Services\Chat\ChatParticipantResolver;
+use App\Services\Chat\ChatSchoolSupport;
 use App\Support\ApiPagination;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -31,6 +32,7 @@ class ChatController extends Controller
         private readonly ChatOfferActions $offerActions,
         private readonly ChatParticipantResolver $participants,
         private readonly ChatConversationLifecycle $lifecycle,
+        private readonly ChatSchoolSupport $schoolSupport,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -63,7 +65,7 @@ class ChatController extends Controller
                 'user:id,name,phone,image,is_admin',
                 'participant:id,name,phone,image,is_admin',
                 'userSettings' => fn ($q) => $q->where('chat_conversation_user_settings.user_id', $userId),
-                'messages' => fn ($q) => $q->latest('id')->limit(1)->with('sender:id,name,is_admin,image'),
+                'messages' => fn ($q) => $q->latest('id')->limit(1)->with('sender:id,name,is_admin,school_id,phone_account_type,image'),
             ])
             ->orderByDesc($pinnedSub)
             ->orderByDesc('last_message_at')
@@ -71,7 +73,7 @@ class ChatController extends Controller
 
         if ($search !== '') {
             $query->where(function (Builder $q) use ($search, $user) {
-                if ($user->is_admin) {
+                if ($user->isChatStaff()) {
                     $q->whereHas('user', function (Builder $uq) use ($search) {
                         $uq->where('name', 'like', "%{$search}%")
                             ->orWhere('phone', 'like', "%{$search}%");
@@ -99,23 +101,41 @@ class ChatController extends Controller
     {
         $user = $request->user();
 
-        $validated = $request->validate([
-            'participant_id' => [
-                'nullable',
-                'integer',
-                Rule::exists('users', 'id')->where(fn ($q) => $q->where('is_admin', true)),
-                Rule::notIn([$user->id]),
-            ],
-            'post_id' => ['nullable', 'integer', 'min:1'],
-        ]);
-
-        if ($user->is_admin) {
+        if ($user->isChatStaff()) {
             return response()->json([
                 'message' => 'Only app users can start a support conversation from this endpoint.',
             ], 403);
         }
 
-        $participantId = isset($validated['participant_id']) ? (int) $validated['participant_id'] : null;
+        $schoolId = $this->schoolSupport->schoolIdForAppUser($user);
+        if ($schoolId === null) {
+            return response()->json([
+                'message' => 'Your account is not linked to a school. Contact support to enable chat.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'participant_id' => [
+                'nullable',
+                'integer',
+                Rule::notIn([$user->id]),
+                function (string $attribute, mixed $value, \Closure $fail) use ($user): void {
+                    if ($value === null) {
+                        return;
+                    }
+
+                    if ($this->schoolSupport->resolveParticipantId($user, (int) $value) === null) {
+                        $fail('The selected participant must be school staff for your school.');
+                    }
+                },
+            ],
+            'post_id' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $participantId = $this->schoolSupport->resolveParticipantId(
+            $user,
+            isset($validated['participant_id']) ? (int) $validated['participant_id'] : null,
+        );
 
         $conversation = ChatConversation::query()
             ->where('user_id', $user->id)
@@ -128,6 +148,7 @@ class ChatController extends Controller
         if (! $conversation) {
             $conversation = ChatConversation::query()->create([
                 'user_id' => $user->id,
+                'school_id' => $schoolId,
                 'participant_id' => $participantId,
                 'post_id' => $validated['post_id'] ?? null,
                 'status' => 'open',
@@ -135,6 +156,9 @@ class ChatController extends Controller
             ]);
         } else {
             $updates = [];
+            if ($conversation->school_id === null) {
+                $updates['school_id'] = $schoolId;
+            }
             if ($participantId !== null) {
                 $updates['participant_id'] = $participantId;
             }
@@ -150,7 +174,7 @@ class ChatController extends Controller
             'user:id,name,phone,image,is_admin',
             'participant:id,name,phone,image,is_admin',
             'userSettings' => fn ($q) => $q->where('user_id', $user->id),
-            'messages' => fn ($q) => $q->latest('id')->limit(1)->with('sender:id,name,is_admin,image'),
+            'messages' => fn ($q) => $q->latest('id')->limit(1)->with('sender:id,name,is_admin,school_id,phone_account_type,image'),
         ]);
         $this->participants->attachIsBlockedFlag([$conversation], $user);
 
@@ -175,7 +199,7 @@ class ChatController extends Controller
         $perPage = (int) ($validated['per_page'] ?? 30);
 
         $messages = $conversation->messages()
-            ->with('sender:id,name,is_admin,image')
+            ->with('sender:id,name,is_admin,school_id,phone_account_type,image')
             ->latest('id')
             ->paginate($perPage);
 
@@ -300,7 +324,7 @@ class ChatController extends Controller
             'user:id,name,phone,image,is_admin',
             'participant:id,name,phone,image,is_admin',
             'userSettings' => fn ($q) => $q->where('user_id', $request->user()->id),
-            'messages' => fn ($q) => $q->latest('id')->limit(1)->with('sender:id,name,is_admin,image'),
+            'messages' => fn ($q) => $q->latest('id')->limit(1)->with('sender:id,name,is_admin,school_id,phone_account_type,image'),
         ]);
         $this->participants->attachIsBlockedFlag([$conversation], $request->user());
 
@@ -381,7 +405,7 @@ class ChatController extends Controller
             'user:id,name,phone,image,is_admin',
             'participant:id,name,phone,image,is_admin',
             'userSettings' => fn ($q) => $q->where('user_id', $request->user()->id),
-            'messages' => fn ($q) => $q->latest('id')->limit(1)->with('sender:id,name,is_admin,image'),
+            'messages' => fn ($q) => $q->latest('id')->limit(1)->with('sender:id,name,is_admin,school_id,phone_account_type,image'),
         ]);
         $this->participants->attachIsBlockedFlag([$conversation], $request->user());
 
@@ -444,7 +468,7 @@ class ChatController extends Controller
             'meta' => $meta,
         ]);
 
-        $message->refresh()->load('sender:id,name,is_admin,image');
+        $message->refresh()->load('sender:id,name,is_admin,school_id,phone_account_type,image');
 
         ChatMessageUpdated::dispatch($message, 'edited');
 
@@ -665,7 +689,7 @@ class ChatController extends Controller
         $conversation = ChatConversation::query()
             ->whereNull('deleted_at')
             ->when(
-                ! $request->user()->is_admin,
+                ! $request->user()->isChatStaff(),
                 fn (Builder $q) => $q->where('user_id', $request->user()->id),
             )
             ->find($id);

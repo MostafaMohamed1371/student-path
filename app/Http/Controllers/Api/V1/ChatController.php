@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\Chat\ChatConversationLifecycle;
 use App\Services\Chat\ChatMessenger;
 use App\Services\Chat\ChatParticipantResolver;
+use App\Services\Chat\ChatSchoolSupport;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -22,6 +23,7 @@ class ChatController extends Controller
         private readonly ChatMessenger $messenger,
         private readonly ChatParticipantResolver $participants,
         private readonly ChatConversationLifecycle $lifecycle,
+        private readonly ChatSchoolSupport $schoolSupport,
     ) {}
 
     public function config(): JsonResponse
@@ -86,13 +88,20 @@ class ChatController extends Controller
     {
         $user = $request->user();
 
-        if ($user->is_admin) {
+        if ($user->isChatStaff()) {
             return $this->parentError('Only app users can start a support conversation.', null, 403);
+        }
+
+        $schoolId = $this->schoolSupport->schoolIdForAppUser($user);
+        if ($schoolId === null) {
+            return $this->parentError('Your account is not linked to a school.', null, 422);
         }
 
         $validated = $request->validate([
             'subject' => ['nullable', 'string', 'max:255'],
         ]);
+
+        $participantId = $this->schoolSupport->defaultStaffUserForSchool($schoolId)?->id;
 
         $conversation = ChatConversation::query()
             ->where('user_id', $user->id)
@@ -105,13 +114,27 @@ class ChatController extends Controller
         if (! $conversation) {
             $conversation = ChatConversation::query()->create([
                 'user_id' => $user->id,
+                'school_id' => $schoolId,
+                'participant_id' => $participantId,
                 'status' => 'open',
                 'subject' => $validated['subject'] ?? null,
                 'user_last_read_at' => now(),
             ]);
             $created = true;
-        } elseif (! empty($validated['subject']) && $conversation->subject === null) {
-            $conversation->update(['subject' => $validated['subject']]);
+        } else {
+            $updates = [];
+            if ($conversation->school_id === null) {
+                $updates['school_id'] = $schoolId;
+            }
+            if ($conversation->participant_id === null && $participantId !== null) {
+                $updates['participant_id'] = $participantId;
+            }
+            if (! empty($validated['subject']) && $conversation->subject === null) {
+                $updates['subject'] = $validated['subject'];
+            }
+            if ($updates !== []) {
+                $conversation->update($updates);
+            }
         }
 
         $conversation->load('user:id,name,phone');
@@ -145,7 +168,7 @@ class ChatController extends Controller
         ]);
 
         $q = $conversation->messages()
-            ->with('sender:id,name,is_admin')
+            ->with('sender:id,name,is_admin,school_id,phone_account_type')
             ->orderByDesc('id');
 
         if (! empty($validated['before_id'])) {
@@ -357,7 +380,7 @@ class ChatController extends Controller
         $this->participants->attachIsBlockedFlag([$conversation], $viewer);
 
         $lastMessage = $conversation->messages()
-            ->with('sender:id,name,is_admin')
+            ->with('sender:id,name,is_admin,school_id,phone_account_type')
             ->latest('id')
             ->first();
 

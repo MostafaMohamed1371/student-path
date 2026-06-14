@@ -7,18 +7,21 @@ use App\Models\ChatConversationUserSetting;
 use App\Models\ChatMessage;
 use App\Models\InAppNotification;
 use App\Models\User;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 class ChatNotifier
 {
+    public function __construct(
+        private readonly ChatSchoolSupport $schoolSupport,
+    ) {}
+
     public function notifyNewMessage(ChatMessage $message): void
     {
         if (! config('chat.in_app_notifications_enabled', true)) {
             return;
         }
 
-        $message->loadMissing('sender:id,name,is_admin', 'conversation');
+        $message->loadMissing('sender:id,name,is_admin,school_id,phone_account_type', 'conversation');
 
         $conversation = $message->conversation;
         $sender = $message->sender;
@@ -49,11 +52,11 @@ class ChatNotifier
     }
 
     /**
-     * @return Collection<int, User>
+     * @return \Illuminate\Support\Collection<int, User>
      */
-    private function recipientsFor(ChatConversation $conversation, User $sender): Collection
+    private function recipientsFor(ChatConversation $conversation, User $sender): \Illuminate\Support\Collection
     {
-        if ($sender->is_admin) {
+        if ($this->schoolSupport->isChatStaff($sender)) {
             $owner = $conversation->relationLoaded('user')
                 ? $conversation->user
                 : $conversation->user()->first();
@@ -61,23 +64,7 @@ class ChatNotifier
             return $owner ? collect([$owner]) : collect();
         }
 
-        if ($conversation->participant_id) {
-            $participant = User::query()
-                ->whereKey($conversation->participant_id)
-                ->where('is_admin', true)
-                ->first();
-
-            return $participant ? collect([$participant]) : collect();
-        }
-
-        if (! config('chat.notify_all_admins_on_user_message', true)) {
-            return collect();
-        }
-
-        return User::query()
-            ->where('is_admin', true)
-            ->where('id', '!=', $sender->id)
-            ->get(['id', 'name', 'is_admin']);
+        return $this->schoolSupport->staffRecipientsFor($conversation, $sender);
     }
 
     private function isMuted(ChatConversation $conversation, User $recipient): bool

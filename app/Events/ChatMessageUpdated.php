@@ -40,7 +40,7 @@ class ChatMessageUpdated implements ShouldBroadcastNow
      */
     public function broadcastWith(): array
     {
-        $this->message->loadMissing('sender:id,name,is_admin,image');
+        $this->message->loadMissing('sender:id,name,is_admin,school_id,phone_account_type,image');
 
         return [
             'conversation_id' => $this->message->chat_conversation_id,
