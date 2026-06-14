@@ -139,7 +139,8 @@ class TripRequestAcceptanceReuseTripTest extends TestCase
 
         $this->assertSame('accepted', $tripRequest->status);
         $this->assertSame((int) $existingTrip->id, (int) $tripRequest->trip_history_id);
-        $this->assertSame(2, TripHistory::query()->count());
+        $this->assertGreaterThanOrEqual(2, TripHistory::query()->count());
+        $this->assertTrue($existingTrip->fresh()->auto_schedule_work_days);
         $this->assertDatabaseMissing('trip_histories', [
             'route_title' => 'Trip Request #'.$tripRequest->id,
         ]);
@@ -702,7 +703,11 @@ class TripRequestAcceptanceReuseTripTest extends TestCase
         ])->assertRedirect();
 
         $this->assertSame((int) $linkedTrip->id, (int) $tripRequest->fresh()->trip_history_id);
-        $this->assertSame(1, TripHistory::query()->count());
+        $this->assertTrue($linkedTrip->fresh()->auto_schedule_work_days);
+        $this->assertDatabaseHas('trip_history_students', [
+            'trip_history_id' => $linkedTrip->id,
+            'student_id' => $student->id,
+        ]);
     }
 
     public function test_accepting_trip_request_without_scheduled_trip_fails(): void

@@ -100,6 +100,14 @@
                     </label>
                 @endif
 
+                @if($showReplacementDrivers ?? false)
+                    @include('dashboard.trips._trip_replacement_drivers', [
+                        'replacementDrivers' => $replacementDrivers ?? collect(),
+                        'allDrivers' => $allDrivers ?? collect(),
+                        'drivers' => $drivers ?? collect(),
+                    ])
+                @endif
+
                 <label style="grid-column:1 / -1;"><span>{{ __('dashboard.notes') }}</span><textarea name="note" rows="3">{{ old('note', $trip->note) }}</textarea></label>
 
                 <div style="grid-column:1 / -1;display:flex;gap:10px;flex-wrap:wrap;">

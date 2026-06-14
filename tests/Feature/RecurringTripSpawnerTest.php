@@ -11,6 +11,7 @@ use App\Models\Student;
 use App\Models\TransportRoute;
 use App\Models\TripHistory;
 use App\Models\TripHistoryStudent;
+use App\Models\TripRequest;
 use App\Models\User;
 use App\Services\Trips\RecurringTripSpawner;
 use App\Support\SchoolWorkDay;
@@ -48,6 +49,7 @@ class RecurringTripSpawnerTest extends TestCase
         $this->assertInstanceOf(TripHistory::class, $spawned);
         $this->assertSame((int) $driver->id, (int) $spawned->driver_id);
         $this->assertSame('Route A', $spawned->route_title);
+        $this->assertSame('PRESENT', strtoupper((string) $spawned->status));
         $this->assertDatabaseHas('trip_history_students', [
             'trip_history_id' => $spawned->id,
             'student_id' => $student->id,
@@ -242,6 +244,61 @@ class RecurringTripSpawnerTest extends TestCase
             0,
             TripHistory::query()->where('recurring_template_id', $trip->id)->count(),
         );
+
+        Carbon::setTestNow();
+    }
+
+    public function test_accepting_trip_request_spawns_recurring_trips_on_school_work_days(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-08 08:00:00', 'UTC'));
+
+        [$school, $driver, $student, $staff, $trip] = $this->seedAssignableTrip();
+        $school->update(['work_days' => ['monday']]);
+
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'G TR',
+            'phone' => '7300000992',
+            'status' => 'active',
+        ]);
+        $student->update(['guardian_id' => $guardian->id]);
+
+        $parent = User::factory()->create([
+            'guardian_id' => $guardian->id,
+            'school_id' => $school->id,
+        ]);
+
+        $tripRequest = TripRequest::query()->create([
+            'user_id' => $parent->id,
+            'student_id' => $student->id,
+            'driver_id' => $driver->id,
+            'trip_history_id' => $trip->id,
+            'status' => 'pending',
+            'present_type' => 'صباحي',
+        ]);
+
+        $driverUser = User::query()->findOrFail((int) $driver->user_id);
+        $this->actingAs($staff);
+
+        $this->put(route('dashboard.trip_requests.update_status', $tripRequest), [
+            'status' => 'accepted',
+        ])->assertRedirect();
+
+        $trip->refresh();
+        $this->assertTrue($trip->auto_schedule_work_days);
+        $this->assertTrue($trip->is_recurring_template);
+
+        $spawned = TripHistory::query()
+            ->where('recurring_template_id', $trip->id)
+            ->whereDate('start_time', '2026-06-15')
+            ->first();
+
+        $this->assertInstanceOf(TripHistory::class, $spawned);
+        $this->assertSame('PRESENT', strtoupper((string) $spawned->status));
+        $this->assertDatabaseHas('trip_history_students', [
+            'trip_history_id' => $spawned->id,
+            'student_id' => $student->id,
+        ]);
 
         Carbon::setTestNow();
     }

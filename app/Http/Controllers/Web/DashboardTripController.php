@@ -24,6 +24,8 @@ use App\Services\Trips\TripStudentAvailability;
 use App\Services\Trips\TripLocationTrackingService;
 use App\Services\Trips\PickupReturnTripPairPlanner;
 use App\Services\Trips\RecurringTripSpawner;
+use App\Services\Trips\TripDriverReplacementService;
+use App\Services\Trips\TripRecurringScheduleService;
 use App\Services\Trips\TripTransportRouteApplier;
 use App\Support\Geo\Haversine;
 use Illuminate\Database\Eloquent\Builder;
@@ -256,6 +258,7 @@ class DashboardTripController extends Controller
         $selectableStatus = in_array($tripStatus, ['ACTIVE', 'PRESENT'], true) ? $tripStatus : 'PRESENT';
         $returnRoutePathSeed = $this->resolveReturnRoutePathSeed($trip);
         $isReturnTrip = TripType::isReturn(trim((string) old('trip_type', $trip->trip_type ?? '')));
+        $replacementService = app(TripDriverReplacementService::class);
 
         return view('dashboard.trips.edit', [
             'trip' => $trip,
@@ -268,6 +271,13 @@ class DashboardTripController extends Controller
             'exceptTripId' => (int) $trip->id,
             'returnRoutePathSeed' => $returnRoutePathSeed,
             'isReturnTrip' => $isReturnTrip,
+            'showReplacementDrivers' => $replacementService->canManageReplacements($trip),
+            'replacementDrivers' => $replacementService->canManageReplacements($trip)
+                ? $replacementService->replacementsForTemplate($trip)
+                : collect(),
+            'allDrivers' => $schoolId > 0
+                ? $this->driversForTripForm($schoolId, null)
+                : collect(),
         ]);
     }
 
@@ -495,17 +505,12 @@ class DashboardTripController extends Controller
         }
 
         $spawnedTotal = 0;
-        $recurringSpawner = app(RecurringTripSpawner::class);
+        $recurringSchedule = app(TripRecurringScheduleService::class);
         foreach ($tripsForRecurring->values() as $trip) {
-            $freshTrip = $trip->fresh(['school', 'tripHistoryStudents']);
-            $this->syncAutoScheduleFlagOnPairedTrip($freshTrip);
-            $freshTrip = $freshTrip->fresh(['school', 'tripHistoryStudents']);
-
-            if ($studentIds !== [] && $freshTrip->auto_schedule_work_days) {
-                $recurringSpawner->registerTemplateFromTrip($freshTrip);
-                $spawnedTotal += $recurringSpawner->spawnAheadForTemplate($freshTrip->fresh(['school', 'tripHistoryStudents']));
+            if ($studentIds !== []) {
+                $spawnedTotal += $recurringSchedule->syncTrip($trip);
             } else {
-                $recurringSpawner->unregisterTemplate($freshTrip);
+                app(RecurringTripSpawner::class)->unregisterTemplate($trip->fresh(['school', 'tripHistoryStudents']));
             }
         }
 
@@ -718,7 +723,18 @@ class DashboardTripController extends Controller
 
         $trip->update($validated);
 
-        $this->syncRecurringScheduleFlagForTrip($trip->fresh(['school', 'tripHistoryStudents']));
+        app(TripRecurringScheduleService::class)->syncTrip($trip->fresh(['school', 'tripHistoryStudents']));
+
+        $replacementService = app(TripDriverReplacementService::class);
+        if ($replacementService->canManageReplacements($trip)) {
+            $replacementService->syncReplacements(
+                $trip->fresh(['school']),
+                $replacementService->rowsFromRequest(
+                    $request->input('replacement_dates', []),
+                    $request->input('replacement_driver_ids', []),
+                ),
+            );
+        }
 
         return redirect()->route('dashboard.trips.index')
             ->with('success', __('dashboard.trip_updated'));
@@ -1171,50 +1187,6 @@ class DashboardTripController extends Controller
         $this->syncTripStudentsForSchool($pickupTrip, $studentIds, $schoolId, $except);
 
         return $pickupTrip->fresh(['school', 'tripHistoryStudents']);
-    }
-
-    private function syncRecurringScheduleFlagForTrip(TripHistory $trip): void
-    {
-        $trip->loadMissing(['school', 'tripHistoryStudents']);
-        $this->syncAutoScheduleFlagOnPairedTrip($trip);
-
-        $recurringSpawner = app(RecurringTripSpawner::class);
-
-        if ($trip->auto_schedule_work_days && $trip->tripHistoryStudents->isNotEmpty()) {
-            $recurringSpawner->registerTemplateFromTrip($trip);
-            $recurringSpawner->spawnAheadForTemplate($trip->fresh(['school', 'tripHistoryStudents']));
-
-            return;
-        }
-
-        $recurringSpawner->unregisterTemplate($trip);
-    }
-
-    private function syncAutoScheduleFlagOnPairedTrip(TripHistory $trip): void
-    {
-        $school = $trip->school;
-        if (! $school instanceof School) {
-            $school = School::query()->find((int) $trip->school_id);
-        }
-        if (! $school instanceof School) {
-            return;
-        }
-
-        $pairPlanner = app(PickupReturnTripPairPlanner::class);
-        $tripType = trim((string) ($trip->trip_type ?? ''));
-        $paired = null;
-
-        if (TripType::isPickup($tripType)) {
-            $paired = $pairPlanner->findReturnTripForPickup($trip);
-        } elseif (TripType::isReturn($tripType)) {
-            $paired = $pairPlanner->findPickupTripForReturn($trip);
-        }
-
-        if ($paired instanceof TripHistory) {
-            $paired->forceFill([
-                'auto_schedule_work_days' => (bool) $trip->auto_schedule_work_days,
-            ])->save();
-        }
     }
 
     private function assertTripRosterWithinBusCapacity(TripHistory $trip, int $studentCount): void

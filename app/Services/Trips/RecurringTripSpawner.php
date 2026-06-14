@@ -4,6 +4,7 @@ namespace App\Services\Trips;
 
 use App\Enums\StudentTripStopStatus;
 use App\Models\School;
+use App\Models\TripDriverReplacement;
 use App\Models\TripHistory;
 use App\Models\TripHistoryStudent;
 use App\Support\SchoolWorkSchedule;
@@ -18,6 +19,7 @@ final class RecurringTripSpawner
 {
     public function __construct(
         private readonly SchoolWorkSchedule $schoolWorkSchedule,
+        private readonly TripDriverReplacementService $driverReplacements,
     ) {}
 
     public function registerTemplateFromTrip(TripHistory $trip): void
@@ -159,9 +161,12 @@ final class RecurringTripSpawner
             ? $this->shiftDateTimeToDay($template->end_time, $targetDay, $tz)
             : null;
 
+        $driverId = $this->driverReplacements->effectiveDriverId($template, $targetDay)
+            ?? $template->driver_id;
+
         return [
             'school_id' => $template->school_id,
-            'driver_id' => $template->driver_id,
+            'driver_id' => $driverId,
             'trip_type' => $template->trip_type,
             'bus_number' => $template->bus_number,
             'route_title' => $template->route_title,
@@ -183,9 +188,7 @@ final class RecurringTripSpawner
 
     private function initialStatusForSpawn(TripHistory $template): string
     {
-        $status = strtoupper(trim((string) ($template->status ?? '')));
-
-        return in_array($status, ['ACTIVE', 'PRESENT'], true) ? $status : 'ACTIVE';
+        return 'PRESENT';
     }
 
     private function shiftDateTimeToDay(mixed $source, Carbon $targetDay, string $tz): Carbon

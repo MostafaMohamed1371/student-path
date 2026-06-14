@@ -19,6 +19,7 @@ final class TripRequestAcceptanceService
         private readonly TripRequestNotificationService $notificationService,
         private readonly RouteAssignmentPlanner $routeAssignmentPlanner,
         private readonly TripRequestPairingService $pairingService,
+        private readonly TripRecurringScheduleService $recurringSchedule,
     ) {}
 
     /**
@@ -64,6 +65,12 @@ final class TripRequestAcceptanceService
             if ($status === 'accepted') {
                 $accepted = $locked->fresh(['student.school', 'driver.bus', 'tripHistory']);
                 $trip = $this->attachAcceptedRequestToTrip($accepted);
+                $pairedTrip = $this->pairingService->ensureStudentOnPairedTripLeg($accepted, $trip);
+                $this->recurringSchedule->enableAutoScheduleOnTripLegs($trip, $pairedTrip);
+                $this->recurringSchedule->syncAfterStudentsAssigned(array_filter([
+                    $trip->fresh(['school', 'tripHistoryStudents']),
+                    $pairedTrip?->fresh(['school', 'tripHistoryStudents']),
+                ]));
                 $this->subscribeStudentToDriverRoute($accepted, $trip);
                 $slotKey = $this->resolveAcceptanceSlotKey($accepted->fresh(['tripHistory']));
                 $this->conflictGuard->rejectCompetingPendingRequests($accepted->fresh(['tripHistory']), $slotKey);
