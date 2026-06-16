@@ -72,12 +72,12 @@ final class DriverServiceAreaTripFormatter
 
             $point = $this->representativePoint($area);
             if ($point !== null && $school?->latitude !== null && $school?->longitude !== null) {
-                $distances[] = Haversine::distanceKm(
+                $distances[] = Haversine::metersBetween(
                     $point[0],
                     $point[1],
                     (float) $school->latitude,
                     (float) $school->longitude,
-                );
+                ) / 1000;
             }
         }
 

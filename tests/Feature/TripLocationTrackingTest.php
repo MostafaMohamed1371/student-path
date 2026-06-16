@@ -188,6 +188,98 @@ class TripLocationTrackingTest extends TestCase
         ])->assertStatus(422);
     }
 
+    public function test_driver_can_update_planned_pickup_start_before_trip_started(): void
+    {
+        $school = School::query()->create([
+            'name_ar' => 'School',
+            'name_en' => 'School',
+            'province' => 'P',
+            'district' => 'D',
+            'address' => 'School Address',
+            'latitude' => 33.300000,
+            'longitude' => 44.300000,
+            'status' => 'active',
+            'work_days' => [strtolower(now()->locale('en')->dayName)],
+            'shift_period' => 'MORNING',
+            'work_time_from' => '07:30',
+            'work_time_to' => '14:00',
+        ]);
+
+        $driverUser = User::factory()->create();
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'D',
+            'father_name' => 'D',
+            'grandfather_name' => 'D',
+            'last_name' => 'T',
+            'age' => 30,
+            'id_card_number' => 'IDC-PLANNED-1',
+            'license_number' => 'LIC-PLANNED-1',
+            'primary_phone' => '1',
+            'emergency_phone' => '2',
+            'residential_address' => 'Depot',
+            'status' => 'active',
+        ]);
+
+        $pickup = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => 'MORNING_PICKUP',
+            'bus_number' => 'B-1',
+            'route_title' => 'Route A',
+            'location' => 'Old location',
+            'start_address' => 'Depot',
+            'start_latitude' => 33.31,
+            'start_longitude' => 44.31,
+            'students_count' => 0,
+            'distance_km' => 1.11,
+            'start_time' => now()->addHour()->toDateTimeString(),
+            'end_time' => now()->addHour()->addMinutes(40)->toDateTimeString(),
+            'status' => 'PRESENT',
+            'driver_started_at' => null,
+        ]);
+
+        $pairPlanner = app(\App\Services\Trips\PickupReturnTripPairPlanner::class);
+        $returnAttributes = $pairPlanner->returnTripAttributesFromPickup(
+            $pairPlanner->pickupAttributesFromTrip($pickup),
+            $school,
+        );
+
+        $return = TripHistory::query()->create($returnAttributes);
+
+        Sanctum::actingAs($driverUser);
+
+        $newLat = 33.315000;
+        $newLng = 44.340000;
+
+        $this->postJson('/api/driver/trips/TRP-'.$pickup->id.'/location', [
+            'latitude' => $newLat,
+            'longitude' => $newLng,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.planned_start_updated', true);
+
+        $pickup->refresh();
+        $return->refresh();
+
+        $this->assertEqualsWithDelta((float) $newLat, (float) $pickup->start_latitude, 0.0000001);
+        $this->assertEqualsWithDelta((float) $newLng, (float) $pickup->start_longitude, 0.0000001);
+
+        $expectedDistance = round(
+            \App\Support\Geo\Haversine::metersBetween(
+                $newLat,
+                $newLng,
+                (float) $school->latitude,
+                (float) $school->longitude,
+            ) / 1000,
+            2,
+        );
+
+        $this->assertEqualsWithDelta((float) $expectedDistance, (float) $pickup->distance_km, 0.000001);
+        $this->assertEqualsWithDelta((float) $expectedDistance, (float) $return->distance_km, 0.000001);
+    }
+
     public function test_parent_forbidden_when_not_on_trip(): void
     {
         $school = School::query()->create([

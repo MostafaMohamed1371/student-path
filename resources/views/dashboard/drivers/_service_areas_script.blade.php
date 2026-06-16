@@ -12,6 +12,10 @@
     const neighborhoodsUrl = @json(route('dashboard.locations.neighborhoods'));
     const selectDistrictLabel = @json(__('dashboard.select_district'));
     const addressEntryLabel = @json(__('dashboard.address_entry'));
+    const activeRowClass = 'driver-service-area-row--active';
+
+    let activeRow = container.querySelector('.driver-service-area-row');
+    let filterChangeHandler = null;
 
     function nextIndex() {
         const rows = container.querySelectorAll('.driver-service-area-row');
@@ -87,6 +91,12 @@
         });
     }
 
+    function notifyFilterChange(row) {
+        if (typeof filterChangeHandler === 'function') {
+            filterChangeHandler(row || activeRow);
+        }
+    }
+
     async function loadAreas(row, districtId, keepArea, keepNeighborhood) {
         const areaSelect = row.querySelector('.driver-service-area-area');
         const neighborhoodSelect = row.querySelector('.driver-service-area-neighborhood');
@@ -99,6 +109,7 @@
             setMultiNeighborhoodOptions(neighborhoodSelect, [], []);
             areaSelect.disabled = true;
             neighborhoodSelect.disabled = true;
+            notifyFilterChange(row);
             return;
         }
 
@@ -109,6 +120,7 @@
         setSingleOptions(areaSelect, data.areas || [], selectDistrictLabel, keepArea ? areaSelect.value : '');
         areaSelect.disabled = false;
         await loadNeighborhoods(row, districtId, areaSelect.value || '', keepNeighborhood);
+        notifyFilterChange(row);
     }
 
     async function loadNeighborhoods(row, districtId, areaId, keepNeighborhood) {
@@ -120,6 +132,7 @@
         if (!districtId) {
             setMultiNeighborhoodOptions(neighborhoodSelect, [], []);
             neighborhoodSelect.disabled = true;
+            notifyFilterChange(row);
             return;
         }
 
@@ -137,12 +150,74 @@
             keepNeighborhood ? selectedNeighborhoodValues(neighborhoodSelect) : [],
         );
         neighborhoodSelect.disabled = false;
+        notifyFilterChange(row);
+    }
+
+    function getRowFilter(row) {
+        const districtSelect = row.querySelector('.driver-service-area-district');
+        const areaSelect = row.querySelector('.driver-service-area-area');
+
+        return {
+            district_id: districtSelect ? String(districtSelect.value || '') : '',
+            area_id: areaSelect ? String(areaSelect.value || '') : '',
+        };
+    }
+
+    function setActiveRow(row) {
+        if (!row) {
+            return;
+        }
+
+        activeRow = row;
+        container.querySelectorAll('.driver-service-area-row').forEach(function (item) {
+            item.classList.toggle(activeRowClass, item === row);
+        });
+        notifyFilterChange(row);
+    }
+
+    async function applyNeighborhoodSelection(row, payload) {
+        const districtSelect = row.querySelector('.driver-service-area-district');
+        const areaSelect = row.querySelector('.driver-service-area-area');
+        const neighborhoodSelect = row.querySelector('.driver-service-area-neighborhood');
+        if (!districtSelect || !areaSelect || !neighborhoodSelect) {
+            return false;
+        }
+
+        const districtId = String(payload.district_id || '');
+        const areaId = String(payload.area_id || '');
+        const neighborhoodId = String(payload.neighborhood_id || '');
+        const preserveSelection = payload.preserve_selection !== false;
+
+        if (!districtId || !areaId || !neighborhoodId) {
+            return false;
+        }
+
+        const previousSelection = preserveSelection ? selectedNeighborhoodValues(neighborhoodSelect) : [];
+        districtSelect.value = districtId;
+        await loadAreas(row, districtId, false, false);
+        areaSelect.value = areaId;
+        await loadNeighborhoods(row, districtId, areaId, false);
+
+        const selectedSet = new Set(previousSelection);
+        selectedSet.add(neighborhoodId);
+        Array.from(neighborhoodSelect.options).forEach(function (option) {
+            if (selectedSet.has(String(option.value))) {
+                option.selected = true;
+            }
+        });
+
+        notifyFilterChange(row);
+        return true;
     }
 
     function bindRow(row) {
         const districtSelect = row.querySelector('.driver-service-area-district');
         const areaSelect = row.querySelector('.driver-service-area-area');
         const removeButton = row.querySelector('.driver-service-area-remove');
+
+        row.addEventListener('mousedown', function () {
+            setActiveRow(row);
+        });
 
         if (districtSelect && !districtSelect.dataset.bound) {
             districtSelect.dataset.bound = '1';
@@ -168,8 +243,14 @@
                 if (rows.length <= 1) {
                     return;
                 }
+                const wasActive = row === activeRow;
                 row.remove();
                 renumberRows();
+                if (wasActive) {
+                    setActiveRow(container.querySelector('.driver-service-area-row'));
+                } else {
+                    notifyFilterChange(activeRow);
+                }
             });
         }
     }
@@ -186,6 +267,7 @@
         container.appendChild(row);
         bindRow(row);
         renumberRows();
+        setActiveRow(row);
     }
 
     addButton.addEventListener('click', addRow);
@@ -206,5 +288,36 @@
     });
 
     renumberRows();
+    if (activeRow) {
+        setActiveRow(activeRow);
+    }
+
+    window.DriverServiceAreas = {
+        getActiveRow: function () {
+            return activeRow;
+        },
+        setActiveRow: setActiveRow,
+        getRowFilter: getRowFilter,
+        applyNeighborhoodSelection: applyNeighborhoodSelection,
+        onFilterChange: function (handler) {
+            filterChangeHandler = handler;
+        },
+    };
 })();
 </script>
+<style>
+    .driver-service-area-row--active {
+        border-color: #3b82f6 !important;
+        box-shadow: 0 0 0 1px #3b82f6;
+        background: #eff6ff !important;
+    }
+    .driver-map-marker--neighborhood {
+        background: #2563eb;
+        border: 2px solid #fff;
+        border-radius: 50%;
+        box-shadow: 0 1px 4px rgba(15, 23, 42, 0.35);
+    }
+    .driver-map-marker--neighborhood.is-selected {
+        background: #16a34a;
+    }
+</style>

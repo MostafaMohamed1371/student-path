@@ -2,6 +2,7 @@
 
 namespace App\Services\Trips;
 
+use App\Enums\TripType;
 use App\Contracts\Trips\TripLocationRepository;
 use App\Events\DriverLocationUpdated;
 use App\Models\Bus;
@@ -43,7 +44,7 @@ final class TripLocationTrackingService
      */
     public function updateDriverLocation(Driver $driver, TripHistory $trip, array $coords): array
     {
-        $this->assertDriverOwnsActiveTrip($driver, $trip);
+        $this->assertDriverOwnsTrip($driver, $trip);
 
         $tripId = (int) $trip->id;
         $driverUserId = (int) ($driver->user_id ?? 0);
@@ -69,6 +70,10 @@ final class TripLocationTrackingService
             'accuracy_m' => isset($coords['accuracy_m']) ? round((float) $coords['accuracy_m'], 2) : null,
             'recorded_at' => $recordedAt,
         ];
+
+        if ($trip->driver_started_at === null) {
+            return $this->updatePlannedStartBeforeTripBegins($trip, $location);
+        }
 
         $tracking = [
             'active' => true,
@@ -171,7 +176,7 @@ final class TripLocationTrackingService
         }
     }
 
-    private function assertDriverOwnsActiveTrip(Driver $driver, TripHistory $trip): void
+    private function assertDriverOwnsTrip(Driver $driver, TripHistory $trip): void
     {
         if ((int) ($trip->driver_id ?? 0) !== (int) $driver->id) {
             throw ValidationException::withMessages([
@@ -185,12 +190,90 @@ final class TripLocationTrackingService
                 'trip' => ['This trip is not active.'],
             ]);
         }
+    }
 
-        if ($trip->driver_started_at === null) {
+    /**
+     * @param  array<string, mixed>  $location
+     *
+     * @return array<string, mixed>
+     */
+    private function updatePlannedStartBeforeTripBegins(TripHistory $trip, array $location): array
+    {
+        $tripType = trim((string) ($trip->trip_type ?? ''));
+        if (! TripType::isPickup($tripType)) {
             throw ValidationException::withMessages([
                 'trip' => ['Start the trip before sending location updates.'],
             ]);
         }
+
+        $trip->loadMissing('school');
+        $school = $trip->school;
+
+        $lat = (float) $location['latitude'];
+        $lng = (float) $location['longitude'];
+
+        $updates = [
+            'start_latitude' => $lat,
+            'start_longitude' => $lng,
+        ];
+
+        if ($school instanceof School) {
+            $startAddress = trim((string) ($trip->start_address ?? ''));
+            $endAddress = trim((string) ($school->address ?? ''));
+            $updates['location'] = $this->plannedLocationLabel($startAddress, $endAddress);
+
+            if ($school->latitude !== null && $school->longitude !== null) {
+                $updates['distance_km'] = round(
+                    Haversine::metersBetween($lat, $lng, (float) $school->latitude, (float) $school->longitude) / 1000,
+                    2,
+                );
+            }
+        }
+
+        $trip->forceFill($updates)->save();
+
+        $pairPlanner = app(PickupReturnTripPairPlanner::class);
+        $schoolModel = $school instanceof School ? $school : null;
+        if ($schoolModel instanceof School) {
+            $returnTrip = $pairPlanner->findReturnTripForPickup($trip->fresh());
+            $returnAttributes = $pairPlanner->returnTripAttributesFromPickup(
+                $pairPlanner->pickupAttributesFromTrip($trip->fresh()),
+                $schoolModel,
+            );
+            if ($returnTrip instanceof TripHistory && $returnAttributes !== null) {
+                $returnTrip->forceFill([
+                    'location' => $returnAttributes['location'] ?? $returnTrip->location,
+                    'distance_km' => $returnAttributes['distance_km'] ?? $returnTrip->distance_km,
+                ])->save();
+            }
+        }
+
+        return [
+            'trip_id' => TripPublicId::forTrip($trip),
+            'trip_history_id' => (int) $trip->id,
+            'planned_start_updated' => true,
+            'location' => $location,
+        ];
+    }
+
+    private function plannedLocationLabel(string $start, string $end): ?string
+    {
+        if ($start === '' && $end === '') {
+            return null;
+        }
+
+        if ($start === '') {
+            return __('dashboard.trip_location_end_only', ['end' => $end]);
+        }
+
+        if ($end === '') {
+            return __('dashboard.trip_location_start_only', ['start' => $start]);
+        }
+
+        return __('dashboard.trip_location_start_to_end', [
+            'start' => $start,
+            'end' => $end,
+        ]);
     }
 
     /**

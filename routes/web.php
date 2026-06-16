@@ -141,6 +141,7 @@ Route::middleware('auth')->group(function (): void {
 
     Route::get('/dashboard/locations/areas', [DashboardLocationController::class, 'areas'])->name('dashboard.locations.areas');
     Route::get('/dashboard/locations/neighborhoods', [DashboardLocationController::class, 'neighborhoods'])->name('dashboard.locations.neighborhoods');
+    Route::get('/dashboard/locations/resolve-neighborhood', [DashboardLocationController::class, 'resolveNeighborhood'])->name('dashboard.locations.resolve_neighborhood');
     Route::get('/dashboard/assigned-drivers', [DashboardRouteController::class, 'assignedDrivers'])->name('dashboard.assigned_drivers.index');
     Route::post('/dashboard/routes/{route}/assign-driver', [DashboardRouteController::class, 'assignDriver'])->name('dashboard.routes.assign_driver');
     Route::get('/dashboard/routes', [DashboardRouteController::class, 'index'])->name('dashboard.routes.index');

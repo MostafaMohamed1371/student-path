@@ -16,6 +16,7 @@ use App\Models\District;
 use App\Models\User;
 use App\Services\Phone\DashboardPhoneUserProvisioner;
 use App\Services\Phone\PhoneNormalizer;
+use App\Services\Trips\DriverTripAutoProvisioner;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -133,6 +134,7 @@ class DashboardDriverController extends Controller
         ]);
         $this->syncDriverServiceAreas($driver, $serviceAreas);
         $this->syncDriverBusAssignment($driver, $busId);
+        app(DriverTripAutoProvisioner::class)->syncForDriver($driver->fresh(['school', 'bus', 'serviceAreas']));
 
         return redirect()->route('dashboard.drivers.index')->with('success', __('dashboard.driver_created'));
     }
@@ -185,6 +187,7 @@ class DashboardDriverController extends Controller
         $driver->update($payload);
         $this->syncDriverServiceAreas($driver, $serviceAreas);
         $this->syncDriverBusAssignment($driver, $busId);
+        app(DriverTripAutoProvisioner::class)->syncForDriver($driver->fresh(['school', 'bus', 'serviceAreas']));
 
         return redirect()->route('dashboard.drivers.index')->with('success', __('dashboard.driver_updated'));
     }

@@ -8,6 +8,9 @@ use Illuminate\Support\Carbon;
 
 final class SchoolWorkSchedule
 {
+    /** Pickup trips start this many minutes before the school shift begins. */
+    public const PICKUP_LEAD_MINUTES = 150;
+
     /**
      * Whether the school is open on the given calendar day per {@see School::$work_days}.
      * If no work days are configured, every day is treated as open.
@@ -36,6 +39,43 @@ final class SchoolWorkSchedule
         };
 
         return $this->timeOnDay($tripDay, $timeValue);
+    }
+
+    /**
+     * When the school shift starts (students arrive) for a pickup trip type.
+     */
+    public function shiftStartTimeForPickup(School $school, TripType $pickupType, Carbon $tripDay): ?Carbon
+    {
+        $timeValue = match ($pickupType) {
+            TripType::MORNING_PICKUP => $school->work_time_from,
+            TripType::EVENING_PICKUP => $this->eveningShiftStartTime($school),
+            default => null,
+        };
+
+        return $this->timeOnDay($tripDay, $timeValue);
+    }
+
+    public function pickupStartTimeForShift(School $school, TripType $pickupType, Carbon $tripDay): ?Carbon
+    {
+        $shiftStart = $this->shiftStartTimeForPickup($school, $pickupType, $tripDay);
+
+        return $shiftStart?->copy()->subMinutes(self::PICKUP_LEAD_MINUTES);
+    }
+
+    public function pickupEndTimeForShift(School $school, TripType $pickupType, Carbon $tripDay): ?Carbon
+    {
+        return $this->shiftStartTimeForPickup($school, $pickupType, $tripDay);
+    }
+
+    private function eveningShiftStartTime(School $school): mixed
+    {
+        $shift = strtoupper(trim((string) ($school->shift_period ?? '')));
+
+        if ($shift === 'BOTH' && filled($school->evening_work_time_from ?? null)) {
+            return $school->evening_work_time_from;
+        }
+
+        return $school->work_time_from;
     }
 
     private function eveningDismissalTime(School $school): mixed
