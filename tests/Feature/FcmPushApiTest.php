@@ -89,7 +89,11 @@ class FcmPushApiTest extends TestCase
                 return (int) $userId === (int) $user->id
                     && $title === 'Test title'
                     && $body === 'Test body'
-                    && ($data['type'] ?? null) === 'TEST';
+                    && ($data['type'] ?? null) === 'WARNING'
+                    && ($data['trip_id'] ?? null) === 'TRIP-1'
+                    && ($data['notificationId'] ?? null) === '1'
+                    && ($data['title'] ?? null) === 'Test title'
+                    && ($data['body'] ?? null) === 'Test body';
             });
         $this->app->instance(PushNotifier::class, $push);
 

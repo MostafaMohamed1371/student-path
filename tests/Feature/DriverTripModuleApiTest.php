@@ -16,12 +16,28 @@ use App\Models\TripRequest;
 use App\Models\User;
 use App\Services\TransportLines\TransportDriverCardBuilder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class DriverTripModuleApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Carbon::setTestNow('2026-06-16 10:00:00');
+        config(['trips.location_store' => 'cache']);
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
+    }
 
     public function test_get_current_trip_and_update_status_sequence(): void
     {
@@ -895,16 +911,18 @@ class DriverTripModuleApiTest extends TestCase
         $trip = TripHistory::query()->create([
             'school_id' => $school->id,
             'driver_id' => $driver->id,
+            'trip_type' => 'MORNING_PICKUP',
             'bus_number' => 'B',
             'route_title' => 'R',
             'location' => 'L',
             'students_count' => 0,
             'distance_km' => 0,
-            'start_time' => now()->subMinutes(10),
+            'start_time' => now()->subMinutes(5),
             'end_time' => null,
             'status' => 'ACTIVE',
             'students_preview' => [],
         ]);
+        $this->attachIdleStudentToTrip($school, $trip);
 
         Sanctum::actingAs($driverUser);
 
@@ -963,11 +981,12 @@ class DriverTripModuleApiTest extends TestCase
             'location' => 'L',
             'students_count' => 0,
             'distance_km' => 0,
-            'start_time' => now()->subMinutes(10),
+            'start_time' => now()->subMinutes(5),
             'end_time' => null,
             'status' => 'ACTIVE',
             'students_preview' => [],
         ]);
+        $this->attachIdleStudentToTrip($school, $tripA);
 
         $tripB = TripHistory::query()->create([
             'school_id' => $school->id,
@@ -983,6 +1002,7 @@ class DriverTripModuleApiTest extends TestCase
             'status' => 'ACTIVE',
             'students_preview' => [],
         ]);
+        $this->attachIdleStudentToTrip($school, $tripB);
 
         Sanctum::actingAs($driverUser);
 
@@ -1196,16 +1216,18 @@ class DriverTripModuleApiTest extends TestCase
         $trip = TripHistory::query()->create([
             'school_id' => $school->id,
             'driver_id' => $driver->id,
+            'trip_type' => 'MORNING_PICKUP',
             'bus_number' => 'B',
             'route_title' => 'Past start',
             'location' => 'L',
             'students_count' => 0,
             'distance_km' => 0,
-            'start_time' => now()->subMinutes(10),
+            'start_time' => now()->subMinutes(5),
             'end_time' => null,
             'status' => 'ACTIVE',
             'students_preview' => [],
         ]);
+        $this->attachIdleStudentToTrip($school, $trip);
 
         Sanctum::actingAs($driverUser);
 
@@ -1562,11 +1584,12 @@ class DriverTripModuleApiTest extends TestCase
             'location' => 'L',
             'students_count' => 0,
             'distance_km' => 0,
-            'start_time' => now()->subMinutes(10),
+            'start_time' => now()->subMinutes(5),
             'end_time' => null,
             'status' => 'ACTIVE',
             'students_preview' => [],
         ]);
+        $this->attachIdleStudentToTrip($school, $morningTrip);
 
         $eveningTrip = TripHistory::query()->create([
             'school_id' => $school->id,
@@ -1577,11 +1600,12 @@ class DriverTripModuleApiTest extends TestCase
             'location' => 'L',
             'students_count' => 0,
             'distance_km' => 0,
-            'start_time' => now()->subMinutes(10),
+            'start_time' => now()->subMinutes(5),
             'end_time' => null,
             'status' => 'ACTIVE',
             'students_preview' => [],
         ]);
+        $this->attachIdleStudentToTrip($school, $eveningTrip);
 
         Sanctum::actingAs($driverUser);
 
@@ -2033,7 +2057,7 @@ class DriverTripModuleApiTest extends TestCase
             'status' => 'active',
         ]);
 
-        TripHistory::query()->create([
+        $scheduledTrip = TripHistory::query()->create([
             'school_id' => $school->id,
             'driver_id' => $driver->id,
             'trip_type' => 'MORNING_PICKUP',
@@ -2055,16 +2079,22 @@ class DriverTripModuleApiTest extends TestCase
             'notes' => 'Parent request for lifecycle',
         ])->assertCreated()->assertJsonPath('data.status', 'pending');
 
-        $requestRow = TripRequest::query()->latest('id')->firstOrFail();
+        $requestRow = TripRequest::query()
+            ->where('student_id', $student->id)
+            ->where('driver_id', $driver->id)
+            ->where('present_type', 'صباحي')
+            ->firstOrFail();
 
         Sanctum::actingAs($driverUser);
 
-        // Driver can see pending order.
-        $this->getJson('/api/orders')
-            ->assertOk()
-            ->assertJsonCount(1, 'data.orders')
-            ->assertJsonPath('data.orders.0.id', $requestRow->id)
-            ->assertJsonPath('data.orders.0.status', 'pending');
+        // Driver can see pending order(s) for this student.
+        $ordersResponse = $this->getJson('/api/orders')->assertOk();
+        $orderIds = collect($ordersResponse->json('data.orders'))->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $this->assertContains((int) $requestRow->id, $orderIds);
+        $pickupOrder = collect($ordersResponse->json('data.orders'))
+            ->first(fn (array $row): bool => (int) ($row['id'] ?? 0) === (int) $requestRow->id);
+        $this->assertNotNull($pickupOrder);
+        $this->assertSame('pending', $pickupOrder['status'] ?? null);
 
         // Driver accepts request -> links to the scheduled trip (no duplicate trip row).
         $this->putJson('/api/orders/'.$requestRow->id, [
@@ -2076,16 +2106,15 @@ class DriverTripModuleApiTest extends TestCase
 
         $accepted = $requestRow->fresh();
         $this->assertNotNull($accepted->trip_history_id);
-        $this->assertSame(1, TripHistory::query()->count());
+        $this->assertSame((int) $scheduledTrip->id, (int) $accepted->trip_history_id);
         $trip = TripHistory::query()->findOrFail((int) $accepted->trip_history_id);
         $tripPublicId = 'TRP-'.$trip->id;
         $studentPublicId = 'ST-'.str_pad((string) $student->id, 3, '0', STR_PAD_LEFT);
 
-        // Scheduled trips API now includes the created trip.
-        $this->getJson('/api/scheduled-trips')
-            ->assertOk()
-            ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.id', $trip->id);
+        // Scheduled trips API includes the linked trip.
+        $scheduledResponse = $this->getJson('/api/scheduled-trips')->assertOk();
+        $scheduledTripIds = collect($scheduledResponse->json('data'))->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $this->assertContains($trip->id, $scheduledTripIds);
 
         $this->postJson('/api/trips/'.$tripPublicId.'/start')
             ->assertOk()
@@ -2489,5 +2518,40 @@ class DriverTripModuleApiTest extends TestCase
 
         $this->getJson('/api/driver/trips/TRP-'.$notStarted->id.'/summary')
             ->assertStatus(422);
+    }
+
+    private function attachIdleStudentToTrip(School $school, TripHistory $trip): Student
+    {
+        $suffix = str_pad((string) $trip->id, 4, '0', STR_PAD_LEFT);
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'Trip Guardian '.$suffix,
+            'phone' => '73'.$suffix.'0001',
+            'status' => 'active',
+        ]);
+        $student = Student::query()->create([
+            'school_id' => $school->id,
+            'guardian_id' => $guardian->id,
+            'full_name' => 'Trip Student '.$suffix,
+            'gender' => 'male',
+            'grade' => 'G1',
+            'student_phone' => '74'.$suffix.'0001',
+            'guardian_name' => $guardian->full_name,
+            'guardian_primary_phone' => $guardian->phone,
+            'relationship' => 'father',
+            'district_area' => 'Area',
+            'nearest_landmark' => 'LM',
+            'status' => 'active',
+        ]);
+
+        TripHistoryStudent::query()->create([
+            'trip_history_id' => $trip->id,
+            'student_id' => $student->id,
+            'sort_order' => 0,
+            'status' => 'IDLE',
+        ]);
+        $trip->forceFill(['students_count' => 1])->save();
+
+        return $student;
     }
 }

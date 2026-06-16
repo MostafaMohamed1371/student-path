@@ -276,7 +276,7 @@ class AuthOtpTest extends TestCase
             'full_name' => 'Student OTP',
             'gender' => 'male',
             'grade' => '1',
-            'student_phone' => self::PHONE_INPUT,
+            'student_phone' => '7709876543',
             'guardian_name' => $guardian->full_name,
             'guardian_primary_phone' => $guardian->phone,
             'relationship' => 'father',
@@ -284,9 +284,13 @@ class AuthOtpTest extends TestCase
             'nearest_landmark' => 'L',
             'status' => 'active',
         ]);
+        User::factory()->create([
+            'phone' => '9647709876543',
+            'is_active' => true,
+        ]);
 
         $this->postJson('/api/auth/send-otp', [
-            'phone' => self::PHONE_INPUT,
+            'phone' => '7709876543',
             'type_user' => 'student',
         ])
             ->assertOk()

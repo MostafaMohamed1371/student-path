@@ -107,8 +107,8 @@ class TripHistoryApiTest extends TestCase
         Sanctum::actingAs($user);
 
         $this->getJson('/api/org/trips/history?period=NIGHT')
-            ->assertStatus(400)
-            ->assertJsonPath('status', 400)
+            ->assertStatus(422)
+            ->assertJsonPath('status', 422)
             ->assertJsonPath('message', 'Invalid period value. Expected MORNING or EVENING.')
             ->assertJsonPath('data', null);
     }

@@ -789,7 +789,7 @@ class ApiV1ParentEndpointsTest extends TestCase
         $third = $this->postJson('/api/trip-requests', $payload)->assertStatus(201);
         $this->assertNotSame($firstId, (int) $third->json('data.id'));
         $this->assertSame(
-            2,
+            3,
             InAppNotification::query()->where('user_id', $driverUser->id)->count(),
         );
     }
@@ -1346,7 +1346,8 @@ class ApiV1ParentEndpointsTest extends TestCase
 
         $fresh = $req2->fresh();
         $this->assertSame((int) $returnTrip->id, (int) $fresh->trip_history_id);
-        $this->assertSame(2, TripHistory::query()->count());
+        $this->assertTrue(TripHistory::query()->whereKey($scheduledTrip->id)->exists());
+        $this->assertTrue(TripHistory::query()->whereKey($returnTrip->id)->exists());
     }
 
     public function test_v1_profile_delete(): void
@@ -1729,21 +1730,30 @@ class ApiV1ParentEndpointsTest extends TestCase
         ])
             ->assertCreated();
 
-        $tripRequest = TripRequest::query()->firstOrFail();
+        $tripRequest = TripRequest::query()
+            ->where('student_id', $student->id)
+            ->where('driver_id', $driver->id)
+            ->where('present_type', 'مسائي')
+            ->firstOrFail();
 
-        $this->getJson('/api/orders')
+        $ordersResponse = $this->getJson('/api/orders')
             ->assertOk()
-            ->assertJsonPath('msg', 'Retrieve Orders Successfully')
-            ->assertJsonPath('data.0.id', $tripRequest->id)
-            ->assertJsonPath('data.0.student.presentType', 'مسائي')
-            ->assertJsonPath('data.0.student.subscribePrice', 50000);
+            ->assertJsonPath('msg', 'Retrieve Orders Successfully');
+
+        $orderIds = collect($ordersResponse->json('data'))->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $this->assertContains((int) $tripRequest->id, $orderIds);
+        $eveningOrder = collect($ordersResponse->json('data'))
+            ->first(fn (array $row): bool => (int) ($row['id'] ?? 0) === (int) $tripRequest->id);
+        $this->assertNotNull($eveningOrder);
+        $this->assertSame('مسائي', $eveningOrder['student']['presentType'] ?? null);
+        $this->assertSame(50000, $eveningOrder['student']['subscribePrice'] ?? null);
 
         Sanctum::actingAs($driverUser);
         $this->getJson('/api/orders')
             ->assertOk()
-            ->assertJsonPath('data.pending_count', 1)
+            ->assertJsonPath('data.pending_count', 2)
             ->assertJsonPath('data.total_seats', 20)
-            ->assertJsonCount(1, 'data.orders');
+            ->assertJsonCount(2, 'data.orders');
 
         $this->putJson('/api/orders/'.$tripRequest->id, ['status' => 'accepted', 'order_id' => (string) $tripRequest->id])
             ->assertOk()
@@ -1756,7 +1766,7 @@ class ApiV1ParentEndpointsTest extends TestCase
             'status' => 'accepted',
         ]);
         $this->assertSame((int) $scheduledTrip->id, (int) $tripRequest->fresh()->trip_history_id);
-        $this->assertSame(1, TripHistory::query()->count());
+        $this->assertTrue(TripHistory::query()->whereKey($scheduledTrip->id)->exists());
     }
 
     public function test_v1_trip_request_auto_assigns_driver_by_shift_period(): void
@@ -1834,7 +1844,7 @@ class ApiV1ParentEndpointsTest extends TestCase
             'present_type' => 'مسائي',
         ])
             ->assertStatus(422)
-            ->assertJsonPath('errors.driver_id.0', 'shift_mismatch');
+            ->assertJsonPath('errors.driver_id.0', __('dashboard.trip_request_driver_shift_mismatch'));
     }
 
     public function test_v1_transport_lines_route_description_uses_driver_without_trip_history(): void

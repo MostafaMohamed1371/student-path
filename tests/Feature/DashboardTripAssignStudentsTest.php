@@ -159,6 +159,8 @@ class DashboardTripAssignStudentsTest extends TestCase
     {
         ['student' => $student, 'school' => $school, 'driver' => $driver] = $this->seedAssignablePickupTrip();
 
+        $tripDay = now()->startOfDay()->addHours(8);
+
         $pickupTrip = TripHistory::query()->create([
             'school_id' => $school->id,
             'driver_id' => $driver->id,
@@ -168,8 +170,8 @@ class DashboardTripAssignStudentsTest extends TestCase
             'location' => 'Loc',
             'students_count' => 0,
             'distance_km' => 1,
-            'start_time' => now()->addHour(),
-            'end_time' => now()->addHours(2),
+            'start_time' => $tripDay->copy()->addHour(),
+            'end_time' => $tripDay->copy()->addHours(2),
             'status' => 'PRESENT',
             'students_preview' => [],
         ]);
@@ -183,8 +185,8 @@ class DashboardTripAssignStudentsTest extends TestCase
             'location' => 'Loc',
             'students_count' => 0,
             'distance_km' => 1,
-            'start_time' => now()->addHours(8),
-            'end_time' => now()->addHours(9),
+            'start_time' => $tripDay->copy()->addHours(10),
+            'end_time' => $tripDay->copy()->addHours(11),
             'status' => 'PRESENT',
             'students_preview' => [],
         ]);

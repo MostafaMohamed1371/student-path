@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\V1\MetaController as V1MetaController;
 use App\Http\Controllers\Api\V1\NotificationPreferenceController as V1NotificationPreferenceController;
 use App\Http\Controllers\Api\V1\NotificationsContractController as V1NotificationsContractController;
 use App\Http\Controllers\Api\V1\OrderController as V1OrderController;
+use App\Http\Controllers\Api\V1\PlacesController as V1PlacesController;
 use App\Http\Controllers\Api\V1\ParentStudentController as V1ParentStudentController;
 use App\Http\Controllers\Api\V1\StudentAttendanceController as V1StudentAttendanceController;
 use App\Http\Controllers\Api\V1\StudentDailyTimelineController as V1StudentDailyTimelineController;

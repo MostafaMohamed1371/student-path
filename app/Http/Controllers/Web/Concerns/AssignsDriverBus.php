@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\Concerns;
 
 use App\Models\Bus;
 use App\Models\Driver;
+use Illuminate\Database\Eloquent\Builder;
 
 trait AssignsDriverBus
 {
@@ -48,7 +49,10 @@ trait AssignsDriverBus
         }
 
         return Bus::query()
-            ->where('school_id', $schoolId)
+            ->where(function (Builder $query) use ($schoolId): void {
+                $query->where('school_id', $schoolId)
+                    ->orWhereHas('driver', fn (Builder $driver) => $driver->where('school_id', $schoolId));
+            })
             ->where(function ($query) use ($exceptDriverId): void {
                 $query->whereNull('driver_id');
                 if ($exceptDriverId !== null && $exceptDriverId > 0) {

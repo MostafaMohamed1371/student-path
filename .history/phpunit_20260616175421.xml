@@ -36,9 +36,9 @@
         <env name="OTP_STATIC_CODE" value=""/>
         <env name="OTP_RESEND_SECONDS" value="0"/>
         <env name="GOOGLE_PLACES_API_KEY" value=""/>
-        <env name="FCM_ENABLED" value="true"/>
+        <env name="FCM_ENABLED" value="false"/>
         <env name="TRIP_LOCATION_STORE" value="cache"/>
-        <env name="FIREBASE_CREDENTIALS" value="storage/app/firebase/tariq-altalib-firebase-adminsdk-fbsvc-7375d446a0.json"/>
+        <env name="FIREBASE_CREDENTIALS" value=""/>
         <ini name="memory_limit" value="512M"/>
     </php>
 </phpunit>

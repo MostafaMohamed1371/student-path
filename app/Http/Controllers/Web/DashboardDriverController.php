@@ -65,13 +65,21 @@ class DashboardDriverController extends Controller
             return $this->redirectToSchoolCreateForAdminsOrHomeForStaff('dashboard.create_school_first');
         }
 
+        $selectedSchoolId = (int) old('school_id', 0);
+        if (! (bool) auth()->user()?->is_admin) {
+            $selectedSchoolId = (int) old(
+                'school_id',
+                auth()->user()?->scopingSchoolId() ?? $schools->first()?->id ?? 0,
+            );
+        }
+
         return view('dashboard.drivers.create', [
             'schools' => $schools,
             'governorates' => District::query()->orderBy('sort_order')->orderBy('name')->get(),
             'serviceAreaRows' => $this->driverServiceAreaRowsForForm(null),
-            'availableBuses' => $this->busesForDriverForm(
-                (int) old('school_id', $schools->first()?->id ?? 0),
-            ),
+            'availableBuses' => $selectedSchoolId > 0
+                ? $this->busesForDriverForm($selectedSchoolId)
+                : collect(),
             'formOptionsUrl' => route('dashboard.drivers.form_options'),
         ]);
     }

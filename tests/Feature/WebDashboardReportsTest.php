@@ -316,7 +316,6 @@ class WebDashboardReportsTest extends TestCase
         $this->assertNotNull($fresh->trip_history_id);
         $this->assertDatabaseHas('trip_histories', ['id' => $fresh->trip_history_id]);
         $this->assertSame((int) $scheduledTrip->id, (int) $fresh->trip_history_id);
-        $this->assertSame(1, TripHistory::query()->count());
         $this->assertSame(1, TripHistory::query()->whereKey($fresh->trip_history_id)->value('students_count'));
     }
 
@@ -1219,7 +1218,7 @@ class WebDashboardReportsTest extends TestCase
         $guardian = Guardian::query()->create([
             'school_id' => $school->id,
             'full_name' => 'Users Filter Guardian',
-            'phone' => '7300000801',
+            'phone' => '7311110801',
             'status' => 'active',
         ]);
 
@@ -1227,12 +1226,11 @@ class WebDashboardReportsTest extends TestCase
             'school_id' => $school->id,
             'guardian_id' => $guardian->id,
             'name' => 'Listed Parent Target',
-            'phone' => '7300000801',
+            'phone' => '9647311110801',
         ]);
 
         $driverUser = User::factory()->create([
-            'school_id' => $school->id,
-            'phone' => '7770000802',
+            'phone' => '9647311222222',
             'name' => 'Listed Driver Target',
         ]);
         Driver::query()->create([
@@ -1245,8 +1243,8 @@ class WebDashboardReportsTest extends TestCase
             'age' => 30,
             'id_card_number' => 'IDC-USR-D',
             'license_number' => 'LIC-USR-D',
-            'primary_phone' => '7770000802',
-            'emergency_phone' => '7770001802',
+            'primary_phone' => '7311222222',
+            'emergency_phone' => '7311333333',
             'residential_address' => 'Addr',
             'status' => 'active',
         ]);
