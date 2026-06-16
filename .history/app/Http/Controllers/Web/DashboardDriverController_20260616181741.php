@@ -1,0 +1,322 @@
+<?php
+
+namespace App\Http\Controllers\Web;
+
+use App\Http\Controllers\Controller;
+use App\Http\Controllers\Web\Concerns\AssignsDriverBus;
+use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
+use App\Http\Controllers\Web\Concerns\ProvidesDashboardIraqLocationFilters;
+use App\Http\Controllers\Web\Concerns\ProvidesDashboardSchoolDriverFilters;
+use App\Http\Controllers\Web\Concerns\SyncsDriverServiceAreas;
+use App\Http\Requests\Web\StoreDashboardDriverRequest;
+use App\Http\Requests\Web\UpdateDashboardDriverRequest;
+use App\Models\Bus;
+use App\Models\Driver;
+use App\Models\District;
+use App\Models\User;
+use App\Services\Phone\DashboardPhoneUserProvisioner;
+use App\Services\Phone\PhoneNormalizer;
+use App\Services\Trips\DriverTripAutoProvisioner;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\View\View;
+
+class DashboardDriverController extends Controller
+{
+    use AssignsDriverBus;
+    use ManagesDashboardScoping;
+    use ProvidesDashboardIraqLocationFilters;
+    use ProvidesDashboardSchoolDriverFilters;
+    use SyncsDriverServiceAreas;
+
+    public function index(Request $request): View
+    {
+        $filters = $this->dashboardReportFilterContext($request, withShiftFilter: true);
+
+        $query = Driver::query()
+            ->with(['user', 'school', 'bus'])
+            ->latest('id');
+        $this->applyDashboardReportFilters($query, $filters, 'roster_school');
+        if ((int) $filters['filterDriverId'] > 0) {
+            $this->applyDashboardReportFilters($query, $filters, 'driver_roster');
+        }
+        $this->applyRosterShiftFilter($query, $filters);
+        $locationFilters = $this->iraqLocationFilterContext($request);
+        $this->applyDriverLocationFilter($query, $locationFilters);
+
+        $drivers = $query->paginate($this->dashboardListPerPage())->withQueryString();
+
+        return view('dashboard.drivers.index', array_merge($filters, $locationFilters, [
+            'filterAction' => route('dashboard.drivers.index'),
+            'drivers' => $drivers,
+        ]));
+    }
+
+    public function create(): View|RedirectResponse
+    {
+        $this->abortUnlessCanMutateSchoolRoster();
+        $schools = $this->schoolsForRosterForm();
+        if ($schools->isEmpty()) {
+            return $this->redirectToSchoolCreateForAdminsOrHomeForStaff('dashboard.create_school_first');
+        }
+
+        $selectedSchoolId = (int) old('school_id', 0);
+        if (! (bool) auth()->user()?->is_admin) {
+            $selectedSchoolId = (int) old(
+                'school_id',
+                auth()->user()?->scopingSchoolId() ?? $schools->first()?->id ?? 0,
+            );
+        }
+
+        return view('dashboard.drivers.create', [
+            'schools' => $schools,
+            'governorates' => District::query()->orderBy('sort_order')->orderBy('name')->get(),
+            'serviceAreaRows' => $this->driverServiceAreaRowsForForm(null),
+            'availableBuses' => $selectedSchoolId > 0
+                ? $this->busesForDriverForm($selectedSchoolId)
+                : collect(),
+            'formOptionsUrl' => route('dashboard.drivers.form_options'),
+        ]);
+    }
+
+    public function formOptions(Request $request): JsonResponse
+    {
+        $this->abortUnlessCanMutateSchoolRoster();
+
+        $validated = $request->validate([
+            'school_id' => ['required', 'integer', 'exists:schools,id'],
+            'except_driver_id' => ['nullable', 'integer', 'exists:drivers,id'],
+        ]);
+
+        $schoolId = (int) $validated['school_id'];
+        $this->abortUnlessCanMutateSchoolRosterForSchool($schoolId);
+
+        $exceptDriverId = isset($validated['except_driver_id']) ? (int) $validated['except_driver_id'] : null;
+
+        return response()->json([
+            'buses' => $this->busesForDriverForm($schoolId, $exceptDriverId)
+                ->map(fn (Bus $bus): array => [
+                    'id' => (int) $bus->id,
+                    'label' => trim($bus->number.' — '.$bus->name),
+                ])
+                ->values()
+                ->all(),
+        ]);
+    }
+
+    public function store(StoreDashboardDriverRequest $request, PhoneNormalizer $phoneNormalizer): RedirectResponse
+    {
+        $this->abortUnlessCanMutateSchoolRoster();
+        $validated = $this->enforceRosterSchoolIdForStaff($request->validated());
+        $serviceAreas = $validated['service_areas'] ?? [];
+        $busId = isset($validated['bus_id']) ? (int) $validated['bus_id'] : null;
+        unset($validated['service_areas'], $validated['district_id'], $validated['area_id'], $validated['neighborhood_ids'], $validated['neighborhood_id'], $validated['monthly_subscription_price'], $validated['bus_id']);
+        $this->abortUnlessCanMutateSchoolRosterForSchool((int) $validated['school_id']);
+        $ratingAvg = Arr::pull($validated, 'rating_avg');
+        $ratingCount = Arr::pull($validated, 'rating_count');
+        $patchExistingUserRatings = $request->filled('rating_avg') || $request->filled('rating_count');
+        $user = $this->resolveDriverUser(
+            $validated,
+            $phoneNormalizer,
+            app(DashboardPhoneUserProvisioner::class),
+            $ratingAvg,
+            $ratingCount,
+            false,
+            $patchExistingUserRatings,
+        );
+        $this->syncDriverProfileImage($user, $request->file('profile_image'));
+
+        $driverData = Arr::except($validated, ['route_description']);
+
+        $driver = Driver::query()->create([
+            ...$driverData,
+            'user_id' => $user->id,
+            'id_card_image' => $this->storeFile($request->file('id_card_image'), 'drivers'),
+            'license_image' => $this->storeFile($request->file('license_image'), 'drivers'),
+            'non_conviction_certificate' => $this->storeFile($request->file('non_conviction_certificate'), 'drivers'),
+        ]);
+        $this->syncDriverServiceAreas($driver, $serviceAreas);
+        $this->syncDriverBusAssignment($driver, $busId);
+        app(DriverTripAutoProvisioner::class)->syncForDriver($driver->fresh(['school', 'bus', 'serviceAreas']));
+
+        return redirect()->route('dashboard.drivers.index')->with('success', __('dashboard.driver_created'));
+    }
+
+    public function edit(Driver $driver): View
+    {
+        $this->abortUnlessCanMutateSchoolRosterForSchool((int) $driver->school_id);
+        $driver->loadMissing(['user', 'neighborhoods', 'bus']);
+        $schools = $this->schoolsForRosterForm();
+
+        return view('dashboard.drivers.edit', [
+            'driver' => $driver,
+            'schools' => $schools,
+            'governorates' => District::query()->orderBy('sort_order')->orderBy('name')->get(),
+            'serviceAreaRows' => $this->driverServiceAreaRowsForForm($driver),
+            'availableBuses' => $this->busesForDriverForm(
+                (int) old('school_id', $driver->school_id),
+                (int) $driver->id,
+            ),
+            'formOptionsUrl' => route('dashboard.drivers.form_options'),
+        ]);
+    }
+
+    public function update(UpdateDashboardDriverRequest $request, Driver $driver, PhoneNormalizer $phoneNormalizer): RedirectResponse
+    {
+        $validated = $this->enforceRosterSchoolIdForStaff($request->validated());
+        $serviceAreas = $validated['service_areas'] ?? [];
+        $busId = isset($validated['bus_id']) ? (int) $validated['bus_id'] : null;
+        unset($validated['service_areas'], $validated['district_id'], $validated['area_id'], $validated['neighborhood_ids'], $validated['neighborhood_id'], $validated['monthly_subscription_price'], $validated['bus_id']);
+        $this->abortUnlessCanMutateSchoolRosterForSchool((int) ($validated['school_id'] ?? $driver->school_id));
+        $ratingAvg = Arr::pull($validated, 'rating_avg');
+        $ratingCount = Arr::pull($validated, 'rating_count');
+        $user = $this->resolveDriverUser(
+            $validated,
+            $phoneNormalizer,
+            app(DashboardPhoneUserProvisioner::class),
+            $ratingAvg,
+            $ratingCount,
+            true,
+            false,
+        );
+        $this->syncDriverProfileImage($user, $request->file('profile_image'));
+
+        $payload = Arr::except($validated, ['route_description']);
+        $payload['user_id'] = $user->id;
+        $payload['id_card_image'] = $this->replaceFile($request->file('id_card_image'), $driver->id_card_image, 'drivers');
+        $payload['license_image'] = $this->replaceFile($request->file('license_image'), $driver->license_image, 'drivers');
+        $payload['non_conviction_certificate'] = $this->replaceFile($request->file('non_conviction_certificate'), $driver->non_conviction_certificate, 'drivers');
+
+        $driver->update($payload);
+        $this->syncDriverServiceAreas($driver, $serviceAreas);
+        $this->syncDriverBusAssignment($driver, $busId);
+        app(DriverTripAutoProvisioner::class)->syncForDriver($driver->fresh(['school', 'bus', 'serviceAreas']));
+
+        return redirect()->route('dashboard.drivers.index')->with('success', __('dashboard.driver_updated'));
+    }
+
+    public function destroy(Driver $driver): RedirectResponse
+    {
+        $this->abortUnlessCanMutateSchoolRosterForSchool((int) $driver->school_id);
+        foreach (['id_card_image', 'license_image', 'non_conviction_certificate'] as $fileField) {
+            if ($driver->{$fileField}) {
+                Storage::disk('public')->delete((string) $driver->{$fileField});
+            }
+        }
+
+        $driver->delete();
+
+        return redirect()->route('dashboard.drivers.index')->with('success', __('dashboard.driver_deleted'));
+    }
+
+    private function storeFile(?UploadedFile $file, string $folder): ?string
+    {
+        return $file?->store($folder, 'public');
+    }
+
+    private function replaceFile(?UploadedFile $file, ?string $existing, string $folder): ?string
+    {
+        if (! $file) {
+            return $existing;
+        }
+
+        if ($existing) {
+            Storage::disk('public')->delete($existing);
+        }
+
+        return $file->store($folder, 'public');
+    }
+
+    private function syncDriverProfileImage(User $user, ?UploadedFile $file): void
+    {
+        if (! $file instanceof UploadedFile) {
+            return;
+        }
+
+        $path = $file->store('profiles', 'public');
+        if (is_string($user->image) && $user->image !== '') {
+            Storage::disk('public')->delete($user->image);
+        }
+
+        $user->forceFill(['image' => $path])->save();
+    }
+
+    private function resolveDriverUser(
+        array $validated,
+        PhoneNormalizer $phoneNormalizer,
+        DashboardPhoneUserProvisioner $provisioner,
+        mixed $ratingAvg,
+        mixed $ratingCount,
+        bool $syncRatingsFromForm,
+        bool $patchExistingUserRatingsOnCreate,
+    ): User {
+        $name = trim(
+            ($validated['first_name'] ?? '').' '.
+            ($validated['father_name'] ?? '').' '.
+            ($validated['last_name'] ?? '')
+        );
+
+        $initialRate = $this->normalizeDriverUserRatingAvg($ratingAvg);
+        $initialVotes = $this->normalizeDriverUserRatingCount($ratingCount);
+
+        $user = $provisioner->upsertDriver(
+            (string) ($validated['primary_phone'] ?? ''),
+            $name,
+            ($validated['status'] ?? 'active') === 'active',
+        );
+
+        if ($user->wasRecentlyCreated) {
+            $user->forceFill([
+                'votes' => $initialVotes,
+                'rate' => $initialRate,
+            ])->save();
+        }
+
+        if ($syncRatingsFromForm) {
+            $user->forceFill([
+                'votes' => $this->normalizeDriverUserRatingCount($ratingCount),
+                'rate' => $this->normalizeDriverUserRatingAvg($ratingAvg),
+            ])->save();
+        } elseif (! $user->wasRecentlyCreated && $patchExistingUserRatingsOnCreate) {
+            $attrs = [];
+            if ($ratingAvg !== null && $ratingAvg !== '') {
+                $attrs['rate'] = $this->normalizeDriverUserRatingAvg($ratingAvg);
+            }
+            if ($ratingCount !== null && $ratingCount !== '') {
+                $attrs['votes'] = $this->normalizeDriverUserRatingCount($ratingCount);
+            }
+            if ($attrs !== []) {
+                $user->forceFill($attrs)->save();
+            }
+        }
+
+        if ($user->name === null && $name !== '') {
+            $user->forceFill(['name' => $name])->save();
+        }
+
+        return $user->fresh();
+    }
+
+    private function normalizeDriverUserRatingAvg(mixed $value): float
+    {
+        if ($value === null || $value === '') {
+            return 0.0;
+        }
+
+        return round(max(0.0, min(5.0, (float) $value)), 1);
+    }
+
+    private function normalizeDriverUserRatingCount(mixed $value): int
+    {
+        if ($value === null || $value === '') {
+            return 0;
+        }
+
+        return max(0, min(999999, (int) $value));
+    }
+}

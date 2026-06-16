@@ -10,6 +10,7 @@ use App\Models\Student;
 use App\Models\TripHistory;
 use App\Models\TripRequest;
 use App\Models\User;
+use App\Services\Drivers\DriverServiceAreaTripFormatter;
 use App\Services\TransportLines\TransportDriverCardBuilder;
 use App\Services\Trips\TripRequestAcceptanceService;
 use App\Services\Trips\TripRequestConflictGuard;
@@ -35,6 +36,7 @@ class TripRequestController extends Controller
         private readonly TripRequestSubmissionPlanner $submissionPlanner,
         private readonly TripRequestSlotKeyResolver $slotKeyResolver,
         private readonly TripRequestPairingService $tripRequestPairingService,
+        private readonly DriverServiceAreaTripFormatter $driverServiceAreaTripFormatter,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -65,10 +67,21 @@ class TripRequestController extends Controller
             ->all();
         $routes = $this->transportDriverCardBuilder->latestTripRouteMetaForDrivers($schoolIds, $drivers);
         [$queryLat, $queryLng] = $this->queryCoordinates($request);
+        $addressInformationByDriver = $this->driverServiceAreaTripFormatter->addressInformationByDriverIds(
+            $collection->pluck('driver_id')->map(fn ($id): int => (int) $id)->all(),
+        );
 
         return $this->parentSuccess([
             'items' => $collection
-                ->map(fn (TripRequest $tr): array => $this->tripRequestPayload($tr, $request, $queryLat, $queryLng, $reserved, $routes))
+                ->map(fn (TripRequest $tr): array => $this->tripRequestPayload(
+                    $tr,
+                    $request,
+                    $queryLat,
+                    $queryLng,
+                    $reserved,
+                    $routes,
+                    $addressInformationByDriver,
+                ))
                 ->values()
                 ->all(),
             'pagination' => [
@@ -310,6 +323,7 @@ class TripRequestController extends Controller
      *
      * @param  Collection<int|string, int>|null  $reservedByDriver
      * @param  array<string, string>|null  $routeBySchoolAndBus
+     * @param  array<int, list<array<string, mixed>>>|null  $addressInformationByDriver
      * @return array<string, mixed>
      */
     private function tripRequestPayload(
@@ -319,6 +333,7 @@ class TripRequestController extends Controller
         ?float $queryLng = null,
         ?Collection $reservedByDriver = null,
         ?array $routeBySchoolAndBus = null,
+        ?array $addressInformationByDriver = null,
     ): array {
         $tripRequest->loadMissing(['student.school', 'driver.user', 'driver.bus', 'tripHistory']);
 
@@ -352,6 +367,11 @@ class TripRequestController extends Controller
                 'destinationLabel' => 'Unknown destination',
             ];
 
+        $driverId = (int) ($tripRequest->driver_id ?? 0);
+        $addressInformation = $driverId > 0
+            ? ($addressInformationByDriver[$driverId] ?? $this->driverServiceAreaTripFormatter->serviceAreasForDriver($driverId))
+            : [];
+
         return array_merge($tripRequest->toArray(), [
             'trip_slot' => $this->slotKeyResolver->slotKeyForRequest($tripRequest),
             'parentName' => $tripRequest->parentDisplayName(),
@@ -359,6 +379,7 @@ class TripRequestController extends Controller
             'driverName' => $tripRequest->driver ? $tripRequest->driverDisplayName() : null,
             'driverCard' => $driverCard,
             'tripPreview' => $tripPreview,
+            'address_information' => $addressInformation,
         ]);
     }
 

@@ -20,15 +20,46 @@ final class DriverServiceAreaTripFormatter
      */
     public function serviceAreasForDriver(int $driverId): array
     {
-        return DriverServiceArea::query()
-            ->where('driver_id', $driverId)
+        return $this->addressInformationByDriverIds([$driverId])[$driverId] ?? [];
+    }
+
+    /**
+     * @param  list<int>  $driverIds
+     * @return array<int, list<array{
+     *     id: int,
+     *     label: string,
+     *     route_title: string,
+     *     start_label: string,
+     *     monthly_subscription_price: int|null,
+     *     latitude: float|null,
+     *     longitude: float|null
+     * }>>
+     */
+    public function addressInformationByDriverIds(array $driverIds): array
+    {
+        $driverIds = array_values(array_unique(array_filter(
+            array_map('intval', $driverIds),
+            fn (int $id): bool => $id > 0,
+        )));
+
+        if ($driverIds === []) {
+            return [];
+        }
+
+        $out = array_fill_keys($driverIds, []);
+
+        DriverServiceArea::query()
+            ->whereIn('driver_id', $driverIds)
             ->with(['district', 'area', 'neighborhoods'])
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get()
-            ->map(fn (DriverServiceArea $area): array => $this->formatServiceArea($area))
-            ->values()
-            ->all();
+            ->each(function (DriverServiceArea $area) use (&$out): void {
+                $driverId = (int) $area->driver_id;
+                $out[$driverId][] = $this->formatServiceArea($area);
+            });
+
+        return $out;
     }
 
     /**
