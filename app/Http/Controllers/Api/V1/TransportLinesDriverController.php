@@ -245,7 +245,9 @@ class TransportLinesDriverController extends Controller
 
         $studentForCards = $student ?? $filterStudent;
 
-        $cards = $drivers->map(function (Driver $driver) use ($reservedByDriver, $routeBySchoolAndBus, $transportRoutesByDriver, $schools, $request, $studentForCards, $studentsBySchoolForDistance, $queryLat, $queryLng): array {
+        $addressInformationByDriver = $this->cardBuilder->addressInformationForDrivers($drivers);
+
+        $cards = $drivers->map(function (Driver $driver) use ($reservedByDriver, $routeBySchoolAndBus, $transportRoutesByDriver, $schools, $request, $studentForCards, $studentsBySchoolForDistance, $queryLat, $queryLng, $addressInformationByDriver): array {
             $school = $schools->get($driver->school_id);
             $studentForDistance = $studentForCards ?? ($studentsBySchoolForDistance[(int) $driver->school_id] ?? null);
             $distanceKm = $this->cardBuilder->resolveDistanceKmToSchool(
@@ -265,6 +267,7 @@ class TransportLinesDriverController extends Controller
                 $distanceKm,
                 $transportRoute instanceof TransportRoute ? $transportRoute : null,
                 $studentForDistance,
+                $addressInformationByDriver,
             );
         })->values()->all();
 

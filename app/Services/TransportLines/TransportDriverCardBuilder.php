@@ -12,6 +12,7 @@ use App\Models\TripHistory;
 use App\Models\TripRequest;
 use App\Models\User;
 use App\Services\Drivers\DriverServiceAreaStudentMatcher;
+use App\Services\Drivers\DriverServiceAreaTripFormatter;
 use App\Services\Routes\RouteAssignmentPlanner;
 use Illuminate\Support\Collection;
 
@@ -20,7 +21,20 @@ final class TransportDriverCardBuilder
     public function __construct(
         private readonly RouteAssignmentPlanner $routeAssignmentPlanner,
         private readonly DriverServiceAreaStudentMatcher $serviceAreaStudentMatcher,
+        private readonly DriverServiceAreaTripFormatter $serviceAreaTripFormatter,
     ) {}
+
+    /**
+     * @param  Collection<int, Driver>  $drivers
+     * @return array<int, list<array<string, mixed>>>
+     */
+    public function addressInformationForDrivers(Collection $drivers): array
+    {
+        return $this->serviceAreaTripFormatter->addressInformationByDriverIds(
+            $drivers->pluck('id')->map(fn ($id): int => (int) $id)->all(),
+        );
+    }
+
     /**
      * @param  Collection<int, Driver>  $drivers
      * @return Collection<int|string, int>
@@ -371,6 +385,7 @@ final class TransportDriverCardBuilder
      *     start_latitude: float|null,
      *     start_longitude: float|null
      * }>  $tripRouteMetaByDriver
+     * @param  array<int, list<array<string, mixed>>>|null  $addressInformationByDriver
      * @return array<string, mixed>
      */
     public function buildCard(
@@ -380,6 +395,7 @@ final class TransportDriverCardBuilder
         ?float $distanceKm,
         ?TransportRoute $transportRoute = null,
         ?Student $studentForRouteMatch = null,
+        ?array $addressInformationByDriver = null,
     ): array {
         $driver->loadMissing(['user', 'bus']);
         $user = $driver->user;
@@ -420,6 +436,11 @@ final class TransportDriverCardBuilder
             }
         }
 
+        $driverId = (int) $driver->id;
+        $addressInformation = $addressInformationByDriver !== null
+            ? ($addressInformationByDriver[$driverId] ?? $this->serviceAreaTripFormatter->serviceAreasForDriver($driverId))
+            : $this->serviceAreaTripFormatter->serviceAreasForDriver($driverId);
+
         return [
             'schoolId' => (string) $driver->school_id,
             'driverId' => (string) $driver->id,
@@ -444,6 +465,7 @@ final class TransportDriverCardBuilder
                 ? (int) $driver->monthly_subscription_price
                 : null,
             'currency' => 'IQD',
+            'address_information' => $addressInformation,
         ];
     }
 
