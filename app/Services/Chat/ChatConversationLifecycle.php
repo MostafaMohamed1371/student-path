@@ -42,6 +42,8 @@ class ChatConversationLifecycle
 
         if ((int) $conversation->user_id === (int) $viewer->id) {
             $conversation->forceFill(['user_last_read_at' => null])->save();
+        } elseif ($conversation->isParentDriverChat() && (int) $conversation->participant_id === (int) $viewer->id) {
+            $conversation->forceFill(['participant_last_read_at' => null])->save();
         } elseif ($viewer->isChatStaff()) {
             $conversation->forceFill(['staff_last_read_at' => null])->save();
         }
@@ -166,10 +168,17 @@ class ChatConversationLifecycle
             ]);
         }
 
-        if (! $actor->isChatStaff() && (int) $conversation->user_id !== (int) $actor->id) {
-            throw ValidationException::withMessages([
-                'conversation' => ['You cannot delete this conversation.'],
-            ]);
+        if (! $actor->isChatStaff()) {
+            $canDelete = (int) $conversation->user_id === (int) $actor->id;
+            if ($conversation->isParentDriverChat()) {
+                $canDelete = $canDelete || (int) $conversation->participant_id === (int) $actor->id;
+            }
+
+            if (! $canDelete) {
+                throw ValidationException::withMessages([
+                    'conversation' => ['You cannot delete this conversation.'],
+                ]);
+            }
         }
 
         $conversation->forceFill([

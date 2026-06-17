@@ -59,7 +59,6 @@ class ChatNotifier
         if ($conversation->isDeleted()) {
             return collect();
         }
-        
         if ($conversation->isParentDriverChat()) {
             $otherId = (int) $sender->id === (int) $conversation->user_id
                 ? (int) ($conversation->participant_id ?? 0)

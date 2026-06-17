@@ -33,6 +33,8 @@ class ConversationResource extends JsonResource
 
         return [
             'id' => $this->id,
+            'conversation_type' => $this->conversation_type ?? ChatConversation::TYPE_SUPPORT,
+            'trip_request_id' => $this->trip_request_id,
             'post_id' => $this->post_id,
             'school_id' => $this->school_id,
             'unread_count' => (int) ($this->getAttribute('unread_messages_count')
@@ -44,7 +46,7 @@ class ConversationResource extends JsonResource
             'other_user' => $other ? [
                 'id' => $other->id,
                 'name' => $other->name ?? '',
-                'type' => $schoolSupport->isChatStaff($other) ? 'staff' : 'user',
+                'type' => $this->resolveOtherUserType($other, $schoolSupport),
                 'image' => $other->image,
             ] : [
                 'id' => null,
@@ -67,6 +69,18 @@ class ConversationResource extends JsonResource
             return null;
         }
 
+        if ($this->isParentDriverChat()) {
+            if ((int) $viewer->id === (int) $this->user_id) {
+                return $this->relationLoaded('participant') ? $this->participant : $this->participant()->first();
+            }
+
+            if ((int) $viewer->id === (int) $this->participant_id) {
+                return $this->relationLoaded('user') ? $this->user : $this->user()->first();
+            }
+
+            return null;
+        }
+
         if ($viewer->isChatStaff()) {
             return $this->relationLoaded('user') ? $this->user : $this->user()->first();
         }
@@ -78,5 +92,16 @@ class ConversationResource extends JsonResource
         return app(ChatSchoolSupport::class)->defaultStaffUserForSchool(
             $this->school_id !== null ? (int) $this->school_id : null,
         );
+    }
+
+    private function resolveOtherUserType(User $other, ChatSchoolSupport $schoolSupport): string
+    {
+        if ($this->isParentDriverChat()) {
+            $other->loadMissing('driver');
+
+            return $other->driver ? 'driver' : 'parent';
+        }
+
+        return $schoolSupport->isChatStaff($other) ? 'staff' : 'user';
     }
 }

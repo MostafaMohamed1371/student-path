@@ -79,9 +79,14 @@ class ChatController extends Controller
                             ->orWhere('phone', 'like', "%{$search}%");
                     });
                 } else {
-                    $q->whereHas('participant', function (Builder $uq) use ($search) {
-                        $uq->where('name', 'like', "%{$search}%")
-                            ->orWhere('phone', 'like', "%{$search}%");
+                    $q->where(function (Builder $inner) use ($search): void {
+                        $inner->whereHas('participant', function (Builder $uq) use ($search): void {
+                            $uq->where('name', 'like', "%{$search}%")
+                                ->orWhere('phone', 'like', "%{$search}%");
+                        })->orWhereHas('user', function (Builder $uq) use ($search): void {
+                            $uq->where('name', 'like', "%{$search}%")
+                                ->orWhere('phone', 'like', "%{$search}%");
+                        });
                     });
                 }
             });
@@ -139,6 +144,7 @@ class ChatController extends Controller
 
         $conversation = ChatConversation::query()
             ->where('user_id', $user->id)
+            ->where('conversation_type', ChatConversation::TYPE_SUPPORT)
             ->where('status', 'open')
             ->whereNull('deleted_at')
             ->first();
@@ -148,6 +154,7 @@ class ChatController extends Controller
         if (! $conversation) {
             $conversation = ChatConversation::query()->create([
                 'user_id' => $user->id,
+                'conversation_type' => ChatConversation::TYPE_SUPPORT,
                 'school_id' => $schoolId,
                 'participant_id' => $participantId,
                 'post_id' => $validated['post_id'] ?? null,
@@ -688,10 +695,6 @@ class ChatController extends Controller
     {
         $conversation = ChatConversation::query()
             ->whereNull('deleted_at')
-            ->when(
-                ! $request->user()->isChatStaff(),
-                fn (Builder $q) => $q->where('user_id', $request->user()->id),
-            )
             ->find($id);
 
         if (! $conversation || ! $conversation->canBeAccessedBy($request->user())) {

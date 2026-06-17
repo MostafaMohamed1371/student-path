@@ -105,6 +105,7 @@ class ChatController extends Controller
 
         $conversation = ChatConversation::query()
             ->where('user_id', $user->id)
+            ->where('conversation_type', ChatConversation::TYPE_SUPPORT)
             ->where('status', 'open')
             ->whereNull('deleted_at')
             ->first();
@@ -114,6 +115,7 @@ class ChatController extends Controller
         if (! $conversation) {
             $conversation = ChatConversation::query()->create([
                 'user_id' => $user->id,
+                'conversation_type' => ChatConversation::TYPE_SUPPORT,
                 'school_id' => $schoolId,
                 'participant_id' => $participantId,
                 'status' => 'open',
@@ -386,8 +388,12 @@ class ChatController extends Controller
 
         $setting = $conversation->userSettings->firstWhere('user_id', $viewer->id);
 
+        $conversation->loadMissing(['user:id,name,phone', 'participant:id,name,phone']);
+
         return [
             'id' => $conversation->id,
+            'conversation_type' => $conversation->conversation_type ?? ChatConversation::TYPE_SUPPORT,
+            'trip_request_id' => $conversation->trip_request_id,
             'status' => $conversation->status,
             'subject' => $conversation->subject,
             'private_channel' => 'private-chat.'.$conversation->id,
@@ -395,6 +401,11 @@ class ChatController extends Controller
                 'id' => $conversation->user->id,
                 'name' => $conversation->user->name,
                 'phone' => $conversation->user->phone,
+            ] : null,
+            'participant' => $conversation->participant ? [
+                'id' => $conversation->participant->id,
+                'name' => $conversation->participant->name,
+                'phone' => $conversation->participant->phone,
             ] : null,
             'last_message_at' => $conversation->last_message_at?->toIso8601String(),
             'unread_count' => $conversation->unreadCountFor($viewer),

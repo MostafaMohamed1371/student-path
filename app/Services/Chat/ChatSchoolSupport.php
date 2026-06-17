@@ -29,6 +29,10 @@ class ChatSchoolSupport
 
     public function canStaffAccessConversation(User $staff, ChatConversation $conversation): bool
     {
+        if ($conversation->isParentDriverChat()) {
+            return false;
+        }
+
         if ($staff->is_admin) {
             return true;
         }

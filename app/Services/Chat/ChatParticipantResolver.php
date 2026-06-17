@@ -17,6 +17,18 @@ class ChatParticipantResolver
 
     public function otherUserId(ChatConversation $conversation, User $viewer): ?int
     {
+        if ($conversation->isParentDriverChat()) {
+            if ((int) $viewer->id === (int) $conversation->user_id) {
+                return $conversation->participant_id ? (int) $conversation->participant_id : null;
+            }
+
+            if ((int) $viewer->id === (int) $conversation->participant_id) {
+                return (int) $conversation->user_id;
+            }
+
+            return null;
+        }
+
         if ($viewer->isChatStaff()) {
             return (int) $conversation->user_id;
         }
@@ -49,7 +61,7 @@ class ChatParticipantResolver
         $query = ChatConversation::query();
 
         if ($user->is_admin) {
-            // Global admins see all school conversations.
+            $query->where('chat_conversations.conversation_type', ChatConversation::TYPE_SUPPORT);
         } elseif ($user->isSchoolChatStaff()) {
             $schoolId = $user->scopingSchoolId();
             if ($schoolId !== null) {
@@ -57,8 +69,16 @@ class ChatParticipantResolver
             } else {
                 $query->whereRaw('1 = 0');
             }
+            $query->where('chat_conversations.conversation_type', ChatConversation::TYPE_SUPPORT);
         } else {
-            $query->where('chat_conversations.user_id', $user->id);
+            $userId = (int) $user->id;
+            $query->where(function (Builder $inner) use ($userId): void {
+                $inner->where('chat_conversations.user_id', $userId)
+                    ->orWhere(function (Builder $peer) use ($userId): void {
+                        $peer->where('chat_conversations.conversation_type', ChatConversation::TYPE_PARENT_DRIVER)
+                            ->where('chat_conversations.participant_id', $userId);
+                    });
+            });
         }
 
         $query->whereNull('chat_conversations.deleted_at');
