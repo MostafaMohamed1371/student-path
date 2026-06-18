@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\Chat\ChatConversationLifecycle;
 use App\Services\Chat\ChatMessenger;
 use App\Services\Chat\ChatOfferActions;
+use App\Services\Chat\ChatParentDriverConversationStarter;
 use App\Services\Chat\ChatParticipantResolver;
 use App\Services\Chat\ChatSchoolSupport;
 use App\Support\ApiPagination;
@@ -33,6 +34,7 @@ class ChatController extends Controller
         private readonly ChatParticipantResolver $participants,
         private readonly ChatConversationLifecycle $lifecycle,
         private readonly ChatSchoolSupport $schoolSupport,
+        private readonly ChatParentDriverConversationStarter $parentDriverConversationStarter,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -190,6 +192,41 @@ class ChatController extends Controller
             'existing' => $existing,
             'data' => new ConversationResource($conversation),
         ], $existing ? 200 : 201);
+    }
+
+    public function startParentDriver(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'trip_request_id' => ['nullable', 'integer', 'exists:trip_requests,id'],
+            'driver_id' => ['nullable', 'integer', 'exists:drivers,id'],
+            'parent_user_id' => ['nullable', 'integer', 'exists:users,id'],
+        ]);
+
+        try {
+            $result = $this->parentDriverConversationStarter->start($user, $validated);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => collect($e->errors())->flatten()->first() ?: 'Validation failed.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
+
+        $conversation = $result->conversation;
+        $conversation->load([
+            'user:id,name,phone,image,is_admin',
+            'participant:id,name,phone,image,is_admin',
+            'userSettings' => fn ($q) => $q->where('user_id', $user->id),
+            'messages' => fn ($q) => $q->latest('id')->limit(1)->with('sender:id,name,is_admin,school_id,phone_account_type,image'),
+        ]);
+        $this->participants->attachIsBlockedFlag([$conversation], $user);
+
+        return response()->json([
+            'message' => $result->created ? 'Parent-driver conversation ready.' : 'Existing parent-driver conversation returned.',
+            'existing' => ! $result->created,
+            'data' => new ConversationResource($conversation),
+        ], $result->created ? 201 : 200);
     }
 
     public function messages(Request $request, int $id): JsonResponse

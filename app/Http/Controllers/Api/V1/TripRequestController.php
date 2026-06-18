@@ -338,6 +338,14 @@ class TripRequestController extends Controller
         $tripRequest->loadMissing(['student.school', 'driver.user', 'driver.bus', 'tripHistory']);
 
         $driverCard = null;
+        $parentUser = User::query()->find((int) $tripRequest->user_id);
+        $pickupNeighborhoodId = $this->transportDriverCardBuilder->resolvePickupNeighborhoodId(
+            $queryLat,
+            $queryLng,
+            $tripRequest->student,
+            $parentUser ?? $request->user(),
+        );
+
         if ($tripRequest->driver) {
             $driver = $tripRequest->driver;
             $reserved = $reservedByDriver ?? $this->transportDriverCardBuilder->reservedCountsByDriverId(collect([$driver]));
@@ -349,7 +357,6 @@ class TripRequestController extends Controller
             if (! $school instanceof School || (int) $school->id !== (int) $driver->school_id) {
                 $school = School::query()->find((int) $driver->school_id);
             }
-            $parentUser = User::query()->find((int) $tripRequest->user_id);
             $distanceKm = $this->transportDriverCardBuilder->resolveDistanceKmToSchool(
                 $queryLat,
                 $queryLng,
@@ -357,7 +364,16 @@ class TripRequestController extends Controller
                 $parentUser ?? $request->user(),
                 $school,
             );
-            $driverCard = $this->transportDriverCardBuilder->buildCard($driver, $reserved, $routes, $distanceKm);
+            $driverCard = $this->transportDriverCardBuilder->buildCard(
+                $driver,
+                $reserved,
+                $routes,
+                $distanceKm,
+                null,
+                $tripRequest->student,
+                null,
+                $pickupNeighborhoodId,
+            );
         }
 
         $tripPreview = $tripRequest->student
@@ -371,6 +387,10 @@ class TripRequestController extends Controller
         $addressInformation = $driverId > 0
             ? ($addressInformationByDriver[$driverId] ?? $this->driverServiceAreaTripFormatter->serviceAreasForDriver($driverId))
             : [];
+        $addressInformation = $this->driverServiceAreaTripFormatter->filterAddressInformationForPickupNeighborhood(
+            $addressInformation,
+            $pickupNeighborhoodId,
+        );
 
         return array_merge($tripRequest->toArray(), [
             'trip_slot' => $this->slotKeyResolver->slotKeyForRequest($tripRequest),

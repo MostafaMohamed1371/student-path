@@ -25,4 +25,15 @@ return [
     */
     'location_filter_max_meters' => (int) env('ROUTE_LOCATION_FILTER_MAX_METERS', 5000),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Parent pickup → sub-district resolution
+    |--------------------------------------------------------------------------
+    |
+    | When resolving a parent's GPS point to an Iraq sub-district (neighborhood),
+    | ignore candidates farther than this radius (kilometers).
+    |
+    */
+    'neighborhood_resolve_max_radius_km' => (float) env('ROUTE_NEIGHBORHOOD_RESOLVE_MAX_RADIUS_KM', 8),
+
 ];

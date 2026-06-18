@@ -9,6 +9,7 @@ use App\Models\ChatMessage;
 use App\Models\User;
 use App\Services\Chat\ChatConversationLifecycle;
 use App\Services\Chat\ChatMessenger;
+use App\Services\Chat\ChatParentDriverConversationStarter;
 use App\Services\Chat\ChatParticipantResolver;
 use App\Services\Chat\ChatSchoolSupport;
 use Illuminate\Http\JsonResponse;
@@ -24,6 +25,7 @@ class ChatController extends Controller
         private readonly ChatParticipantResolver $participants,
         private readonly ChatConversationLifecycle $lifecycle,
         private readonly ChatSchoolSupport $schoolSupport,
+        private readonly ChatParentDriverConversationStarter $parentDriverConversationStarter,
     ) {}
 
     public function config(): JsonResponse
@@ -145,6 +147,34 @@ class ChatController extends Controller
             $this->formatConversation($conversation, $user),
             'Conversation ready',
             $created ? 201 : 200,
+        );
+    }
+
+    public function storeParentDriverConversation(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'trip_request_id' => ['nullable', 'integer', 'exists:trip_requests,id'],
+            'driver_id' => ['nullable', 'integer', 'exists:drivers,id'],
+            'parent_user_id' => ['nullable', 'integer', 'exists:users,id'],
+        ]);
+
+        try {
+            $result = $this->parentDriverConversationStarter->start($request->user(), $validated);
+        } catch (ValidationException $e) {
+            return $this->parentError(
+                collect($e->errors())->flatten()->first() ?: 'Validation failed.',
+                $e->errors(),
+                422,
+            );
+        }
+
+        $conversation = $result->conversation;
+        $conversation->load(['user:id,name,phone', 'participant:id,name,phone']);
+
+        return $this->parentSuccess(
+            $this->formatConversation($conversation, $request->user()),
+            $result->created ? 'Parent-driver conversation ready' : 'Existing parent-driver conversation returned',
+            $result->created ? 201 : 200,
         );
     }
 

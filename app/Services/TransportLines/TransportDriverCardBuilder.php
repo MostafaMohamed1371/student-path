@@ -13,6 +13,7 @@ use App\Models\TripRequest;
 use App\Models\User;
 use App\Services\Drivers\DriverServiceAreaStudentMatcher;
 use App\Services\Drivers\DriverServiceAreaTripFormatter;
+use App\Services\Geo\NearestNeighborhoodResolver;
 use App\Services\Routes\RouteAssignmentPlanner;
 use Illuminate\Support\Collection;
 
@@ -22,6 +23,7 @@ final class TransportDriverCardBuilder
         private readonly RouteAssignmentPlanner $routeAssignmentPlanner,
         private readonly DriverServiceAreaStudentMatcher $serviceAreaStudentMatcher,
         private readonly DriverServiceAreaTripFormatter $serviceAreaTripFormatter,
+        private readonly NearestNeighborhoodResolver $nearestNeighborhoodResolver,
     ) {}
 
     /**
@@ -33,6 +35,34 @@ final class TransportDriverCardBuilder
         return $this->serviceAreaTripFormatter->addressInformationByDriverIds(
             $drivers->pluck('id')->map(fn ($id): int => (int) $id)->all(),
         );
+    }
+
+    public function resolvePickupNeighborhoodId(
+        ?float $queryLat,
+        ?float $queryLng,
+        ?Student $student,
+        ?User $user,
+    ): ?int {
+        if ($queryLat !== null && $queryLng !== null) {
+            return $this->nearestNeighborhoodResolver->resolveId($queryLat, $queryLng);
+        }
+
+        if ($student !== null
+            && $student->latitude !== null
+            && $student->longitude !== null
+            && ! ((float) $student->latitude === 0.0 && (float) $student->longitude === 0.0)) {
+            return $this->nearestNeighborhoodResolver->resolveId(
+                (float) $student->latitude,
+                (float) $student->longitude,
+            );
+        }
+
+        $viewerLatLng = $this->resolveViewerLatLng(null, null, $user);
+        if ($viewerLatLng === null) {
+            return null;
+        }
+
+        return $this->nearestNeighborhoodResolver->resolveId($viewerLatLng[0], $viewerLatLng[1]);
     }
 
     /**
@@ -396,6 +426,7 @@ final class TransportDriverCardBuilder
         ?TransportRoute $transportRoute = null,
         ?Student $studentForRouteMatch = null,
         ?array $addressInformationByDriver = null,
+        ?int $pickupNeighborhoodId = null,
     ): array {
         $driver->loadMissing(['user', 'bus']);
         $user = $driver->user;
@@ -440,6 +471,10 @@ final class TransportDriverCardBuilder
         $addressInformation = $addressInformationByDriver !== null
             ? ($addressInformationByDriver[$driverId] ?? $this->serviceAreaTripFormatter->serviceAreasForDriver($driverId))
             : $this->serviceAreaTripFormatter->serviceAreasForDriver($driverId);
+        $addressInformation = $this->serviceAreaTripFormatter->filterAddressInformationForPickupNeighborhood(
+            $addressInformation,
+            $pickupNeighborhoodId,
+        );
 
         return [
             'schoolId' => (string) $driver->school_id,

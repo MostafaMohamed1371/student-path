@@ -20,6 +20,24 @@ final class ChatParentDriverConversationProvisioner
 
         $schoolId = (int) ($tripRequest->student?->school_id ?? $tripRequest->driver?->school_id ?? 0);
 
+        return $this->ensureBetweenParentAndDriver(
+            $parentUserId,
+            $driverUserId,
+            $schoolId > 0 ? $schoolId : null,
+            (int) $tripRequest->id,
+        );
+    }
+
+    public function ensureBetweenParentAndDriver(
+        int $parentUserId,
+        int $driverUserId,
+        ?int $schoolId = null,
+        ?int $tripRequestId = null,
+    ): ?ChatConversation {
+        if ($parentUserId <= 0 || $driverUserId <= 0) {
+            return null;
+        }
+
         $existing = ChatConversation::query()
             ->where('conversation_type', ChatConversation::TYPE_PARENT_DRIVER)
             ->where('status', 'open')
@@ -29,8 +47,8 @@ final class ChatParentDriverConversationProvisioner
             ->first();
 
         if ($existing instanceof ChatConversation) {
-            if ($existing->trip_request_id === null) {
-                $existing->forceFill(['trip_request_id' => $tripRequest->id])->save();
+            if ($tripRequestId !== null && $existing->trip_request_id === null) {
+                $existing->forceFill(['trip_request_id' => $tripRequestId])->save();
             }
 
             return $existing;
@@ -40,8 +58,8 @@ final class ChatParentDriverConversationProvisioner
             'conversation_type' => ChatConversation::TYPE_PARENT_DRIVER,
             'user_id' => $parentUserId,
             'participant_id' => $driverUserId,
-            'school_id' => $schoolId > 0 ? $schoolId : null,
-            'trip_request_id' => $tripRequest->id,
+            'school_id' => $schoolId,
+            'trip_request_id' => $tripRequestId,
             'status' => 'open',
             'user_last_read_at' => now(),
             'participant_last_read_at' => now(),

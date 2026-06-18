@@ -20,6 +20,56 @@ class ParentDriverChatTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_parent_can_manually_start_parent_driver_chat(): void
+    {
+        [$school, $parent, $student, $driver, $driverUser, $trip] = $this->seedAcceptedTripContext();
+
+        $tripRequest = TripRequest::query()->create([
+            'user_id' => $parent->id,
+            'student_id' => $student->id,
+            'driver_id' => $driver->id,
+            'trip_history_id' => $trip->id,
+            'status' => 'pending',
+        ]);
+
+        Sanctum::actingAs($parent);
+
+        $this->postJson('/api/user/chats/start-parent-driver', [
+            'trip_request_id' => $tripRequest->id,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.conversation_type', 'parent_driver')
+            ->assertJsonPath('data.trip_request_id', $tripRequest->id);
+
+        $this->postJson('/api/user/chats/start-parent-driver', [
+            'driver_id' => $driver->id,
+        ])
+            ->assertOk()
+            ->assertJsonPath('existing', true);
+    }
+
+    public function test_driver_can_manually_start_parent_driver_chat(): void
+    {
+        [$school, $parent, $student, $driver, $driverUser, $trip] = $this->seedAcceptedTripContext();
+
+        TripRequest::query()->create([
+            'user_id' => $parent->id,
+            'student_id' => $student->id,
+            'driver_id' => $driver->id,
+            'trip_history_id' => $trip->id,
+            'status' => 'pending',
+        ]);
+
+        Sanctum::actingAs($driverUser);
+
+        $this->postJson('/api/user/chats/start-parent-driver', [
+            'parent_user_id' => $parent->id,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.conversation_type', 'parent_driver')
+            ->assertJsonPath('data.other_user.type', 'parent');
+    }
+
     public function test_accepting_trip_request_opens_parent_driver_chat(): void
     {
         [$school, $parent, $student, $driver, $driverUser, $trip] = $this->seedAcceptedTripContext();

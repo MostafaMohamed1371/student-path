@@ -233,6 +233,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('unread-count', [V1ChatController::class, 'unreadMessagesCount']);
         Route::get('conversations', [V1ChatController::class, 'indexConversations']);
         Route::post('conversations', [V1ChatController::class, 'storeConversation']);
+        Route::post('conversations/parent-driver', [V1ChatController::class, 'storeParentDriverConversation']);
         Route::get('conversations/{conversation}', [V1ChatController::class, 'showConversation']);
         Route::get('conversations/{conversation}/messages', [V1ChatController::class, 'indexMessages']);
         Route::post('conversations/{conversation}/messages', [V1ChatController::class, 'storeMessage']);
@@ -251,6 +252,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('chats', [UserChatController::class, 'index']);
         Route::get('chats/unread-count', [UserChatController::class, 'unreadMessagesCount']);
         Route::post('chats/start', [UserChatController::class, 'start']);
+        Route::post('chats/start-parent-driver', [UserChatController::class, 'startParentDriver']);
         Route::get('chats/{id}/messages', [UserChatController::class, 'messages'])->whereNumber('id');
         Route::post('chats/{id}/messages', [UserChatController::class, 'send'])->whereNumber('id');
         Route::post('chats/{id}/read', [UserChatController::class, 'markRead'])->whereNumber('id');

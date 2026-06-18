@@ -246,8 +246,14 @@ class TransportLinesDriverController extends Controller
         $studentForCards = $student ?? $filterStudent;
 
         $addressInformationByDriver = $this->cardBuilder->addressInformationForDrivers($drivers);
+        $pickupNeighborhoodId = $this->cardBuilder->resolvePickupNeighborhoodId(
+            $queryLat,
+            $queryLng,
+            $studentForCards,
+            $request->user(),
+        );
 
-        $cards = $drivers->map(function (Driver $driver) use ($reservedByDriver, $routeBySchoolAndBus, $transportRoutesByDriver, $schools, $request, $studentForCards, $studentsBySchoolForDistance, $queryLat, $queryLng, $addressInformationByDriver): array {
+        $cards = $drivers->map(function (Driver $driver) use ($reservedByDriver, $routeBySchoolAndBus, $transportRoutesByDriver, $schools, $request, $studentForCards, $studentsBySchoolForDistance, $queryLat, $queryLng, $addressInformationByDriver, $pickupNeighborhoodId): array {
             $school = $schools->get($driver->school_id);
             $studentForDistance = $studentForCards ?? ($studentsBySchoolForDistance[(int) $driver->school_id] ?? null);
             $distanceKm = $this->cardBuilder->resolveDistanceKmToSchool(
@@ -268,6 +274,7 @@ class TransportLinesDriverController extends Controller
                 $transportRoute instanceof TransportRoute ? $transportRoute : null,
                 $studentForDistance,
                 $addressInformationByDriver,
+                $pickupNeighborhoodId,
             );
         })->values()->all();
 
@@ -358,6 +365,13 @@ class TransportLinesDriverController extends Controller
             $cardTripTypes,
         );
         $transportRoute = $transportRoutes->get($driver->id);
+        $addressInformationByDriver = $this->cardBuilder->addressInformationForDrivers(collect([$driver]));
+        $pickupNeighborhoodId = $this->cardBuilder->resolvePickupNeighborhoodId(
+            $queryLat,
+            $queryLng,
+            $studentForDistance,
+            $request->user(),
+        );
 
         $card = $this->cardBuilder->buildCard(
             $driver,
@@ -366,6 +380,8 @@ class TransportLinesDriverController extends Controller
             $distanceKm,
             $transportRoute instanceof TransportRoute ? $transportRoute : null,
             $studentForDistance,
+            $addressInformationByDriver,
+            $pickupNeighborhoodId,
         );
 
         return $this->parentSuccess([

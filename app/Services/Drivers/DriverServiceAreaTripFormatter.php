@@ -32,7 +32,8 @@ final class DriverServiceAreaTripFormatter
      *     start_label: string,
      *     monthly_subscription_price: int|null,
      *     latitude: float|null,
-     *     longitude: float|null
+     *     longitude: float|null,
+     *     neighborhood_ids: list<int>
      * }>>
      */
     public function addressInformationByDriverIds(array $driverIds): array
@@ -60,6 +61,31 @@ final class DriverServiceAreaTripFormatter
             });
 
         return $out;
+    }
+
+    /**
+     * When the parent's sub-district matches at least one driver service area, keep only those rows.
+     * Otherwise return the full list (parent is in a different sub-district).
+     *
+     * @param  list<array<string, mixed>>  $addressInformation
+     * @return list<array<string, mixed>>
+     */
+    public function filterAddressInformationForPickupNeighborhood(array $addressInformation, ?int $pickupNeighborhoodId): array
+    {
+        if ($pickupNeighborhoodId === null || $pickupNeighborhoodId <= 0 || $addressInformation === []) {
+            return $addressInformation;
+        }
+
+        $matching = array_values(array_filter(
+            $addressInformation,
+            fn (array $item): bool => in_array(
+                $pickupNeighborhoodId,
+                array_map('intval', $item['neighborhood_ids'] ?? []),
+                true,
+            ),
+        ));
+
+        return $matching !== [] ? $matching : $addressInformation;
     }
 
     /**
@@ -136,7 +162,8 @@ final class DriverServiceAreaTripFormatter
      *     label: string,
      *     route_title: string,
      *     start_label: string,
-     *     monthly_subscription_price: int|null
+     *     monthly_subscription_price: int|null,
+     *     neighborhood_ids: list<int>
      * }
      */
     public function formatServiceArea(DriverServiceArea $area): array
@@ -181,6 +208,11 @@ final class DriverServiceAreaTripFormatter
                 : null,
             'latitude' => $point !== null ? $point[0] : null,
             'longitude' => $point !== null ? $point[1] : null,
+            'neighborhood_ids' => $area->neighborhoods
+                ->pluck('id')
+                ->map(fn ($id): int => (int) $id)
+                ->values()
+                ->all(),
         ];
     }
 
