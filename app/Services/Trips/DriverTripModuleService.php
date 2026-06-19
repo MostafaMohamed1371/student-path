@@ -1060,6 +1060,18 @@ final class DriverTripModuleService
             }
         }
 
+        if (in_array($newStatus, [StudentTripStopStatus::BOARDED, StudentTripStopStatus::ABSENT], true)) {
+            $referenceStudent = Student::query()->find($studentId);
+            $trip->load(['tripHistoryStudents.student']);
+            $this->reorderStudentsByDriverProximity(
+                $trip,
+                $driverLat,
+                $driverLng,
+                onlyPending: true,
+                referenceStudent: $referenceStudent instanceof Student ? $referenceStudent : null,
+            );
+        }
+
         $lessThan50 = $newStatus === StudentTripStopStatus::ARRIVED;
 
         return [
@@ -1188,15 +1200,30 @@ final class DriverTripModuleService
         TripHistory $trip,
         ?float $driverLat,
         ?float $driverLng,
+        bool $onlyPending = false,
+        ?Student $referenceStudent = null,
     ): void {
-        $reference = $this->resolveDriverReferencePointForOrdering($trip, $driverLat, $driverLng);
+        $reference = $this->resolveDriverReferencePointForOrdering(
+            $trip,
+            $driverLat,
+            $driverLng,
+            $referenceStudent,
+        );
         if ($reference === null) {
             return;
         }
 
         [$refLat, $refLng] = $reference;
 
-        $scored = $trip->tripHistoryStudents
+        $rows = $onlyPending
+            ? $trip->tripHistoryStudents->filter(fn (TripHistoryStudent $ths): bool => $this->isPendingPickupStop($ths))
+            : $trip->tripHistoryStudents;
+
+        if ($rows->isEmpty()) {
+            return;
+        }
+
+        $scored = $rows
             ->map(function (TripHistoryStudent $ths) use ($refLat, $refLng): array {
                 $student = $ths->student;
                 $distanceMeters = PHP_FLOAT_MAX;
@@ -1227,6 +1254,23 @@ final class DriverTripModuleService
         }
     }
 
+    private function isPendingPickupStop(TripHistoryStudent $ths): bool
+    {
+        $st = StudentTripStopStatus::tryFrom((string) $ths->status) ?? StudentTripStopStatus::IDLE;
+
+        if (in_array($st, [StudentTripStopStatus::BOARDED, StudentTripStopStatus::ABSENT], true)) {
+            return false;
+        }
+
+        if ($this->absenceTripApplier->isStudentAbsentOnDate((int) $ths->student_id)
+            && in_array($st, [StudentTripStopStatus::IDLE, StudentTripStopStatus::ON_WAY, StudentTripStopStatus::ARRIVED], true)
+        ) {
+            return false;
+        }
+
+        return true;
+    }
+
     /**
      * @return array{0: float, 1: float}|null
      */
@@ -1234,9 +1278,16 @@ final class DriverTripModuleService
         TripHistory $trip,
         ?float $driverLat,
         ?float $driverLng,
+        ?Student $referenceStudent = null,
     ): ?array {
         if ($driverLat !== null && $driverLng !== null) {
             return [$driverLat, $driverLng];
+        }
+
+        if ($referenceStudent instanceof Student
+            && $referenceStudent->latitude !== null
+            && $referenceStudent->longitude !== null) {
+            return [(float) $referenceStudent->latitude, (float) $referenceStudent->longitude];
         }
 
         if ($trip->start_latitude !== null && $trip->start_longitude !== null) {

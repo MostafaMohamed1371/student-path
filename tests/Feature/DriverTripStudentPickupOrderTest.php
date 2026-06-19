@@ -135,6 +135,136 @@ class DriverTripStudentPickupOrderTest extends TestCase
             ->assertJsonPath('data.trip.current_active_student_id', $farSid);
     }
 
+    public function test_boarding_student_reorders_remaining_by_distance_from_driver(): void
+    {
+        config(['trips.driver_start_early_minutes' => 10, 'trips.driver_start_late_minutes' => 10]);
+
+        $school = School::query()->create([
+            'name_ar' => 'S',
+            'name_en' => 'Reorder School',
+            'province' => 'P',
+            'district' => 'D',
+            'address' => 'Campus',
+            'status' => 'active',
+        ]);
+
+        $driverUser = User::factory()->create();
+        $driver = Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'school_id' => $school->id,
+            'first_name' => 'Ali',
+            'father_name' => 'Hassan',
+            'grandfather_name' => 'Omar',
+            'last_name' => 'Karim',
+            'age' => 35,
+            'id_card_number' => 'IDC-REORDER',
+            'license_number' => 'LIC-REORDER',
+            'primary_phone' => '7770000700',
+            'emergency_phone' => '7770001700',
+            'residential_address' => 'Addr',
+            'status' => 'active',
+        ]);
+
+        Bus::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'user_id' => $driverUser->id,
+            'name' => 'Bus 1',
+            'type' => 'Coach',
+            'city' => 'Baghdad',
+            'number' => 'B-REORDER',
+            'color' => 'Yellow',
+            'capacity' => 40,
+            'fuel_type' => 'diesel',
+            'status' => 'active',
+        ]);
+
+        $firstStudent = $this->createStudentOnTrip($school, 'First Student', 33.301, 44.301);
+        $nearToFirst = $this->createStudentOnTrip($school, 'Near To First', 33.3011, 44.3022);
+        $farFromFirst = $this->createStudentOnTrip($school, 'Far From First', 33.305, 44.305);
+
+        $formStart = now();
+        $trip = TripHistory::query()->create([
+            'school_id' => $school->id,
+            'driver_id' => $driver->id,
+            'trip_type' => 'MORNING_PICKUP',
+            'bus_number' => 'B-REORDER',
+            'route_title' => 'Route',
+            'location' => 'Loc',
+            'students_count' => 3,
+            'distance_km' => 1,
+            'start_time' => $formStart,
+            'end_time' => $formStart->copy()->addHour(),
+            'status' => 'PRESENT',
+        ]);
+
+        foreach ([$firstStudent, $nearToFirst, $farFromFirst] as $index => $student) {
+            TripHistoryStudent::query()->create([
+                'trip_history_id' => $trip->id,
+                'student_id' => $student->id,
+                'sort_order' => $index,
+                'status' => 'IDLE',
+            ]);
+        }
+
+        Sanctum::actingAs($driverUser);
+
+        $firstSid = 'ST-'.str_pad((string) $firstStudent->id, 3, '0', STR_PAD_LEFT);
+        $nearSid = 'ST-'.str_pad((string) $nearToFirst->id, 3, '0', STR_PAD_LEFT);
+        $farSid = 'ST-'.str_pad((string) $farFromFirst->id, 3, '0', STR_PAD_LEFT);
+
+        $this->postJson('/api/trips/TRP-'.$trip->id.'/start', [
+            'driver_lat' => 33.30,
+            'driver_lng' => 44.30,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.current_active_student_id', $firstSid);
+
+        TripHistoryStudent::query()
+            ->where('trip_history_id', $trip->id)
+            ->where('student_id', $farFromFirst->id)
+            ->update(['sort_order' => 0]);
+        TripHistoryStudent::query()
+            ->where('trip_history_id', $trip->id)
+            ->where('student_id', $nearToFirst->id)
+            ->update(['sort_order' => 1]);
+
+        $this->putJson('/api/update-status', [
+            'student_id' => $firstSid,
+            'new_status' => 'ON_WAY',
+        ])->assertOk();
+
+        $this->putJson('/api/update-status', [
+            'student_id' => $firstSid,
+            'new_status' => 'ARRIVED',
+            'driver_lat' => 33.301,
+            'driver_lng' => 44.301,
+        ])->assertOk();
+
+        $this->putJson('/api/update-status', [
+            'student_id' => $firstSid,
+            'new_status' => 'BOARDED',
+            'driver_lat' => 33.301,
+            'driver_lng' => 44.301,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.trip.current_active_student_id', $nearSid)
+            ->assertJsonPath('data.trip.students.0.id', $nearSid)
+            ->assertJsonPath('data.trip.students.0.can_action', true)
+            ->assertJsonPath('data.trip.students.1.id', $farSid);
+
+        $this->assertDatabaseHas('trip_history_students', [
+            'trip_history_id' => $trip->id,
+            'student_id' => $nearToFirst->id,
+            'sort_order' => 0,
+        ]);
+        $this->assertDatabaseHas('trip_history_students', [
+            'trip_history_id' => $trip->id,
+            'student_id' => $farFromFirst->id,
+            'sort_order' => 1,
+        ]);
+    }
+
     private function createStudentOnTrip(School $school, string $name, float $lat, float $lng): Student
     {
         $guardian = Guardian::query()->create([
