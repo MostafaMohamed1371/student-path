@@ -24,6 +24,7 @@ class ChatConversation extends Model
         'school_id',
         'participant_id',
         'trip_request_id',
+        'trip_history_id',
         'post_id',
         'status',
         'subject',
@@ -64,6 +65,11 @@ class ChatConversation extends Model
     public function tripRequest(): BelongsTo
     {
         return $this->belongsTo(TripRequest::class);
+    }
+
+    public function tripHistory(): BelongsTo
+    {
+        return $this->belongsTo(TripHistory::class);
     }
 
     public function isParentDriverChat(): bool

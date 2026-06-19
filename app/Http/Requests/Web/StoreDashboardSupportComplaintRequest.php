@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Web;
 
+use App\Services\Support\SupportComplaintAttachmentStore;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -21,11 +22,10 @@ class StoreDashboardSupportComplaintRequest extends FormRequest
             ->map(fn ($id) => (string) $id)
             ->all();
 
-        return [
+        return array_merge([
             'user_id' => ['required', 'integer', 'exists:users,id'],
             'category_id' => ['required', 'string', 'max:64', Rule::in($allowedIds)],
             'details' => ['required', 'string', 'max:5000'],
-            'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:5120'],
-        ];
+        ], app(SupportComplaintAttachmentStore::class)->validationRules());
     }
 }

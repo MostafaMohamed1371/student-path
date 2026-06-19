@@ -82,6 +82,14 @@ class ChatParticipantResolver
         }
 
         $query->whereNull('chat_conversations.deleted_at');
+        $query->where(function (Builder $visibility): void {
+            $visibility->where('chat_conversations.conversation_type', ChatConversation::TYPE_SUPPORT)
+                ->orWhere(function (Builder $activeParentDriver): void {
+                    $activeParentDriver
+                        ->where('chat_conversations.conversation_type', ChatConversation::TYPE_PARENT_DRIVER)
+                        ->where('chat_conversations.status', 'open');
+                });
+        });
 
         return $query->whereNotExists(function ($sub) use ($user) {
             $sub->selectRaw('1')

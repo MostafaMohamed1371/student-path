@@ -116,12 +116,22 @@ class DriverTripController extends Controller
             return $this->parentError('Only drivers can start a trip.', null, 403);
         }
 
+        $validated = $request->validate([
+            'driver_lat' => ['nullable', 'numeric', 'between:-90,90'],
+            'driver_lng' => ['nullable', 'numeric', 'between:-180,180'],
+        ]);
+
         $tripPk = $this->driverTripModuleService->parseTripPublicId($trip);
         if ($tripPk === null) {
             return $this->parentError('Invalid trip id.', null, 422);
         }
 
-        $result = $this->driverTripModuleService->startTripForDriver($driver, $tripPk);
+        $result = $this->driverTripModuleService->startTripForDriver(
+            $driver,
+            $tripPk,
+            isset($validated['driver_lat']) ? (float) $validated['driver_lat'] : null,
+            isset($validated['driver_lng']) ? (float) $validated['driver_lng'] : null,
+        );
         if (! ($result['success'] ?? false)) {
             return $this->parentError(
                 (string) ($result['message'] ?? 'Unable to start trip.'),
@@ -220,6 +230,7 @@ class DriverTripController extends Controller
         return $this->parentSuccess([
             'waiting_min' => $result['waiting_min'] ?? 0,
             'less_than_50_meter' => $result['less_than_50_meter'] ?? false,
+            'trip' => $this->driverTripModuleService->currentTripPayload($trip->fresh()),
         ], $result['message']);
     }
 

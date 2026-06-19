@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\Legacy\Concerns\RespondsWithLegacySuccess;
 use App\Http\Controllers\Controller;
 use App\Models\SupportComplaint;
 use App\Models\User;
+use App\Services\Support\SupportComplaintAttachmentStore;
 use App\Services\Support\SupportContactService;
 use App\Support\SupportComplaintReference;
 use Illuminate\Http\JsonResponse;
@@ -38,23 +39,19 @@ class LegacySupportController extends Controller
         return $this->legacySuccess($items);
     }
 
-    public function complaint(Request $request): JsonResponse
+    public function complaint(Request $request, SupportComplaintAttachmentStore $attachmentStore): JsonResponse
     {
         $allowedIds = collect(config('mobile_legacy_api.support.categories', []))
             ->pluck('id')
             ->map(fn ($id) => (string) $id)
             ->all();
 
-        $validated = $request->validate([
+        $validated = $request->validate(array_merge([
             'category_id' => ['required', 'string', 'max:64', Rule::in($allowedIds)],
             'details' => ['required', 'string', 'max:5000'],
-            'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:5120'],
-        ]);
+        ], $attachmentStore->validationRules()));
 
-        $paths = [];
-        if ($request->hasFile('attachment')) {
-            $paths[] = $request->file('attachment')->store('support-complaints', 'local');
-        }
+        $paths = $attachmentStore->storeFromRequest($request);
 
         $complaint = SupportComplaint::query()->create([
             'user_id' => $request->user()->id,

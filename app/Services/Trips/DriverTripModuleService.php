@@ -14,6 +14,7 @@ use App\Models\TripHistory;
 use App\Models\TripHistoryStudent;
 use App\Models\User;
 use App\Services\Absences\AbsenceTripApplier;
+use App\Services\Chat\ChatParentDriverTripLifecycle;
 use App\Services\TransportLines\TransportDriverCardBuilder;
 use App\Support\Geo\Haversine;
 use Illuminate\Database\Eloquent\Builder;
@@ -29,6 +30,7 @@ final class DriverTripModuleService
         private readonly TripNotificationService $tripNotifications,
         private readonly TripLocationTrackingService $locationTracking,
         private readonly AbsenceTripApplier $absenceTripApplier,
+        private readonly ChatParentDriverTripLifecycle $parentDriverChatLifecycle,
     ) {}
 
     /**
@@ -333,6 +335,8 @@ final class DriverTripModuleService
 
                 $trip->forceFill($updates)->save();
 
+                $this->parentDriverChatLifecycle->closeForCompletedTrip($trip->fresh());
+
                 return true;
             }
 
@@ -415,8 +419,12 @@ final class DriverTripModuleService
      *   data?: array<string, mixed>|null
      * }
      */
-    public function startTripForDriver(Driver $driver, int $tripId): array
-    {
+    public function startTripForDriver(
+        Driver $driver,
+        int $tripId,
+        ?float $driverLat = null,
+        ?float $driverLng = null,
+    ): array {
         $trip = TripHistory::query()->find($tripId);
         if (! $trip) {
             return ['success' => false, 'message' => 'Trip not found.', 'http_status' => 404];
@@ -455,6 +463,7 @@ final class DriverTripModuleService
         }
 
         if ($trip->driver_started_at !== null) {
+            $this->parentDriverChatLifecycle->openForStartedTrip($trip->fresh());
             $payload = $this->currentTripPayload($trip->fresh());
 
             return [
@@ -482,7 +491,7 @@ final class DriverTripModuleService
         }
 
         $blocking = null;
-        DB::transaction(function () use ($driver, $trip, $tripId, &$blocking): void {
+        DB::transaction(function () use ($driver, $trip, $tripId, $driverLat, $driverLng, &$blocking): void {
             $blocking = TripHistory::query()
                 ->where('driver_id', $driver->id)
                 ->whereNotNull('driver_started_at')
@@ -504,6 +513,9 @@ final class DriverTripModuleService
             $locked->forceFill([
                 'driver_started_at' => now(),
                 'status' => 'ACTIVE',
+                ...($driverLat !== null && $driverLng !== null
+                    ? ['start_latitude' => $driverLat, 'start_longitude' => $driverLng]
+                    : []),
             ])->save();
         });
 
@@ -520,7 +532,10 @@ final class DriverTripModuleService
             return ['success' => false, 'message' => 'Unable to start trip.', 'http_status' => 422];
         }
 
+        $this->reorderStudentsByDriverProximity($trip->fresh(['tripHistoryStudents.student']), $driverLat, $driverLng);
+
         $this->tripNotifications->notifyTripStarted($trip);
+        $this->parentDriverChatLifecycle->openForStartedTrip($trip->fresh());
 
         $payload = $this->currentTripPayload($trip);
 
@@ -555,6 +570,7 @@ final class DriverTripModuleService
         if (! $wasCompleted && strtoupper((string) $trip->status) === 'COMPLETED') {
             $this->tripNotifications->notifyTripCompleted($trip);
             $this->locationTracking->deactivate($trip);
+            $this->parentDriverChatLifecycle->closeForCompletedTrip($trip);
         }
 
         return [
@@ -606,6 +622,7 @@ final class DriverTripModuleService
         if (! $wasCompleted && strtoupper((string) $trip->status) === 'COMPLETED') {
             $this->tripNotifications->notifyTripCompleted($trip);
             $this->locationTracking->deactivate($trip);
+            $this->parentDriverChatLifecycle->closeForCompletedTrip($trip);
         }
 
         return [
@@ -814,7 +831,7 @@ final class DriverTripModuleService
 
         $trip->load(['tripHistoryStudents.student.school']);
 
-        $rows = $trip->tripHistoryStudents;
+        $rows = $this->sortedTripStudentRows($trip->tripHistoryStudents);
         if ($rows->isEmpty()) {
             return [
                 'trip_id' => $this->externalTripId($trip),
@@ -842,7 +859,7 @@ final class DriverTripModuleService
             }
 
             $student = $ths->student;
-            $studentsOut[] = $this->studentCard($ths, $student, $queueHeadId);
+            $studentsOut[] = $this->studentCard($ths, $student, $queueHeadId, $trip);
         }
 
         return [
@@ -1090,8 +1107,12 @@ final class DriverTripModuleService
     /**
      * @return array<string, mixed>
      */
-    private function studentCard(TripHistoryStudent $ths, ?Student $student, ?int $queueHeadId): array
-    {
+    private function studentCard(
+        TripHistoryStudent $ths,
+        ?Student $student,
+        ?int $queueHeadId,
+        ?TripHistory $trip = null,
+    ): array {
         $st = StudentTripStopStatus::tryFrom((string) $ths->status) ?? StudentTripStopStatus::IDLE;
 
         if ($student
@@ -1111,17 +1132,22 @@ final class DriverTripModuleService
         }
 
         $address = $this->studentAddressLine($student);
+        $distanceKm = $this->studentDistanceKmFromTripStart($trip, $student);
 
         return [
             'id' => $this->externalStudentId((int) $ths->student_id),
             'name' => $student?->full_name ?? '',
+            'pickup_order' => (int) $ths->sort_order + 1,
             'status' => $st->value,
+            'is_boarded' => $st === StudentTripStopStatus::BOARDED,
+            'is_arrived' => in_array($st, [StudentTripStopStatus::ARRIVED, StudentTripStopStatus::BOARDED], true),
             'parent_reported_absence' => $student
                 ? $this->absenceTripApplier->isStudentAbsentOnDate((int) $student->id)
                 : false,
             'img' => $img ?? '',
             'grade' => $student?->grade ?? '',
             'can_action' => $queueHeadId !== null && (int) $ths->student_id === (int) $queueHeadId,
+            'distance_km' => $distanceKm,
             'location' => [
                 'lat' => $student?->latitude !== null ? (float) $student->latitude : null,
                 'lng' => $student?->longitude !== null ? (float) $student->longitude : null,
@@ -1129,6 +1155,116 @@ final class DriverTripModuleService
             ],
             'boarding_time' => $this->formatBoardingTimeArabic($ths->boarding_time),
         ];
+    }
+
+    /**
+     * Pending students first (nearest pickup route), then boarded, then absent.
+     *
+     * @param  Collection<int, TripHistoryStudent>  $rows
+     * @return Collection<int, TripHistoryStudent>
+     */
+    private function sortedTripStudentRows(Collection $rows): Collection
+    {
+        return $rows->sortBy(function (TripHistoryStudent $ths): array {
+            $st = StudentTripStopStatus::tryFrom((string) $ths->status) ?? StudentTripStopStatus::IDLE;
+
+            if ($this->absenceTripApplier->isStudentAbsentOnDate((int) $ths->student_id)
+                && in_array($st, [StudentTripStopStatus::IDLE, StudentTripStopStatus::ON_WAY, StudentTripStopStatus::ARRIVED], true)
+            ) {
+                $st = StudentTripStopStatus::ABSENT;
+            }
+
+            $group = match (true) {
+                in_array($st, [StudentTripStopStatus::IDLE, StudentTripStopStatus::ON_WAY, StudentTripStopStatus::ARRIVED], true) => 0,
+                $st === StudentTripStopStatus::BOARDED => 1,
+                default => 2,
+            };
+
+            return [$group, (int) $ths->sort_order, (int) $ths->id];
+        })->values();
+    }
+
+    private function reorderStudentsByDriverProximity(
+        TripHistory $trip,
+        ?float $driverLat,
+        ?float $driverLng,
+    ): void {
+        $reference = $this->resolveDriverReferencePointForOrdering($trip, $driverLat, $driverLng);
+        if ($reference === null) {
+            return;
+        }
+
+        [$refLat, $refLng] = $reference;
+
+        $scored = $trip->tripHistoryStudents
+            ->map(function (TripHistoryStudent $ths) use ($refLat, $refLng): array {
+                $student = $ths->student;
+                $distanceMeters = PHP_FLOAT_MAX;
+
+                if ($student instanceof Student
+                    && $student->latitude !== null
+                    && $student->longitude !== null) {
+                    $distanceMeters = Haversine::metersBetween(
+                        $refLat,
+                        $refLng,
+                        (float) $student->latitude,
+                        (float) $student->longitude,
+                    );
+                }
+
+                return [
+                    'row' => $ths,
+                    'distance_meters' => $distanceMeters,
+                ];
+            })
+            ->sortBy(fn (array $item): array => [$item['distance_meters'], (int) $item['row']->id])
+            ->values();
+
+        foreach ($scored as $index => $item) {
+            /** @var TripHistoryStudent $row */
+            $row = $item['row'];
+            $row->forceFill(['sort_order' => $index])->save();
+        }
+    }
+
+    /**
+     * @return array{0: float, 1: float}|null
+     */
+    private function resolveDriverReferencePointForOrdering(
+        TripHistory $trip,
+        ?float $driverLat,
+        ?float $driverLng,
+    ): ?array {
+        if ($driverLat !== null && $driverLng !== null) {
+            return [$driverLat, $driverLng];
+        }
+
+        if ($trip->start_latitude !== null && $trip->start_longitude !== null) {
+            return [(float) $trip->start_latitude, (float) $trip->start_longitude];
+        }
+
+        return null;
+    }
+
+    private function studentDistanceKmFromTripStart(?TripHistory $trip, ?Student $student): ?float
+    {
+        if (! $trip instanceof TripHistory || ! $student instanceof Student) {
+            return null;
+        }
+
+        if ($trip->start_latitude === null
+            || $trip->start_longitude === null
+            || $student->latitude === null
+            || $student->longitude === null) {
+            return null;
+        }
+
+        return round(Haversine::metersBetween(
+            (float) $trip->start_latitude,
+            (float) $trip->start_longitude,
+            (float) $student->latitude,
+            (float) $student->longitude,
+        ) / 1000, 2);
     }
 
     private function studentAddressLine(?Student $student): string

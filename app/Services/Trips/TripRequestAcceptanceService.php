@@ -8,7 +8,6 @@ use App\Models\TripHistory;
 use App\Models\TripHistoryStudent;
 use App\Models\TripRequest;
 use App\Services\Routes\RouteAssignmentPlanner;
-use App\Services\Chat\ChatParentDriverConversationProvisioner;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -21,7 +20,6 @@ final class TripRequestAcceptanceService
         private readonly RouteAssignmentPlanner $routeAssignmentPlanner,
         private readonly TripRequestPairingService $pairingService,
         private readonly TripRecurringScheduleService $recurringSchedule,
-        private readonly ChatParentDriverConversationProvisioner $parentDriverChatProvisioner,
     ) {}
 
     /**
@@ -76,7 +74,6 @@ final class TripRequestAcceptanceService
                 $this->subscribeStudentToDriverRoute($accepted, $trip);
                 $slotKey = $this->resolveAcceptanceSlotKey($accepted->fresh(['tripHistory']));
                 $this->conflictGuard->rejectCompetingPendingRequests($accepted->fresh(['tripHistory']), $slotKey);
-                $this->parentDriverChatProvisioner->ensureForAcceptedTripRequest($accepted->fresh(['user', 'driver.user', 'student']));
             }
 
             if (in_array($status, ['accepted', 'rejected'], true)) {

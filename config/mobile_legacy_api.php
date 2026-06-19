@@ -44,6 +44,8 @@ return [
             ['id' => '2', 'label' => 'اقتراح لتحسين الخدمة'],
             ['id' => '3', 'label' => 'شكوى ضد سائق'],
         ],
+        'complaint_max_attachments' => (int) env('MOBILE_SUPPORT_COMPLAINT_MAX_ATTACHMENTS', 5),
+        'complaint_attachment_max_kb' => (int) env('MOBILE_SUPPORT_COMPLAINT_ATTACHMENT_MAX_KB', 5120),
     ],
 
     // Static fallback; per-user values come from user_notification_preferences (see config/notification_preferences.php).

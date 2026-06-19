@@ -31,8 +31,9 @@
                 @error('details')<p style="color:#c00;">{{ $message }}</p>@enderror
 
                 <label class="field-label">{{ __('dashboard.image') }} ({{ __('dashboard.optional') }})</label>
-                <input type="file" name="attachment" accept=".jpg,.jpeg,.png" style="margin-bottom:12px;">
-                @error('attachment')<p style="color:#c00;">{{ $message }}</p>@enderror
+                <input type="file" name="attachments[]" accept=".jpg,.jpeg,.png" multiple style="margin-bottom:12px;">
+                @error('attachments')<p style="color:#c00;">{{ $message }}</p>@enderror
+                @error('attachments.*')<p style="color:#c00;">{{ $message }}</p>@enderror
 
                 <div style="margin-top:16px;">
                     <button type="submit" class="btn-primary" style="width:auto;padding:10px 14px;">{{ __('dashboard.create') }}</button>

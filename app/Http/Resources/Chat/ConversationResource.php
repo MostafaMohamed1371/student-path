@@ -35,6 +35,7 @@ class ConversationResource extends JsonResource
             'id' => $this->id,
             'conversation_type' => $this->conversation_type ?? ChatConversation::TYPE_SUPPORT,
             'trip_request_id' => $this->trip_request_id,
+            'trip_history_id' => $this->trip_history_id,
             'post_id' => $this->post_id,
             'school_id' => $this->school_id,
             'unread_count' => (int) ($this->getAttribute('unread_messages_count')

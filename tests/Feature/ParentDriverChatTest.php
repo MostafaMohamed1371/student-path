@@ -10,6 +10,7 @@ use App\Models\Guardian;
 use App\Models\School;
 use App\Models\Student;
 use App\Models\TripHistory;
+use App\Models\TripHistoryStudent;
 use App\Models\TripRequest;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -70,7 +71,7 @@ class ParentDriverChatTest extends TestCase
             ->assertJsonPath('data.other_user.type', 'parent');
     }
 
-    public function test_accepting_trip_request_opens_parent_driver_chat(): void
+    public function test_accepting_trip_request_does_not_open_parent_driver_chat(): void
     {
         [$school, $parent, $student, $driver, $driverUser, $trip] = $this->seedAcceptedTripContext();
 
@@ -89,11 +90,45 @@ class ParentDriverChatTest extends TestCase
             'status' => 'accepted',
         ])->assertOk();
 
+        $this->assertDatabaseMissing('chat_conversations', [
+            'conversation_type' => 'parent_driver',
+            'user_id' => $parent->id,
+            'participant_id' => $driverUser->id,
+        ]);
+    }
+
+    public function test_starting_trip_opens_parent_driver_chat_for_parents_on_trip(): void
+    {
+        config(['trips.driver_start_early_minutes' => 10, 'trips.driver_start_late_minutes' => 10]);
+
+        [$school, $parent, $student, $driver, $driverUser, $trip] = $this->seedAcceptedTripContext();
+
+        TripHistoryStudent::query()->create([
+            'trip_history_id' => $trip->id,
+            'student_id' => $student->id,
+            'sort_order' => 0,
+            'status' => 'IDLE',
+        ]);
+
+        TripRequest::query()->create([
+            'user_id' => $parent->id,
+            'student_id' => $student->id,
+            'driver_id' => $driver->id,
+            'trip_history_id' => $trip->id,
+            'status' => 'accepted',
+            'present_type' => 'صباحي',
+        ]);
+
+        Sanctum::actingAs($driverUser);
+
+        $this->postJson('/api/trips/TRP-'.$trip->id.'/start')
+            ->assertOk();
+
         $this->assertDatabaseHas('chat_conversations', [
             'conversation_type' => 'parent_driver',
             'user_id' => $parent->id,
             'participant_id' => $driverUser->id,
-            'trip_request_id' => $tripRequest->id,
+            'trip_history_id' => $trip->id,
             'status' => 'open',
         ]);
 
@@ -111,14 +146,46 @@ class ParentDriverChatTest extends TestCase
         ])->assertCreated();
 
         Sanctum::actingAs($driverUser);
-        $this->getJson('/api/user/chats')
-            ->assertOk()
-            ->assertJsonPath('data.0.conversation_type', 'parent_driver')
-            ->assertJsonPath('data.0.other_user.type', 'parent');
-
         $this->getJson("/api/user/chats/{$chatId}/messages")
             ->assertOk()
             ->assertJsonPath('data.0.body', 'Hello driver');
+    }
+
+    public function test_completing_trip_closes_parent_driver_chat(): void
+    {
+        config(['trips.driver_start_early_minutes' => 10, 'trips.driver_start_late_minutes' => 10]);
+
+        [$school, $parent, $student, $driver, $driverUser, $trip] = $this->seedAcceptedTripContext();
+
+        TripHistoryStudent::query()->create([
+            'trip_history_id' => $trip->id,
+            'student_id' => $student->id,
+            'sort_order' => 0,
+            'status' => 'IDLE',
+        ]);
+
+        Sanctum::actingAs($driverUser);
+
+        $this->postJson('/api/trips/TRP-'.$trip->id.'/start')->assertOk();
+
+        $chatId = (int) \App\Models\ChatConversation::query()->value('id');
+
+        $this->putJson('/api/trips/end-trip')->assertOk();
+
+        $this->assertDatabaseHas('chat_conversations', [
+            'id' => $chatId,
+            'status' => 'closed',
+        ]);
+
+        Sanctum::actingAs($parent);
+        $this->getJson('/api/user/chats')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+
+        $this->postJson("/api/user/chats/{$chatId}/messages", [
+            'message_type' => 'text',
+            'body' => 'After trip ended',
+        ])->assertStatus(422);
     }
 
     public function test_school_staff_cannot_see_parent_driver_chat(): void
@@ -220,6 +287,7 @@ class ParentDriverChatTest extends TestCase
             'status' => 'active',
         ]);
 
+        $formStart = now();
         $trip = TripHistory::query()->create([
             'school_id' => $school->id,
             'driver_id' => $driver->id,
@@ -229,8 +297,9 @@ class ParentDriverChatTest extends TestCase
             'location' => 'Route',
             'students_count' => 0,
             'distance_km' => 1,
-            'start_time' => now()->addHour(),
-            'status' => 'ACTIVE',
+            'start_time' => $formStart,
+            'end_time' => $formStart->copy()->addHour(),
+            'status' => 'PRESENT',
             'students_preview' => [],
         ]);
 

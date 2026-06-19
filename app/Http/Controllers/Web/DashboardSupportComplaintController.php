@@ -10,6 +10,7 @@ use App\Http\Requests\Web\StoreDashboardSupportComplaintRequest;
 use App\Http\Requests\Web\UpdateDashboardSupportComplaintRequest;
 use App\Models\SupportComplaint;
 use App\Models\User;
+use App\Services\Support\SupportComplaintAttachmentStore;
 use App\Support\SupportComplaintReference;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -52,14 +53,11 @@ class DashboardSupportComplaintController extends Controller
         return view('dashboard.support-complaints.create', compact('users', 'categories'));
     }
 
-    public function store(StoreDashboardSupportComplaintRequest $request): RedirectResponse
+    public function store(StoreDashboardSupportComplaintRequest $request, SupportComplaintAttachmentStore $attachmentStore): RedirectResponse
     {
         abort_unless($this->userIdVisibleInDashboardScope((int) $request->validated('user_id')), 403);
 
-        $paths = [];
-        if ($request->hasFile('attachment')) {
-            $paths[] = $request->file('attachment')->store('support-complaints', 'local');
-        }
+        $paths = $attachmentStore->storeFromRequest($request);
 
         $validated = $request->validated();
         $complaint = SupportComplaint::query()->create([

@@ -137,4 +137,25 @@ class ApiLegacyMobileContractTest extends TestCase
         $num = SupportComplaint::query()->value('complaint_number');
         $this->assertStringStartsWith('#CMP-', (string) $num);
     }
+
+    public function test_support_complaint_accepts_multiple_attachments(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+
+        $this->post('/api/support/complaint', [
+            'category_id' => '2',
+            'details' => 'Complaint with screenshots',
+            'attachments' => [
+                \Illuminate\Http\UploadedFile::fake()->image('screen1.jpg'),
+                \Illuminate\Http\UploadedFile::fake()->image('screen2.png'),
+            ],
+        ], ['Accept' => 'application/json'])
+            ->assertCreated()
+            ->assertJsonPath('data.attachmentCount', 2);
+
+        $stored = SupportComplaint::query()->firstOrFail();
+        $this->assertIsArray($stored->attachments);
+        $this->assertCount(2, $stored->attachments);
+    }
 }
