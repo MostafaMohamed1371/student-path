@@ -159,6 +159,16 @@ class TransportLinesDriverController extends Controller
             });
         }
 
+        $queryLat = $request->filled('latitude') ? (float) $request->query('latitude') : null;
+        $queryLng = $request->filled('longitude') ? (float) $request->query('longitude') : null;
+        $studentForLocation = $student ?? $filterStudent;
+        $pickupNeighborhoodId = $this->cardBuilder->resolvePickupNeighborhoodId(
+            $queryLat,
+            $queryLng,
+            $studentForLocation,
+            $request->user(),
+        );
+
         $applyRouteCorridorFilter = $filterStudent !== null
             && (
                 ($isParent && ! $request->has('matches_route_only'))
@@ -171,6 +181,7 @@ class TransportLinesDriverController extends Controller
                 $schoolIds,
                 $tripType !== '' ? $tripType : null,
                 $request->user(),
+                $pickupNeighborhoodId,
             );
             if ($matchingDriverIds === []) {
                 $driversQuery->whereRaw('1 = 0');
@@ -214,9 +225,6 @@ class TransportLinesDriverController extends Controller
         $rows = $driversQuery->paginate(min(100, max(1, (int) $request->query('per_page', 20))));
         $drivers = collect($rows->items());
 
-        $queryLat = $request->filled('latitude') ? (float) $request->query('latitude') : null;
-        $queryLng = $request->filled('longitude') ? (float) $request->query('longitude') : null;
-
         $reservedByDriver = $this->cardBuilder->reservedCountsByDriverId($drivers);
 
         $cardTripType = $tripType !== '' ? $tripType : null;
@@ -243,15 +251,9 @@ class TransportLinesDriverController extends Controller
             $schoolIds,
         );
 
-        $studentForCards = $student ?? $filterStudent;
+        $studentForCards = $studentForLocation;
 
         $addressInformationByDriver = $this->cardBuilder->addressInformationForDrivers($drivers);
-        $pickupNeighborhoodId = $this->cardBuilder->resolvePickupNeighborhoodId(
-            $queryLat,
-            $queryLng,
-            $studentForCards,
-            $request->user(),
-        );
 
         $cards = $drivers->map(function (Driver $driver) use ($reservedByDriver, $routeBySchoolAndBus, $transportRoutesByDriver, $schools, $request, $studentForCards, $studentsBySchoolForDistance, $queryLat, $queryLng, $addressInformationByDriver, $pickupNeighborhoodId): array {
             $school = $schools->get($driver->school_id);
@@ -460,6 +462,7 @@ class TransportLinesDriverController extends Controller
         array $schoolIds,
         ?string $tripType,
         User $user,
+        ?int $pickupNeighborhoodId = null,
     ): array {
         $query = TransportRoute::query()
             ->with('school')
@@ -493,8 +496,22 @@ class TransportLinesDriverController extends Controller
                 : ($shiftTripTypes !== [] ? $shiftTripTypes : null),
         );
 
+        $school = School::query()->find((int) $student->school_id);
+        $serviceAreaDriverIds = $school instanceof School
+            ? $this->serviceAreaStudentMatcher->matchingDriverIdsForStudent($student, $school)
+            : [];
+
+        $neighborhoodDriverIds = ($pickupNeighborhoodId !== null && $pickupNeighborhoodId > 0)
+            ? $this->serviceAreaStudentMatcher->matchingDriverIdsForNeighborhood(
+                $pickupNeighborhoodId,
+                (int) $student->school_id,
+            )
+            : [];
+
         return collect($transportRouteDriverIds)
             ->merge($scheduledTripDriverIds)
+            ->merge($serviceAreaDriverIds)
+            ->merge($neighborhoodDriverIds)
             ->unique()
             ->values()
             ->all();

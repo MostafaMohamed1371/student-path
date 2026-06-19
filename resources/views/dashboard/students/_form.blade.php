@@ -124,11 +124,12 @@
 <section class="form-section">
     <h3 class="form-section-title">{{ __('dashboard.address_information') }}</h3>
     <div class="form-grid">
-        <div>
-            <label class="field-label" for="district_area">{{ __('dashboard.district_area') }}</label>
-            <input class="input" id="district_area" name="district_area" value="{{ old('district_area', $student->district_area ?? '') }}" required />
-        </div>
-        <div>
+        @include('dashboard.partials.iraq_location_fields', array_merge($locationForm ?? [], [
+            'iraqLocationPrefix' => 'student',
+            'fieldPrefix' => '',
+            'neighborhoodMultiple' => false,
+        ]))
+        <div class="form-span-full">
             <label class="field-label" for="nearest_landmark">{{ __('dashboard.nearest_landmark') }}</label>
             <input class="input" id="nearest_landmark" name="nearest_landmark" value="{{ old('nearest_landmark', $student->nearest_landmark ?? '') }}" required />
         </div>

@@ -16,6 +16,15 @@
         </section>
     @endcomponent
     @include('dashboard.students._location_map_script')
+    @include('dashboard.partials.iraq_location_cascade_script', [
+        'iraqLocationPrefix' => 'student',
+        'neighborhoodMultiple' => false,
+    ])
+    @include('dashboard.partials.iraq_location_map_sync_script', [
+        'iraqLocationPrefix' => 'student',
+        'mapRegistryKey' => 'student',
+        'mapElementId' => 'student-location-map',
+    ])
     @include('dashboard.students._guardian_filter_script', [
         'formGuardiansUrl' => $formGuardiansUrl ?? '',
         'guardianLookupUrl' => $guardianLookupUrl ?? '',

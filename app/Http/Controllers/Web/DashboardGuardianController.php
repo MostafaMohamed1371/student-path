@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
+use App\Http\Controllers\Web\Concerns\ProvidesDashboardIraqLocationFilters;
 use App\Http\Controllers\Web\Concerns\ProvidesDashboardSchoolDriverFilters;
 use App\Http\Requests\Web\StoreDashboardGuardianRequest;
 use App\Http\Requests\Web\UpdateDashboardGuardianRequest;
@@ -25,6 +26,7 @@ use Illuminate\View\View;
 class DashboardGuardianController extends Controller
 {
     use ManagesDashboardScoping;
+    use ProvidesDashboardIraqLocationFilters;
     use ProvidesDashboardSchoolDriverFilters;
 
     public function index(Request $request, GuardianIndexGrouper $indexGrouper): View
@@ -85,6 +87,11 @@ class DashboardGuardianController extends Controller
             'schools' => $schools,
             'guardianLookupUrl' => route('dashboard.guardians.lookup_by_id_card'),
             'homeLocation' => null,
+            'locationForm' => $this->iraqLocationFormContext(
+                (int) old('home_district_id', 0),
+                (int) old('home_area_id', 0),
+                (int) old('home_neighborhood_id', 0),
+            ),
         ]);
     }
 
@@ -254,7 +261,13 @@ class DashboardGuardianController extends Controller
             'schools',
             'guardianSchoolRecords',
             'homeLocation',
-        ));
+        ) + [
+            'locationForm' => $this->iraqLocationFormContext(
+                (int) old('home_district_id', $homeLocation?->district_id ?? 0),
+                (int) old('home_area_id', $homeLocation?->area_id ?? 0),
+                (int) old('home_neighborhood_id', $homeLocation?->neighborhood_id ?? 0),
+            ),
+        ]);
     }
 
     public function update(
@@ -341,6 +354,9 @@ class DashboardGuardianController extends Controller
             $address !== '' ? $address : null,
             $district !== '' ? $district : null,
             $landmark !== '' ? $landmark : null,
+            isset($validated['home_district_id']) ? (int) $validated['home_district_id'] : null,
+            isset($validated['home_area_id']) ? (int) $validated['home_area_id'] : null,
+            isset($validated['home_neighborhood_id']) ? (int) $validated['home_neighborhood_id'] : null,
         );
     }
 

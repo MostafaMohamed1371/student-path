@@ -9,6 +9,9 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
     'school_id',
+    'district_id',
+    'area_id',
+    'neighborhood_id',
     'guardian_id',
     'full_name',
     'gender',
@@ -48,6 +51,21 @@ class Student extends Model
     public function guardian(): BelongsTo
     {
         return $this->belongsTo(Guardian::class);
+    }
+
+    public function district(): BelongsTo
+    {
+        return $this->belongsTo(District::class);
+    }
+
+    public function area(): BelongsTo
+    {
+        return $this->belongsTo(Area::class);
+    }
+
+    public function neighborhood(): BelongsTo
+    {
+        return $this->belongsTo(Neighborhood::class);
     }
 
     public function transportRouteStudent(): HasOne

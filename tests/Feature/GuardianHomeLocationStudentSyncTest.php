@@ -6,12 +6,15 @@ use App\Models\Guardian;
 use App\Models\School;
 use App\Models\Student;
 use App\Models\User;
+use App\Services\Locations\IraqLocationAttributeResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use Tests\Concerns\ProvidesDashboardIraqLocationFields;
 use Tests\TestCase;
 
 class GuardianHomeLocationStudentSyncTest extends TestCase
 {
+    use ProvidesDashboardIraqLocationFields;
     use RefreshDatabase;
 
     public function test_guardian_home_location_update_syncs_linked_students(): void
@@ -53,7 +56,14 @@ class GuardianHomeLocationStudentSyncTest extends TestCase
         $admin = User::factory()->create(['is_admin' => true]);
         $this->actingAs($admin);
 
-        $this->put(route('dashboard.guardians.update', $guardian), [
+        $homeLocationFields = $this->dashboardIraqLocationFields('home_');
+        $expectedDistrictArea = app(IraqLocationAttributeResolver::class)->label(
+            (int) $homeLocationFields['home_district_id'],
+            (int) $homeLocationFields['home_area_id'],
+            (int) $homeLocationFields['home_neighborhood_id'],
+        );
+
+        $this->put(route('dashboard.guardians.update', $guardian), $this->withGuardianHomeIraqLocation([
             'school_id' => $school->id,
             'full_name' => $guardian->full_name,
             'phone' => $guardian->phone,
@@ -61,14 +71,13 @@ class GuardianHomeLocationStudentSyncTest extends TestCase
             'status' => 'active',
             'home_latitude' => 33.3152,
             'home_longitude' => 44.3661,
-            'home_district_area' => 'Karrada',
             'home_nearest_landmark' => 'New pickup point',
-        ])->assertRedirect(route('dashboard.guardians.index'));
+        ]))->assertRedirect(route('dashboard.guardians.index'));
 
         $student->refresh();
         $this->assertSame(33.3152, (float) $student->latitude);
         $this->assertSame(44.3661, (float) $student->longitude);
-        $this->assertSame('Karrada', $student->district_area);
+        $this->assertSame($expectedDistrictArea, $student->district_area);
         $this->assertSame('New pickup point', $student->nearest_landmark);
     }
 

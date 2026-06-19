@@ -1,8 +1,15 @@
 @php
+    $iraqLocationPrefix = $iraqLocationPrefix ?? 'form';
+    $fieldPrefix = $fieldPrefix ?? '';
     $neighborhoodMultiple = $neighborhoodMultiple ?? false;
+    $districtField = $fieldPrefix.'district_id';
+    $areaField = $fieldPrefix.'area_id';
+    $neighborhoodField = $neighborhoodMultiple
+        ? $fieldPrefix.'neighborhood_ids'
+        : $fieldPrefix.'neighborhood_id';
     $selectedNeighborhoodIds = collect(
         old(
-            'neighborhood_ids',
+            $neighborhoodMultiple ? $neighborhoodField : $neighborhoodField,
             $filterNeighborhoodIds ?? (
                 ! empty($filterNeighborhoodId)
                     ? [(int) $filterNeighborhoodId]
@@ -16,20 +23,20 @@
 
 <label>
     <span class="field-label">{{ __('dashboard.governorate') }}</span>
-    <select class="input" id="iraq_form_district_id" name="district_id">
+    <select class="input" id="iraq_{{ $iraqLocationPrefix }}_district_id" name="{{ $districtField }}">
         <option value="">{{ __('dashboard.select_governorate') }}</option>
         @foreach($governorates ?? [] as $gov)
-            <option value="{{ $gov->id }}" @selected((string) old('district_id', $filterDistrictId ?? '') === (string) $gov->id)>{{ $gov->name }}</option>
+            <option value="{{ $gov->id }}" @selected((string) old($districtField, $filterDistrictId ?? '') === (string) $gov->id)>{{ $gov->name }}</option>
         @endforeach
     </select>
 </label>
 
 <label>
     <span class="field-label">{{ __('dashboard.iraq_district') }}</span>
-    <select class="input" id="iraq_form_area_id" name="area_id" @disabled(empty($filterDistrictId))>
+    <select class="input" id="iraq_{{ $iraqLocationPrefix }}_area_id" name="{{ $areaField }}" @disabled(empty($filterDistrictId))>
         <option value="">{{ __('dashboard.select_district') }}</option>
         @foreach($filterAreas ?? [] as $area)
-            <option value="{{ $area->id }}" @selected((string) old('area_id', $filterAreaId ?? '') === (string) $area->id)>{{ $area->name }}</option>
+            <option value="{{ $area->id }}" @selected((string) old($areaField, $filterAreaId ?? '') === (string) $area->id)>{{ $area->name }}</option>
         @endforeach
     </select>
 </label>
@@ -38,8 +45,8 @@
     <span class="field-label">{{ __('dashboard.iraq_sub_district') }}</span>
     <select
         class="input"
-        id="iraq_form_neighborhood_id"
-        name="{{ $neighborhoodMultiple ? 'neighborhood_ids[]' : 'neighborhood_id' }}"
+        id="iraq_{{ $iraqLocationPrefix }}_neighborhood_id"
+        name="{{ $neighborhoodMultiple ? $neighborhoodField.'[]' : $neighborhoodField }}"
         @disabled(empty($filterDistrictId))
         @if($neighborhoodMultiple) multiple size="6" @endif
     >

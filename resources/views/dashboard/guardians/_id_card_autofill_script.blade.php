@@ -22,7 +22,6 @@
     };
     const homeLatInput = document.getElementById('guardian_home_latitude');
     const homeLngInput = document.getElementById('guardian_home_longitude');
-    const homeDistrictInput = document.getElementById('guardian_home_district_area');
     const homeLandmarkInput = document.getElementById('guardian_home_nearest_landmark');
     const homeFormattedInput = document.getElementById('guardian_home_formatted_address');
 
@@ -74,13 +73,12 @@
         }
         if (data.home_latitude != null && data.home_longitude != null) {
             const landmark = data.home_nearest_landmark || data.home_formatted_address || '';
-            const district = data.home_district_area || '';
             if (typeof window.guardianHomeMapSetLocation === 'function') {
                 window.guardianHomeMapSetLocation(
                     data.home_latitude,
                     data.home_longitude,
                     landmark,
-                    district,
+                    data.home_district_area || '',
                 );
             } else {
                 if (homeLatInput) {
@@ -92,13 +90,15 @@
                 if (homeLandmarkInput) {
                     homeLandmarkInput.value = landmark;
                 }
-                if (homeDistrictInput) {
-                    homeDistrictInput.value = district;
-                }
                 if (homeFormattedInput) {
                     homeFormattedInput.value = landmark;
                 }
             }
+        }
+
+        if (typeof window.setIraqLocationCascadeValues === 'function'
+            && (data.home_district_id || data.home_area_id || data.home_neighborhood_id)) {
+            window.setIraqLocationCascadeValues('guardian_home', data);
         }
     }
 

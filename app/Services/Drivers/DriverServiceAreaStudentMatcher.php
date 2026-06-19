@@ -77,6 +77,27 @@ final class DriverServiceAreaStudentMatcher
             ->all();
     }
 
+    /**
+     * Drivers whose service areas include the parent's pickup sub-district.
+     *
+     * @return list<int>
+     */
+    public function matchingDriverIdsForNeighborhood(int $neighborhoodId, int $schoolId): array
+    {
+        if ($neighborhoodId <= 0 || $schoolId <= 0) {
+            return [];
+        }
+
+        return Driver::query()
+            ->where('school_id', $schoolId)
+            ->where('status', 'active')
+            ->whereHas('serviceAreas.neighborhoods', fn (Builder $query): Builder => $query->whereKey($neighborhoodId))
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->values()
+            ->all();
+    }
+
     private function studentHasCoordinates(Student $student): bool
     {
         return $student->latitude !== null

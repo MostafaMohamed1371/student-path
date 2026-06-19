@@ -47,14 +47,29 @@ final class TransportDriverCardBuilder
             return $this->nearestNeighborhoodResolver->resolveId($queryLat, $queryLng);
         }
 
-        if ($student !== null
-            && $student->latitude !== null
-            && $student->longitude !== null
-            && ! ((float) $student->latitude === 0.0 && (float) $student->longitude === 0.0)) {
-            return $this->nearestNeighborhoodResolver->resolveId(
-                (float) $student->latitude,
-                (float) $student->longitude,
-            );
+        if ($student !== null) {
+            $studentNeighborhoodId = (int) ($student->neighborhood_id ?? 0);
+            if ($studentNeighborhoodId > 0) {
+                return $studentNeighborhoodId;
+            }
+
+            if ($student->latitude !== null
+                && $student->longitude !== null
+                && ! ((float) $student->latitude === 0.0 && (float) $student->longitude === 0.0)) {
+                return $this->nearestNeighborhoodResolver->resolveId(
+                    (float) $student->latitude,
+                    (float) $student->longitude,
+                );
+            }
+        }
+
+        $user?->loadMissing('homeLocation');
+        $home = $user?->homeLocation;
+        if ($home !== null) {
+            $homeNeighborhoodId = (int) ($home->neighborhood_id ?? 0);
+            if ($homeNeighborhoodId > 0) {
+                return $homeNeighborhoodId;
+            }
         }
 
         $viewerLatLng = $this->resolveViewerLatLng(null, null, $user);

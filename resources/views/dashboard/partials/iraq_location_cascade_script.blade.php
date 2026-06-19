@@ -125,6 +125,9 @@
             keepNeighborhood,
         );
         neighborhoodSelect.disabled = false;
+        document.dispatchEvent(new CustomEvent('iraq-location-cascade-updated', {
+            detail: { prefix: prefix, fitMap: true },
+        }));
     }
 
     districtSelect.addEventListener('change', function () {
@@ -147,5 +150,80 @@
         areaSelect.disabled = false;
         neighborhoodSelect.disabled = false;
     }
+
+    window.setIraqLocationCascadeValues = async function (targetPrefix, values) {
+        const districtEl = document.getElementById('iraq_' + targetPrefix + '_district_id');
+        const areaEl = document.getElementById('iraq_' + targetPrefix + '_area_id');
+        const neighborhoodEl = document.getElementById('iraq_' + targetPrefix + '_neighborhood_id');
+        if (!districtEl || !areaEl || !neighborhoodEl || !values) {
+            return;
+        }
+
+        const targetNeighborhoodMultiple = neighborhoodEl.hasAttribute('multiple');
+        const districtId = String(values.district_id || values.home_district_id || '');
+        const areaId = String(values.area_id || values.home_area_id || '');
+        const neighborhoodId = String(values.neighborhood_id || values.home_neighborhood_id || '');
+
+        if (districtId === '') {
+            return;
+        }
+
+        districtEl.value = districtId;
+        const areasRes = await fetch(areasUrl + '?district_id=' + encodeURIComponent(districtId), {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        });
+        const areasData = areasRes.ok ? await areasRes.json() : { areas: [] };
+
+        areaEl.innerHTML = '';
+        const emptyArea = document.createElement('option');
+        emptyArea.value = '';
+        emptyArea.textContent = selectDistrictLabel;
+        areaEl.appendChild(emptyArea);
+        (areasData.areas || []).forEach(function (row) {
+            const opt = document.createElement('option');
+            opt.value = String(row.id);
+            opt.textContent = row.name;
+            if (areaId !== '' && areaId === opt.value) {
+                opt.selected = true;
+            }
+            areaEl.appendChild(opt);
+        });
+        areaEl.disabled = false;
+
+        const neighborhoodParams = new URLSearchParams({ district_id: districtId });
+        if (areaId !== '') {
+            neighborhoodParams.set('area_id', areaId);
+        }
+        const neighborhoodsRes = await fetch(neighborhoodsUrl + '?' + neighborhoodParams.toString(), {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        });
+        const neighborhoodsData = neighborhoodsRes.ok ? await neighborhoodsRes.json() : { neighborhoods: [] };
+        neighborhoodEl.innerHTML = '';
+        if (!targetNeighborhoodMultiple) {
+            const emptyNeighborhood = document.createElement('option');
+            emptyNeighborhood.value = '';
+            emptyNeighborhood.textContent = selectSubDistrictLabel;
+            neighborhoodEl.appendChild(emptyNeighborhood);
+        }
+        (neighborhoodsData.neighborhoods || []).forEach(function (row) {
+            const opt = document.createElement('option');
+            opt.value = String(row.id);
+            opt.textContent = row.name;
+            if (neighborhoodId !== '' && neighborhoodId === opt.value) {
+                opt.selected = true;
+            }
+            neighborhoodEl.appendChild(opt);
+        });
+        neighborhoodEl.disabled = false;
+
+        document.dispatchEvent(new CustomEvent('iraq-location-set', {
+            detail: {
+                prefix: targetPrefix,
+                district_id: districtId,
+                area_id: areaId,
+                neighborhood_id: neighborhoodId,
+            },
+        }));
+    };
 })();
 </script>

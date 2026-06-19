@@ -5,6 +5,7 @@ namespace App\Http\Requests\Web;
 use App\Enums\PhoneAccountType;
 use App\Http\Requests\Concerns\AppendsGuardianFamilySuffixToStudentName;
 use App\Http\Requests\Concerns\SyncsAgeFromDateOfBirth;
+use App\Http\Requests\Concerns\ValidatesDashboardIraqLocation;
 use App\Http\Requests\Concerns\ValidatesStudentGuardianIdCardLookup;
 use App\Http\Requests\Concerns\ValidatesUniqueDashboardPhone;
 use App\Support\IdCardNumber;
@@ -18,6 +19,7 @@ class UpdateDashboardStudentRequest extends FormRequest
 {
     use AppendsGuardianFamilySuffixToStudentName;
     use SyncsAgeFromDateOfBirth;
+    use ValidatesDashboardIraqLocation;
     use ValidatesStudentGuardianIdCardLookup;
     use ValidatesUniqueDashboardPhone;
     public function authorize(): bool
@@ -57,7 +59,7 @@ class UpdateDashboardStudentRequest extends FormRequest
             'guardian_id' => ['required', 'integer', 'exists:guardians,id'],
             'guardian_id_card_number' => ['nullable', 'string', 'max:64'],
             'relationship' => ['required', 'string', 'max:100'],
-            'district_area' => ['required', 'string', 'max:255'],
+            ...$this->dashboardIraqLocationRules(),
             'nearest_landmark' => ['required', 'string', 'max:255'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
@@ -79,5 +81,16 @@ class UpdateDashboardStudentRequest extends FormRequest
             $student->student_phone,
         );
         $this->assertStudentGuardianIdCardLookup($validator);
+    }
+
+    public function validated($key = null, $default = null)
+    {
+        $validated = parent::validated($key, $default);
+
+        if ($key !== null) {
+            return $validated;
+        }
+
+        return $this->mergeResolvedIraqLocationAttributes($validated);
     }
 }

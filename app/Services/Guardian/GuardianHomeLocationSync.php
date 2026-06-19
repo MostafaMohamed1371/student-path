@@ -33,6 +33,9 @@ final class GuardianHomeLocationSync
      * @return array{
      *     home_latitude: float,
      *     home_longitude: float,
+     *     home_district_id: int|null,
+     *     home_area_id: int|null,
+     *     home_neighborhood_id: int|null,
      *     home_district_area: string|null,
      *     home_nearest_landmark: string|null,
      *     home_formatted_address: string|null
@@ -51,6 +54,9 @@ final class GuardianHomeLocationSync
         return [
             'home_latitude' => (float) $home->latitude,
             'home_longitude' => (float) $home->longitude,
+            'home_district_id' => $home->district_id !== null ? (int) $home->district_id : null,
+            'home_area_id' => $home->area_id !== null ? (int) $home->area_id : null,
+            'home_neighborhood_id' => $home->neighborhood_id !== null ? (int) $home->neighborhood_id : null,
             'home_district_area' => $district !== '' ? $district : null,
             'home_nearest_landmark' => $landmark !== '' ? $landmark : null,
             'home_formatted_address' => $landmark !== '' ? $landmark : $home->formatted_address,
@@ -81,8 +87,16 @@ final class GuardianHomeLocationSync
         ?string $formattedAddress,
         ?string $districtArea = null,
         ?string $nearestLandmark = null,
+        ?int $districtId = null,
+        ?int $areaId = null,
+        ?int $neighborhoodId = null,
     ): void {
-        if ($latitude === null || $longitude === null) {
+        $hasCoordinates = $latitude !== null && $longitude !== null;
+        $hasIraqLocation = ($districtId !== null && $districtId > 0)
+            || ($areaId !== null && $areaId > 0)
+            || ($neighborhoodId !== null && $neighborhoodId > 0);
+
+        if (! $hasCoordinates && ! $hasIraqLocation) {
             return;
         }
 
@@ -93,6 +107,10 @@ final class GuardianHomeLocationSync
             $formattedAddress,
             $districtArea,
             $nearestLandmark,
+            null,
+            $districtId,
+            $areaId,
+            $neighborhoodId,
         );
 
         $this->afterHomeLocationSaved($user, $location);
@@ -101,7 +119,9 @@ final class GuardianHomeLocationSync
     public function afterHomeLocationSaved(User $user, HomeLocation $location): void
     {
         if ($location->latitude === null || $location->longitude === null) {
-            return;
+            if ($location->district_id === null && $location->area_id === null && $location->neighborhood_id === null) {
+                return;
+            }
         }
 
         $landmark = trim((string) ($location->nearest_landmark ?? $location->formatted_address ?? ''));
@@ -110,13 +130,46 @@ final class GuardianHomeLocationSync
             $district = $landmark;
         }
 
-        $this->syncStudentsForUser(
-            $user,
-            (float) $location->latitude,
-            (float) $location->longitude,
-            $district !== '' ? $district : null,
-            $landmark !== '' ? $landmark : null,
-        );
+        if ($location->latitude !== null && $location->longitude !== null) {
+            $this->syncStudentsForUser(
+                $user,
+                (float) $location->latitude,
+                (float) $location->longitude,
+                $district !== '' ? $district : null,
+                $landmark !== '' ? $landmark : null,
+                $location->district_id !== null ? (int) $location->district_id : null,
+                $location->area_id !== null ? (int) $location->area_id : null,
+                $location->neighborhood_id !== null ? (int) $location->neighborhood_id : null,
+            );
+
+            return;
+        }
+
+        $guardianIds = $this->guardianIdsForUser($user);
+        if ($guardianIds === []) {
+            return;
+        }
+
+        $payload = [];
+        if ($location->district_id !== null) {
+            $payload['district_id'] = (int) $location->district_id;
+        }
+        if ($location->area_id !== null) {
+            $payload['area_id'] = (int) $location->area_id;
+        }
+        if ($location->neighborhood_id !== null) {
+            $payload['neighborhood_id'] = (int) $location->neighborhood_id;
+        }
+        if ($district !== '') {
+            $payload['district_area'] = $district;
+        }
+        if ($landmark !== '') {
+            $payload['nearest_landmark'] = $landmark;
+        }
+
+        if ($payload !== []) {
+            Student::query()->whereIn('guardian_id', $guardianIds)->update($payload);
+        }
     }
 
     public function syncStudentsForUser(
@@ -125,6 +178,9 @@ final class GuardianHomeLocationSync
         float $longitude,
         ?string $districtArea = null,
         ?string $nearestLandmark = null,
+        ?int $districtId = null,
+        ?int $areaId = null,
+        ?int $neighborhoodId = null,
     ): void {
         $guardianIds = $this->guardianIdsForUser($user);
         if ($guardianIds === []) {
@@ -135,6 +191,16 @@ final class GuardianHomeLocationSync
             'latitude' => $latitude,
             'longitude' => $longitude,
         ];
+
+        if ($districtId !== null && $districtId > 0) {
+            $payload['district_id'] = $districtId;
+        }
+        if ($areaId !== null && $areaId > 0) {
+            $payload['area_id'] = $areaId;
+        }
+        if ($neighborhoodId !== null && $neighborhoodId > 0) {
+            $payload['neighborhood_id'] = $neighborhoodId;
+        }
 
         if ($districtArea !== null && trim($districtArea) !== '') {
             $payload['district_area'] = trim($districtArea);

@@ -23,4 +23,13 @@
         'guardian' => null,
     ])
     @include('dashboard.guardians._home_location_map_script')
+    @include('dashboard.partials.iraq_location_cascade_script', [
+        'iraqLocationPrefix' => 'guardian_home',
+        'neighborhoodMultiple' => false,
+    ])
+    @include('dashboard.partials.iraq_location_map_sync_script', [
+        'iraqLocationPrefix' => 'guardian_home',
+        'mapRegistryKey' => 'guardian_home',
+        'mapElementId' => 'guardian-home-map',
+    ])
 @endsection

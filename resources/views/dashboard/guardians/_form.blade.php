@@ -97,6 +97,11 @@
     <p class="field-help" style="margin: 0 0 12px;">{{ __('dashboard.guardian_parent_home_location_help') }}</p>
     <div id="guardian-home-map" style="height: 260px; border: 1px solid #cbd5e1; border-radius: 10px; margin-bottom: 16px;"></div>
     <div class="form-grid">
+        @include('dashboard.partials.iraq_location_fields', array_merge($locationForm ?? [], [
+            'iraqLocationPrefix' => 'guardian_home',
+            'fieldPrefix' => 'home_',
+            'neighborhoodMultiple' => false,
+        ]))
         <div>
             <label class="field-label" for="guardian_home_latitude">{{ __('dashboard.latitude') }}</label>
             <input
@@ -123,17 +128,7 @@
                 value="{{ old('home_longitude', $homeLocation?->longitude ?? '') }}"
             />
         </div>
-        <div>
-            <label class="field-label" for="guardian_home_district_area">{{ __('dashboard.district_area') }}</label>
-            <input
-                class="input"
-                id="guardian_home_district_area"
-                name="home_district_area"
-                value="{{ old('home_district_area', optional($homeLocation)->district_area) }}"
-                maxlength="255"
-            />
-        </div>
-        <div>
+        <div class="form-span-full">
             <label class="field-label" for="guardian_home_nearest_landmark">{{ __('dashboard.nearest_landmark') }}</label>
             <input
                 class="input"

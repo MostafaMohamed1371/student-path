@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
+use App\Http\Controllers\Web\Concerns\ProvidesDashboardIraqLocationFilters;
 use App\Http\Controllers\Web\Concerns\ProvidesDashboardSchoolDriverFilters;
 use App\Http\Requests\Web\StoreDashboardStudentRequest;
 use App\Http\Requests\Web\UpdateDashboardStudentRequest;
@@ -30,6 +31,7 @@ use Illuminate\View\View;
 class DashboardStudentController extends Controller
 {
     use ManagesDashboardScoping;
+    use ProvidesDashboardIraqLocationFilters;
     use ProvidesDashboardSchoolDriverFilters;
 
     public function index(Request $request): View
@@ -77,6 +79,11 @@ class DashboardStudentController extends Controller
             'guardians' => $guardians,
             'formGuardiansUrl' => route('dashboard.students.form_guardians'),
             'guardianLookupUrl' => route('dashboard.students.lookup_guardian'),
+            'locationForm' => $this->iraqLocationFormContext(
+                (int) old('district_id', 0),
+                (int) old('area_id', 0),
+                (int) old('neighborhood_id', 0),
+            ),
         ]);
     }
 
@@ -236,6 +243,11 @@ class DashboardStudentController extends Controller
             'guardians' => $guardians,
             'formGuardiansUrl' => route('dashboard.students.form_guardians'),
             'guardianLookupUrl' => route('dashboard.students.lookup_guardian'),
+            'locationForm' => $this->iraqLocationFormContext(
+                (int) old('district_id', $student->district_id ?? 0),
+                (int) old('area_id', $student->area_id ?? 0),
+                (int) old('neighborhood_id', $student->neighborhood_id ?? 0),
+            ),
         ]);
     }
 

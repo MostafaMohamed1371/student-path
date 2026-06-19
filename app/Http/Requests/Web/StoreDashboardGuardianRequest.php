@@ -4,6 +4,7 @@ namespace App\Http\Requests\Web;
 
 use App\Enums\PhoneAccountType;
 use App\Http\Requests\Concerns\MapsGuardianHomeAddressInput;
+use App\Http\Requests\Concerns\ValidatesDashboardIraqLocation;
 use App\Http\Requests\Concerns\ValidatesOptionalGuardianHomeLocation;
 use App\Http\Requests\Concerns\ValidatesUniqueDashboardIdCard;
 use App\Http\Requests\Concerns\ValidatesUniqueDashboardPhone;
@@ -16,6 +17,7 @@ use Illuminate\Validation\Validator;
 class StoreDashboardGuardianRequest extends FormRequest
 {
     use MapsGuardianHomeAddressInput;
+    use ValidatesDashboardIraqLocation;
     use ValidatesOptionalGuardianHomeLocation;
     use ValidatesUniqueDashboardIdCard;
     use ValidatesUniqueDashboardPhone;
@@ -52,8 +54,20 @@ class StoreDashboardGuardianRequest extends FormRequest
             'backup_phone' => ['nullable', 'regex:/^[1-9][0-9]{9}$/'],
             'id_card_number' => ['nullable', 'string', 'max:64'],
             'status' => ['required', 'in:active,inactive'],
+            ...$this->dashboardIraqLocationRules('home_'),
             ...$this->optionalGuardianHomeLocationRules(),
         ];
+    }
+
+    public function validated($key = null, $default = null)
+    {
+        $validated = parent::validated($key, $default);
+
+        if ($key !== null) {
+            return $validated;
+        }
+
+        return $this->mergeResolvedGuardianHomeIraqLocationAttributes($validated);
     }
 
     public function withValidator(Validator $validator): void

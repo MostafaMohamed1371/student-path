@@ -87,6 +87,10 @@
 
     async function renderMarkersForActiveRow() {
         const row = window.DriverServiceAreas.getActiveRow();
+        await renderMarkersForRow(row);
+    }
+
+    async function renderMarkersForRow(row) {
         if (!row) {
             clearNeighborhoodMarkers();
             return;
@@ -136,14 +140,11 @@
                     iconAnchor: [7, 7],
                 }),
                 title: item.name,
+                interactive: false,
             }).addTo(map);
 
             marker.neighborhoodId = item.id;
             marker.neighborhoodPayload = item;
-            marker.on('click', function (event) {
-                L.DomEvent.stopPropagation(event);
-                applyNeighborhood(item);
-            });
 
             neighborhoodMarkers.push(marker);
             bounds.push([lat, lng]);
@@ -152,6 +153,7 @@
         refreshMarkerSelectionStyles();
 
         if (bounds.length > 0) {
+            map.invalidateSize();
             map.fitBounds(bounds, { padding: [36, 36], maxZoom: 14 });
         }
     }
@@ -182,17 +184,10 @@
         }
 
         const requestId = ++resolveRequestId;
-        const filter = window.DriverServiceAreas.getRowFilter(row);
         const params = new URLSearchParams({
             latitude: String(lat),
             longitude: String(lng),
         });
-        if (filter.district_id) {
-            params.set('district_id', filter.district_id);
-        }
-        if (filter.area_id) {
-            params.set('area_id', filter.area_id);
-        }
 
         const res = await fetch(resolveUrl + '?' + params.toString(), {
             headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -215,7 +210,10 @@
         resolveFromMapClick(event.latlng.lat, event.latlng.lng);
     });
 
-    window.DriverServiceAreas.onFilterChange(function () {
+    window.DriverServiceAreas.onFilterChange(function (changedRow) {
+        if (changedRow) {
+            window.DriverServiceAreas.setActiveRow(changedRow);
+        }
         renderMarkersForActiveRow();
         refreshMarkerSelectionStyles();
     });

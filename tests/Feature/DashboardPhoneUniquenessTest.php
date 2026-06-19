@@ -8,10 +8,12 @@ use App\Models\School;
 use App\Models\User;
 use App\Support\DashboardUserDisplayType;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\ProvidesDashboardIraqLocationFields;
 use Tests\TestCase;
 
 class DashboardPhoneUniquenessTest extends TestCase
 {
+    use ProvidesDashboardIraqLocationFields;
     use RefreshDatabase;
 
     public function test_student_cannot_use_phone_already_assigned_to_driver(): void
@@ -33,7 +35,7 @@ class DashboardPhoneUniquenessTest extends TestCase
 
         $guardianId = $this->createGuardianForSchool($school->id);
 
-        $response = $this->post(route('dashboard.students.store'), [
+        $response = $this->post(route('dashboard.students.store'), array_merge([
             'school_id' => $school->id,
             'full_name' => 'Ali Hassan Mahmoud',
             'gender' => 'male',
@@ -41,10 +43,9 @@ class DashboardPhoneUniquenessTest extends TestCase
             'student_phone' => $phone,
             'guardian_id' => $guardianId,
             'relationship' => 'father',
-            'district_area' => 'Area',
             'nearest_landmark' => 'Landmark',
             'status' => 'active',
-        ]);
+        ], $this->dashboardIraqLocationFields()));
 
         $response->assertSessionHasErrors('student_phone');
     }
@@ -117,22 +118,23 @@ class DashboardPhoneUniquenessTest extends TestCase
 
         $this->actingAs($admin);
 
-        $this->post(route('dashboard.guardians.store'), [
+        $this->post(route('dashboard.guardians.store'), array_merge([
             'school_id' => $school->id,
             'full_name' => 'Guardian Original',
             'phone' => $phone,
             'status' => 'active',
-        ])->assertRedirect(route('dashboard.guardians.index'));
+        ], $this->dashboardIraqLocationFields('home_')))
+            ->assertRedirect(route('dashboard.guardians.index'));
 
         $guardian = \App\Models\Guardian::query()->where('phone', $phone)->firstOrFail();
         $this->assertNotNull(User::query()->where('phone', '964'.$phone)->first());
 
-        $this->put(route('dashboard.guardians.update', $guardian), [
+        $this->put(route('dashboard.guardians.update', $guardian), array_merge([
             'school_id' => $school->id,
             'full_name' => 'Guardian Updated Name',
             'phone' => $phone,
             'status' => 'active',
-        ])->assertRedirect(route('dashboard.guardians.index'));
+        ], $this->dashboardIraqLocationFields('home_')))->assertRedirect(route('dashboard.guardians.index'));
 
         $this->assertSame('Guardian Updated Name', $guardian->fresh()->full_name);
     }
@@ -153,7 +155,9 @@ class DashboardPhoneUniquenessTest extends TestCase
 
         $guardianId = $this->createGuardianForSchool($school->id);
 
-        $this->post(route('dashboard.students.store'), [
+        $locationFields = $this->dashboardIraqLocationFields();
+
+        $this->post(route('dashboard.students.store'), array_merge([
             'school_id' => $school->id,
             'full_name' => 'Ali Hassan Mahmoud',
             'gender' => 'male',
@@ -161,15 +165,14 @@ class DashboardPhoneUniquenessTest extends TestCase
             'student_phone' => $phone,
             'guardian_id' => $guardianId,
             'relationship' => 'father',
-            'district_area' => 'Area',
             'nearest_landmark' => 'Landmark',
             'status' => 'active',
-        ])->assertRedirect(route('dashboard.students.index'));
+        ], $locationFields))->assertRedirect(route('dashboard.students.index'));
 
         $student = \App\Models\Student::query()->where('student_phone', $phone)->firstOrFail();
         $this->assertNotNull(User::query()->where('phone', '964'.$phone)->first());
 
-        $this->put(route('dashboard.students.update', $student), [
+        $this->put(route('dashboard.students.update', $student), array_merge([
             'school_id' => $school->id,
             'full_name' => 'Ali Hassan Mahmoud',
             'gender' => 'male',
@@ -177,14 +180,13 @@ class DashboardPhoneUniquenessTest extends TestCase
             'student_phone' => $phone,
             'guardian_id' => $guardianId,
             'relationship' => 'father',
-            'district_area' => 'New Area',
             'nearest_landmark' => 'Landmark',
             'status' => 'active',
-        ])->assertRedirect(route('dashboard.students.index'));
+        ], $locationFields))->assertRedirect(route('dashboard.students.index'));
 
         $student->refresh();
         $this->assertSame('2', $student->grade);
-        $this->assertSame('New Area', $student->district_area);
+        $this->assertNotNull($student->district_area);
     }
 
     public function test_driver_update_allows_unchanged_phone_when_editing_other_fields(): void
@@ -298,12 +300,12 @@ class DashboardPhoneUniquenessTest extends TestCase
 
     private function createGuardianForSchool(int $schoolId): int
     {
-        $response = $this->post(route('dashboard.guardians.store'), [
+        $response = $this->post(route('dashboard.guardians.store'), array_merge([
             'school_id' => $schoolId,
             'full_name' => 'Guardian One',
             'phone' => '7900555666',
             'status' => 'active',
-        ]);
+        ], $this->dashboardIraqLocationFields('home_')));
 
         $response->assertRedirect(route('dashboard.guardians.index'));
 

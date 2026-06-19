@@ -15,9 +15,10 @@
     const latInput = document.getElementById('latitude');
     const lngInput = document.getElementById('longitude');
     const landmarkInput = document.getElementById('nearest_landmark');
-    const districtInput = document.getElementById('district_area');
     const reverseUrl = @json(route('dashboard.geocode.reverse'));
+    const resolveUrl = @json(route('dashboard.locations.resolve_neighborhood'));
     const addressLoadingLabel = @json(__('dashboard.school_map_address_loading'));
+    const locationPrefix = 'student';
 
     if (!mapEl || !latInput || !lngInput || typeof L === 'undefined') {
         return;
@@ -36,6 +37,7 @@
     }).addTo(map);
 
     let marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+    let neighborhoodMarkers = [];
 
     const setLocation = (newLat, newLng) => {
         marker.setLatLng([newLat, newLng]);
@@ -44,6 +46,7 @@
     };
 
     let reverseRequestId = 0;
+    let resolveRequestId = 0;
 
     async function fillLandmarkFromMap(lat, lng) {
         if (!landmarkInput || !reverseUrl) {
@@ -83,17 +86,47 @@
             } else {
                 landmarkInput.value = previousLandmark;
             }
-            if (districtInput && !districtInput.value.trim() && data.district) {
-                districtInput.value = data.district;
-            }
         } catch (e) {
             landmarkInput.value = previousLandmark;
         } finally {
             if (requestId === reverseRequestId) {
                 landmarkInput.disabled = false;
             }
-
         }
+    }
+
+    async function applyNeighborhoodFromMap(lat, lng) {
+        const requestId = ++resolveRequestId;
+        const params = new URLSearchParams({
+            latitude: String(lat),
+            longitude: String(lng),
+        });
+
+        const res = await fetch(resolveUrl + '?' + params.toString(), {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        });
+        const data = res.ok ? await res.json() : { neighborhood: null };
+
+        if (requestId !== resolveRequestId) {
+            return null;
+        }
+
+        if (!data.neighborhood) {
+            document.dispatchEvent(new CustomEvent('iraq-location-map-not-found', {
+                detail: { prefix: locationPrefix },
+            }));
+            return null;
+        }
+
+        if (typeof window.setIraqLocationCascadeValues === 'function') {
+            await window.setIraqLocationCascadeValues(locationPrefix, {
+                district_id: data.neighborhood.district_id,
+                area_id: data.neighborhood.area_id,
+                neighborhood_id: data.neighborhood.id,
+            });
+        }
+
+        return data.neighborhood;
     }
 
     function onLocationPicked(newLat, newLng, skipLandmark) {
@@ -101,6 +134,7 @@
         if (!skipLandmark) {
             fillLandmarkFromMap(newLat, newLng);
         }
+        applyNeighborhoodFromMap(newLat, newLng);
     }
 
     map.on('click', function (event) {
@@ -111,6 +145,81 @@
         const pos = marker.getLatLng();
         onLocationPicked(pos.lat, pos.lng);
     });
+
+    function clearNeighborhoodMarkers() {
+        neighborhoodMarkers.forEach(function (mapMarker) {
+            map.removeLayer(mapMarker);
+        });
+        neighborhoodMarkers = [];
+    }
+
+    function showNeighborhoodMarkers(neighborhoods, selectedNeighborhoodId, options) {
+        options = options || {};
+        clearNeighborhoodMarkers();
+
+        const bounds = [];
+        const selectedId = String(selectedNeighborhoodId || '');
+
+        (neighborhoods || []).forEach(function (item) {
+            const itemLat = parseFloat(item.latitude);
+            const itemLng = parseFloat(item.longitude);
+            if (!Number.isFinite(itemLat) || !Number.isFinite(itemLng)) {
+                return;
+            }
+
+            const mapMarker = L.marker([itemLat, itemLng], {
+                icon: L.divIcon({
+                    className: 'iraq-map-marker--neighborhood' + (selectedId === String(item.id) ? ' is-selected' : ''),
+                    iconSize: [14, 14],
+                    iconAnchor: [7, 7],
+                }),
+                title: item.name,
+                interactive: false,
+            }).addTo(map);
+
+            mapMarker.neighborhoodPayload = item;
+
+            neighborhoodMarkers.push(mapMarker);
+            bounds.push([itemLat, itemLng]);
+        });
+
+        const hasPinnedLocation = latInput.value !== '' && lngInput.value !== '';
+        const shouldFitMap = options.fitMap === true
+            || (bounds.length > 0 && !selectedId && !hasPinnedLocation);
+
+        if (shouldFitMap && bounds.length > 0) {
+            map.invalidateSize();
+            map.fitBounds(bounds, { padding: [36, 36], maxZoom: 14 });
+        }
+    }
+
+    function focusNeighborhood(item, options) {
+        if (!item) {
+            return;
+        }
+
+        const itemLat = parseFloat(item.latitude);
+        const itemLng = parseFloat(item.longitude);
+        if (!Number.isFinite(itemLat) || !Number.isFinite(itemLng)) {
+            return;
+        }
+
+        if (options && options.updatePickupMarker) {
+            setLocation(itemLat, itemLng);
+        }
+
+        if (options && options.panMap) {
+            map.setView([itemLat, itemLng], 15);
+        }
+    }
+
+    window.IraqLocationMapRegistry = window.IraqLocationMapRegistry || {};
+    window.IraqLocationMapRegistry.student = {
+        clearNeighborhoodMarkers: clearNeighborhoodMarkers,
+        showNeighborhoodMarkers: showNeighborhoodMarkers,
+        focusNeighborhood: focusNeighborhood,
+        setPickupLocation: setLocation,
+    };
 
     window.studentMapSetLocation = function (newLat, newLng, landmark, district, skipReverseGeocode) {
         if (newLat === null || newLng === null || newLat === '' || newLng === '') {
@@ -125,16 +234,18 @@
         map.setView([parsedLat, parsedLng], 14);
 
         const landmarkValue = typeof landmark === 'string' ? landmark.trim() : '';
-        const districtValue = typeof district === 'string' ? district.trim() : '';
 
-        if (districtInput && districtValue !== '') {
-            districtInput.value = districtValue;
-        }
         if (landmarkInput && landmarkValue !== '') {
             landmarkInput.value = landmarkValue;
         } else if (!skipReverseGeocode) {
             fillLandmarkFromMap(parsedLat, parsedLng);
         }
+
+        applyNeighborhoodFromMap(parsedLat, parsedLng);
     };
+
+    setTimeout(function () {
+        map.invalidateSize();
+    }, 120);
 })();
 </script>
