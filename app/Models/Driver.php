@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Drivers\DriverDeletionService;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -34,6 +35,13 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 ])]
 class Driver extends Model
 {
+    protected static function booted(): void
+    {
+        static::deleting(function (Driver $driver): void {
+            app(DriverDeletionService::class)->deleteTripsForDriver($driver);
+        });
+    }
+
     protected function casts(): array
     {
         return [
@@ -79,5 +87,10 @@ class Driver extends Model
     public function transportRoutes(): HasMany
     {
         return $this->hasMany(TransportRoute::class);
+    }
+
+    public function tripHistories(): HasMany
+    {
+        return $this->hasMany(TripHistory::class);
     }
 }
