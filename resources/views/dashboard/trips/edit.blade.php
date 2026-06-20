@@ -61,6 +61,7 @@
 
                 @include('dashboard.trips._trip_form_route_path_fields', [
                     'trip' => $trip,
+                    'locationForm' => $locationForm ?? [],
                     'isReturnTrip' => $isReturnTrip ?? false,
                     'returnRoutePathSeed' => $returnRoutePathSeed ?? null,
                 ])

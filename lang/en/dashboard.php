@@ -768,6 +768,7 @@ return [
     'route_end_address_missing' => 'School has no address or map location — update the school record',
     'route_start_map_help' => 'Click the map to set where the driver starts. The address field fills automatically.',
     'route_map_help' => 'Green marker = school (route end). Blue marker = driver start. Click the map to set the start point.',
+    'route_map_click_help' => 'Click the map or drag the marker to set the route start. Governorate, district, and sub-district fill automatically.',
     'route_form_intro' => 'Choose school and trip type, then select a driver. Set the driver start on the map — the school is the route end. Students along that path are assigned automatically.',
     'route_select_driver_after_filters' => 'Select school and trip type first',
     'bus_select_driver_after_school' => 'Select a school first, then choose a driver',

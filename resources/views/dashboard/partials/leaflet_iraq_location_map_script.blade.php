@@ -178,9 +178,18 @@
             fillLandmarkFromMap(newLat, newLng);
         }
         applyNeighborhoodFromMap(newLat, newLng);
+        if (locationPrefix === 'trip_start' && typeof window.tripMapOnStartLocationPicked === 'function') {
+            window.tripMapOnStartLocationPicked(newLat, newLng);
+        }
+        if (locationPrefix === 'route' && typeof window.routeMapOnStartLocationPicked === 'function') {
+            window.routeMapOnStartLocationPicked(newLat, newLng);
+        }
     }
 
     map.on('click', function (event) {
+        if (locationPrefix === 'trip_start' && window.tripMapDisableStartPick === true) {
+            return;
+        }
         onLocationPicked(event.latlng.lat, event.latlng.lng);
     });
     pickupMarker.on('dragend', function () {
@@ -262,6 +271,10 @@
         showNeighborhoodMarkers: showNeighborhoodMarkers,
         focusNeighborhood: focusNeighborhood,
         setPickupLocation: setLocation,
+        getMap: function () {
+            return map;
+        },
+        mapProvider: 'leaflet',
     };
 
     if (globalSetLocationFn) {

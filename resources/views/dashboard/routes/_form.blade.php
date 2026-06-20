@@ -28,7 +28,11 @@
     </select>
 </label>
 
-@include('dashboard.partials.iraq_location_fields', ['neighborhoodMultiple' => true])
+@include('dashboard.partials.iraq_location_fields', array_merge($locationForm ?? [], [
+    'iraqLocationPrefix' => 'route',
+    'fieldPrefix' => '',
+    'neighborhoodMultiple' => false,
+]))
 
 <label>
     <span class="field-label">{{ __('dashboard.route_name') }}</span>
@@ -88,6 +92,7 @@
 <label style="grid-column:1 / -1;">
     <span class="field-label">{{ __('dashboard.route_start_address') }}</span>
     <input class="input" id="start_address" name="start_address" value="{{ old('start_address', $routeModel?->start_address) }}" required>
+    <p style="margin:6px 0 0;font-size:12px;color:#64748b;">{{ __('dashboard.route_map_click_help') }}</p>
 </label>
 
 <div style="grid-column:1 / -1;">

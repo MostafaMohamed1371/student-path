@@ -150,7 +150,7 @@ class DashboardRouteController extends Controller
         $locationForm = $this->iraqLocationFormContext(
             (int) old('district_id', 0),
             (int) old('area_id', 0),
-            old('neighborhood_ids', []),
+            (int) old('neighborhood_id', 0),
         );
 
         return view('dashboard.routes.create', [
@@ -193,7 +193,7 @@ class DashboardRouteController extends Controller
         $locationForm = $this->iraqLocationFormContext(
             (int) old('district_id', $route->district_id ?? 0),
             (int) old('area_id', $route->area_id ?? 0),
-            old('neighborhood_ids', $route->neighborhoods->pluck('id')->all()),
+            (int) old('neighborhood_id', $route->neighborhoods->first()?->id ?? 0),
         );
 
         return view('dashboard.routes.edit', [
@@ -478,6 +478,7 @@ class DashboardRouteController extends Controller
             'monthly_subscription_price' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
             'district_id' => ['nullable', 'integer', 'exists:districts,id'],
             'area_id' => ['nullable', 'integer', 'exists:areas,id'],
+            'neighborhood_id' => ['nullable', 'integer', 'exists:neighborhoods,id'],
             'neighborhood_ids' => ['nullable', 'array'],
             'neighborhood_ids.*' => ['integer', 'exists:neighborhoods,id'],
         ];

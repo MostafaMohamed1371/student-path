@@ -15,4 +15,14 @@
             </form>
         </section>
     @endcomponent
+    @include('dashboard.schools._location_map_script')
+    @include('dashboard.partials.iraq_location_cascade_script', [
+        'iraqLocationPrefix' => 'school',
+        'neighborhoodMultiple' => false,
+    ])
+    @include('dashboard.partials.iraq_location_map_sync_script', [
+        'iraqLocationPrefix' => 'school',
+        'mapRegistryKey' => 'school',
+        'mapElementId' => 'school-map',
+    ])
 @endsection

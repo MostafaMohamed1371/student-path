@@ -8,10 +8,12 @@ use App\Models\Student;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use Tests\Concerns\ProvidesDashboardIraqLocationFields;
 use Tests\TestCase;
 
 class SchoolComplaintsSupportContactTest extends TestCase
 {
+    use ProvidesDashboardIraqLocationFields;
     use RefreshDatabase;
 
     public function test_school_form_accepts_complaints_support_contact_fields(): void
@@ -27,17 +29,15 @@ class SchoolComplaintsSupportContactTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->put(route('dashboard.schools.update', $school), [
+            ->put(route('dashboard.schools.update', $school), $this->withSchoolIraqLocation([
                 'name_ar' => $school->name_ar,
                 'name_en' => $school->name_en,
-                'province' => $school->province,
-                'district' => $school->district,
                 'address' => $school->address,
                 'status' => 'active',
                 'complaints_support_phone' => '8800',
                 'complaints_support_whatsapp' => '+9647709998888',
                 'complaints_support_hours' => 'Daily 8 AM - 4 PM',
-            ])
+            ]))
             ->assertRedirect(route('dashboard.schools.index'));
 
         $school->refresh();

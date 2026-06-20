@@ -48,6 +48,12 @@
     }
 @endphp
 
+@include('dashboard.partials.iraq_location_fields', array_merge($locationForm ?? [], [
+    'iraqLocationPrefix' => 'trip_start',
+    'fieldPrefix' => 'start_',
+    'neighborhoodMultiple' => false,
+]))
+
 <label style="grid-column:1 / -1;">
     <span id="trip_form_start_map_label">{{ $isReturnTrip ? __('dashboard.trip_start_on_map_return') : __('dashboard.trip_start_on_map') }}</span>
     <input id="trip_form_start_address" name="start_address" value="{{ $startAddressValue }}" readonly placeholder="{{ __('dashboard.trip_start_address_placeholder') }}">

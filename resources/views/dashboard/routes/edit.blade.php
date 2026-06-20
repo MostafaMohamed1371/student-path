@@ -31,9 +31,5 @@
         </section>
     @endcomponent
 
-    @include('dashboard.partials.iraq_location_cascade_script', [
-        'iraqLocationPrefix' => 'form',
-        'neighborhoodMultiple' => true,
-    ])
     @include('dashboard.routes._start_map_script')
 @endsection

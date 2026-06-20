@@ -223,9 +223,18 @@
                 fillLandmarkFromMap(newLat, newLng);
             }
             applyNeighborhoodFromMap(newLat, newLng);
+            if (locationPrefix === 'trip_start' && typeof window.tripMapOnStartLocationPicked === 'function') {
+                window.tripMapOnStartLocationPicked(newLat, newLng);
+            }
+            if (locationPrefix === 'route' && typeof window.routeMapOnStartLocationPicked === 'function') {
+                window.routeMapOnStartLocationPicked(newLat, newLng);
+            }
         }
 
         map.addListener('click', function (event) {
+            if (locationPrefix === 'trip_start' && window.tripMapDisableStartPick === true) {
+                return;
+            }
             if (!event.latLng) {
                 return;
             }
@@ -323,6 +332,10 @@
             showNeighborhoodMarkers: showNeighborhoodMarkers,
             focusNeighborhood: focusNeighborhood,
             setPickupLocation: setLocation,
+            getMap: function () {
+                return map;
+            },
+            mapProvider: 'google',
         };
 
         if (globalSetLocationFn) {

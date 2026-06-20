@@ -5,10 +5,12 @@ namespace Tests\Feature;
 use App\Models\School;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\ProvidesDashboardIraqLocationFields;
 use Tests\TestCase;
 
 class DashboardSchoolWorkScheduleTest extends TestCase
 {
+    use ProvidesDashboardIraqLocationFields;
     use RefreshDatabase;
 
     public function test_school_staff_can_update_work_schedule_on_dedicated_report(): void
@@ -114,17 +116,15 @@ class DashboardSchoolWorkScheduleTest extends TestCase
         $admin = User::factory()->create(['is_admin' => true]);
         $this->actingAs($admin);
 
-        $this->post(route('dashboard.schools.store'), [
+        $this->post(route('dashboard.schools.store'), $this->withSchoolIraqLocation([
             'name_ar' => 'مدرسة',
             'name_en' => 'No Schedule On Create',
-            'province' => 'Baghdad',
-            'district' => '1',
             'address' => 'Street 1',
             'status' => 'active',
             'work_days' => ['monday'],
             'work_time_from' => '08:00',
             'work_time_to' => '15:00',
-        ])->assertRedirect(route('dashboard.schools.index'));
+        ]))->assertRedirect(route('dashboard.schools.index'));
 
         $school = School::query()->where('name_en', 'No Schedule On Create')->firstOrFail();
 

@@ -58,6 +58,7 @@
                 <label><span>{{ __('dashboard.route_title') }}</span><input id="trip_form_route_title" name="route_title" value="{{ old('route_title') }}"></label>
 
                 @include('dashboard.trips._trip_form_route_path_fields', [
+                    'locationForm' => $locationForm ?? [],
                     'isReturnTrip' => str_ends_with((string) old('trip_type', ''), '_RETURN'),
                     'returnRoutePathSeed' => null,
                 ])

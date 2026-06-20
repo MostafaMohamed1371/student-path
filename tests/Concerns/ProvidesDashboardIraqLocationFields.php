@@ -42,4 +42,22 @@ trait ProvidesDashboardIraqLocationFields
     {
         return array_merge($payload, $this->dashboardIraqLocationFields('home_'));
     }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    protected function withSchoolIraqLocation(array $payload): array
+    {
+        return array_merge($payload, $this->dashboardIraqLocationFields());
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    protected function withTripStartIraqLocation(array $payload): array
+    {
+        return array_merge($payload, $this->dashboardIraqLocationFields('start_'));
+    }
 }

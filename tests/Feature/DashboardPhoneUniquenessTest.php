@@ -62,15 +62,13 @@ class DashboardPhoneUniquenessTest extends TestCase
 
         $phone = '7900444555';
 
-        $this->post(route('dashboard.schools.store'), [
+        $this->post(route('dashboard.schools.store'), $this->withSchoolIraqLocation([
             'name_ar' => 'مدرسة',
             'name_en' => 'School Update Phone',
-            'province' => 'Baghdad',
-            'district' => '1',
             'address' => 'Street',
             'status' => 'active',
             'admin_phone' => $phone,
-        ])->assertRedirect(route('dashboard.schools.index'));
+        ]))->assertRedirect(route('dashboard.schools.index'));
 
         $school = School::query()->where('name_en', 'School Update Phone')->first();
         $this->assertNotNull($school);
@@ -78,15 +76,13 @@ class DashboardPhoneUniquenessTest extends TestCase
         $schoolUser = User::query()->where('phone', '964'.$phone)->first();
         $this->assertNotNull($schoolUser);
 
-        $this->put(route('dashboard.schools.update', $school), [
+        $this->put(route('dashboard.schools.update', $school), $this->withSchoolIraqLocation([
             'name_ar' => 'مدرسة محدثة',
             'name_en' => 'School Update Phone Revised',
-            'province' => 'Baghdad',
-            'district' => '1',
             'address' => 'Street',
             'status' => 'active',
             'admin_phone' => $phone,
-        ])->assertRedirect(route('dashboard.schools.index'));
+        ]))->assertRedirect(route('dashboard.schools.index'));
 
         $this->assertSame('School Update Phone Revised', $school->fresh()->name_en);
     }
@@ -271,15 +267,13 @@ class DashboardPhoneUniquenessTest extends TestCase
 
         $phone = '7900333444';
 
-        $this->post(route('dashboard.schools.store'), [
+        $this->post(route('dashboard.schools.store'), $this->withSchoolIraqLocation([
             'name_ar' => 'مدرسة',
             'name_en' => 'School Phone Test',
-            'province' => 'Baghdad',
-            'district' => '1',
             'address' => 'Street',
             'status' => 'active',
             'admin_phone' => $phone,
-        ])->assertRedirect(route('dashboard.schools.index'));
+        ]))->assertRedirect(route('dashboard.schools.index'));
 
         $user = User::query()->where('phone', '964'.$phone)->first();
         $this->assertNotNull($user);

@@ -206,6 +206,11 @@ class DashboardTripController extends Controller
             'formOptionsUrl' => route('dashboard.trips.form_options'),
             'driverAutoFillUrl' => route('dashboard.trips.driver_auto_fill'),
             'exceptTripId' => null,
+            'locationForm' => $this->iraqLocationFormContext(
+                (int) old('start_district_id', 0),
+                (int) old('start_area_id', 0),
+                (int) old('start_neighborhood_id', 0),
+            ),
         ]);
     }
 
@@ -278,6 +283,11 @@ class DashboardTripController extends Controller
             'allDrivers' => $schoolId > 0
                 ? $this->driversForTripForm($schoolId, null)
                 : collect(),
+            'locationForm' => $this->iraqLocationFormContext(
+                (int) old('start_district_id', $trip->start_district_id ?? 0),
+                (int) old('start_area_id', $trip->start_area_id ?? 0),
+                (int) old('start_neighborhood_id', $trip->start_neighborhood_id ?? 0),
+            ),
         ]);
     }
 
@@ -772,6 +782,9 @@ class DashboardTripController extends Controller
             'start_address' => ['nullable', 'string', 'max:255'],
             'start_latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'start_longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            'start_district_id' => ['nullable', 'integer', 'exists:districts,id'],
+            'start_area_id' => ['nullable', 'integer', 'exists:areas,id'],
+            'start_neighborhood_id' => ['nullable', 'integer', 'exists:neighborhoods,id'],
             'students_count' => [$required, 'integer', 'min:0'],
             'distance_km' => [$required, 'numeric', 'min:0'],
             'start_time' => [$required, 'date'],
@@ -798,6 +811,11 @@ class DashboardTripController extends Controller
     private function applyTripRouteFieldsFromRequest(Request $request, array $validated, int $schoolId): array
     {
         unset($validated['student_ids'], $validated['driver_service_area_ids']);
+
+        $resolved = app(\App\Services\Locations\IraqLocationAttributeResolver::class)->resolve($validated, 'start_');
+        $validated['start_district_id'] = $resolved['district_id'];
+        $validated['start_area_id'] = $resolved['area_id'];
+        $validated['start_neighborhood_id'] = $resolved['neighborhood_id'];
 
         $serviceAreaIds = array_values(array_unique(array_filter(array_map(
             static fn ($v): int => (int) $v,

@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Web\Concerns\ManagesDashboardScoping;
+use App\Http\Controllers\Web\Concerns\ProvidesDashboardIraqLocationFilters;
 use App\Http\Controllers\Web\Concerns\ProvidesDashboardSchoolDriverFilters;
 use App\Http\Controllers\Controller;
+use App\Models\Area;
+use App\Models\District;
 use App\Models\School;
 use App\Services\Phone\DashboardPhoneUserProvisioner;
 use App\Services\Phone\PhoneNormalizer;
@@ -16,6 +19,7 @@ use Illuminate\View\View;
 class DashboardSchoolController extends Controller
 {
     use ManagesDashboardScoping;
+    use ProvidesDashboardIraqLocationFilters;
     use ProvidesDashboardSchoolDriverFilters;
 
     public function index(Request $request): View
@@ -44,7 +48,14 @@ class DashboardSchoolController extends Controller
     public function create(): View
     {
         abort_unless($this->isAdmin(), 403);
-        return view('dashboard.schools.create');
+
+        return view('dashboard.schools.create', [
+            'locationForm' => $this->iraqLocationFormContext(
+                (int) old('district_id', 0),
+                (int) old('area_id', 0),
+                (int) old('neighborhood_id', 0),
+            ),
+        ]);
     }
 
     public function store(Request $request, PhoneNormalizer $phoneNormalizer): RedirectResponse
@@ -65,7 +76,15 @@ class DashboardSchoolController extends Controller
     public function edit(School $school): View
     {
         abort_unless($this->isAdmin(), 403);
-        return view('dashboard.schools.edit', compact('school'));
+
+        return view('dashboard.schools.edit', [
+            'school' => $school,
+            'locationForm' => $this->iraqLocationFormContext(
+                (int) old('district_id', $school->district_id ?? 0),
+                (int) old('area_id', $school->area_id ?? 0),
+                (int) old('neighborhood_id', $school->neighborhood_id ?? 0),
+            ),
+        ]);
     }
 
     public function update(Request $request, School $school, PhoneNormalizer $phoneNormalizer): RedirectResponse
@@ -93,11 +112,12 @@ class DashboardSchoolController extends Controller
 
     private function validated(Request $request): array
     {
-        return $request->validate([
+        $validated = $request->validate([
             'name_ar' => ['required', 'string', 'max:255'],
             'name_en' => ['required', 'string', 'max:255'],
-            'province' => ['required', 'string', 'max:255'],
-            'district' => ['required', 'string', 'max:255'],
+            'district_id' => ['required', 'integer', 'exists:districts,id'],
+            'area_id' => ['required', 'integer', 'exists:areas,id'],
+            'neighborhood_id' => ['required', 'integer', 'exists:neighborhoods,id'],
             'address' => ['required', 'string', 'max:255'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
@@ -112,6 +132,32 @@ class DashboardSchoolController extends Controller
             'notes' => ['nullable', 'string'],
             'attachment' => ['nullable', 'file', 'max:4096'],
         ]);
+
+        return $this->applySchoolIraqLocation($validated);
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function applySchoolIraqLocation(array $validated): array
+    {
+        $resolved = app(\App\Services\Locations\IraqLocationAttributeResolver::class)->resolve($validated);
+        $validated['district_id'] = $resolved['district_id'];
+        $validated['area_id'] = $resolved['area_id'];
+        $validated['neighborhood_id'] = $resolved['neighborhood_id'];
+
+        $governorate = $resolved['district_id']
+            ? District::query()->find($resolved['district_id'])
+            : null;
+        $area = $resolved['area_id']
+            ? Area::query()->find($resolved['area_id'])
+            : null;
+
+        $validated['province'] = $governorate?->name ?? '';
+        $validated['district'] = $area?->name ?? '';
+
+        return $validated;
     }
 
     private function syncSchoolAdminUser(

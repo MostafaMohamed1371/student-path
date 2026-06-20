@@ -18,24 +18,16 @@
         <input class="input" id="name_en" name="name_en" value="{{ old('name_en', $school->name_en ?? '') }}" required />
     </div>
 
-    <div>
-        <label class="field-label" for="province">{{ __('dashboard.province') }}</label>
-        <input class="input" id="province" name="province" value="{{ old('province', $school->province ?? '') }}" required />
-    </div>
+    @include('dashboard.partials.iraq_location_fields', array_merge($locationForm ?? [], [
+        'iraqLocationPrefix' => 'school',
+        'fieldPrefix' => '',
+        'neighborhoodMultiple' => false,
+    ]))
 
-    <div>
-        <label class="field-label" for="district">{{ __('dashboard.district') }}</label>
-        <input class="input" id="district" name="district" value="{{ old('district', $school->district ?? '') }}" required />
-    </div>
-
-    <div>
+    <div class="form-span-full">
         <label class="field-label" for="address">{{ __('dashboard.address') }}</label>
         <input class="input" id="address" name="address" value="{{ old('address', $school->address ?? '') }}" required />
-    </div>
-
-    <div>
-        <label class="field-label">&nbsp;</label>
-        <p class="help" style="margin-top: 10px;">{{ __('dashboard.school_map_click_help') }}</p>
+        <p class="help" style="margin:6px 0 0;">{{ __('dashboard.school_map_click_help') }}</p>
     </div>
 </div>
 
@@ -125,132 +117,3 @@
     <a class="btn-muted" href="{{ route('dashboard.schools.index') }}">{{ __('dashboard.cancel') }}</a>
     <button class="btn-primary" type="submit" style="width:auto;padding-inline:16px;">{{ $submitLabel ?? __('dashboard.save') }}</button>
 </div>
-
-<link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin=""
-/>
-<script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin=""
-></script>
-<script>
-    (function () {
-        const mapEl = document.getElementById('school-map');
-        const latInput = document.getElementById('latitude');
-        const lngInput = document.getElementById('longitude');
-        const addressInput = document.getElementById('address');
-        const provinceInput = document.getElementById('province');
-        const districtInput = document.getElementById('district');
-        const reverseUrl = @json(route('dashboard.geocode.reverse'));
-        const addressLoadingLabel = @json(__('dashboard.school_map_address_loading'));
-        if (!mapEl || !latInput || !lngInput || typeof L === 'undefined') {
-            return;
-        }
-
-        const defaultLat = 33.3128;
-        const defaultLng = 44.3615;
-        const hasValues = latInput.value !== '' && lngInput.value !== '';
-        const lat = hasValues ? parseFloat(latInput.value) : defaultLat;
-        const lng = hasValues ? parseFloat(lngInput.value) : defaultLng;
-
-        const map = L.map(mapEl).setView([lat, lng], 12);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '&copy; OpenStreetMap contributors',
-        }).addTo(map);
-
-        let marker = L.marker([lat, lng]).addTo(map);
-
-        const setLocation = (newLat, newLng) => {
-            marker.setLatLng([newLat, newLng]);
-            latInput.value = Number(newLat).toFixed(7);
-            lngInput.value = Number(newLng).toFixed(7);
-        };
-
-        let reverseRequestId = 0;
-
-        async function fillAddressFromMap(lat, lng) {
-            if (!addressInput || !reverseUrl) {
-                return;
-            }
-
-            const requestId = ++reverseRequestId;
-            const previousAddress = addressInput.value;
-            addressInput.value = addressLoadingLabel;
-            addressInput.disabled = true;
-
-            try {
-                const params = new URLSearchParams({
-                    latitude: String(lat),
-                    longitude: String(lng),
-                });
-                const res = await fetch(reverseUrl + '?' + params.toString(), {
-                    headers: {
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
-                    },
-                });
-
-                if (requestId !== reverseRequestId) {
-                    return;
-                }
-
-                if (!res.ok) {
-                    addressInput.value = previousAddress;
-                    return;
-                }
-
-                const json = await res.json();
-                const data = json.data || {};
-                if (data.address) {
-                    addressInput.value = data.address;
-                } else {
-                    addressInput.value = previousAddress;
-                }
-
-                if (provinceInput && !provinceInput.value.trim() && data.province) {
-                    provinceInput.value = data.province;
-                }
-                if (districtInput && !districtInput.value.trim() && data.district) {
-                    districtInput.value = data.district;
-                }
-            } catch (e) {
-                if (requestId === reverseRequestId) {
-                    addressInput.value = previousAddress;
-                }
-                console.error(e);
-            } finally {
-                if (requestId === reverseRequestId) {
-                    addressInput.disabled = false;
-                }
-            }
-        }
-
-        map.on('click', function (event) {
-            setLocation(event.latlng.lat, event.latlng.lng);
-            fillAddressFromMap(event.latlng.lat, event.latlng.lng);
-        });
-
-        latInput.addEventListener('change', function () {
-            const newLat = parseFloat(latInput.value);
-            const newLng = parseFloat(lngInput.value);
-            if (!Number.isNaN(newLat) && !Number.isNaN(newLng)) {
-                marker.setLatLng([newLat, newLng]);
-                map.panTo([newLat, newLng]);
-            }
-        });
-
-        lngInput.addEventListener('change', function () {
-            const newLat = parseFloat(latInput.value);
-            const newLng = parseFloat(lngInput.value);
-            if (!Number.isNaN(newLat) && !Number.isNaN(newLng)) {
-                marker.setLatLng([newLat, newLng]);
-                map.panTo([newLat, newLng]);
-            }
-        });
-    })();
-</script>
