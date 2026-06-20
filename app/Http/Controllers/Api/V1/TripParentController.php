@@ -5,14 +5,17 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Api\Concerns\AppliesApiSchoolScoping;
 use App\Http\Controllers\Api\V1\Concerns\FormatsParentApiResponse;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\SubmitTripDriverRatingRequest;
 use App\Models\Bus;
 use App\Models\Student;
 use App\Models\TripHistory;
+use App\Services\Trips\DriverTripRatingService;
 use App\Services\Trips\StudentTripStatusResolver;
 use App\Support\ParentContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\ValidationException;
 
 class TripParentController extends Controller
 {
@@ -21,6 +24,7 @@ class TripParentController extends Controller
 
     public function __construct(
         private readonly StudentTripStatusResolver $tripStatusResolver,
+        private readonly DriverTripRatingService $driverTripRatingService,
     ) {}
 
     public function available(Request $request): JsonResponse
@@ -124,6 +128,45 @@ class TripParentController extends Controller
         }
 
         return $this->parentSuccess($this->tripDetail($trip));
+    }
+
+    public function rateDriver(SubmitTripDriverRatingRequest $request, TripHistory $trip): JsonResponse
+    {
+        if ($resp = $this->ensureApiTargetsOwnSchoolOrAdmin($request->user(), $trip->school_id)) {
+            return $resp;
+        }
+
+        try {
+            $result = $this->driverTripRatingService->submitForParent(
+                $request->user(),
+                $trip,
+                (int) $request->validated('rating'),
+                $request->validated('comment'),
+                $request->filled('student_id') ? (int) $request->validated('student_id') : null,
+            );
+        } catch (ValidationException $e) {
+            return $this->parentError(
+                collect($e->errors())->flatten()->first() ?? 'Validation failed.',
+                $e->errors(),
+                422,
+            );
+        }
+
+        $record = $result['rating'];
+
+        return $this->parentSuccess([
+            'rating_id' => (int) $record->id,
+            'trip_id' => (int) $trip->id,
+            'driver_id' => (int) $record->driver_id,
+            'student_id' => $record->student_id !== null ? (int) $record->student_id : null,
+            'rating' => (int) $record->rating,
+            'comment' => $record->comment,
+            'updated' => (bool) $result['updated'],
+            'driver_rating_avg' => $result['driver_rating_avg'],
+            'driver_rating_count' => $result['driver_rating_count'],
+            'created_at' => $record->created_at?->toIso8601String(),
+            'updated_at' => $record->updated_at?->toIso8601String(),
+        ], $result['updated'] ? 'Driver rating updated successfully' : 'Driver rated successfully');
     }
 
     public function driver(Request $request, TripHistory $trip): JsonResponse

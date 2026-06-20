@@ -29,6 +29,7 @@ class UserProfileResource extends JsonResource
             'id' => (string) ($driver?->id ?? $this->id),
             'name' => $driverName ?? $this->name,
             'image' => $imagePath ? '/student-path/storage/app/public/'.$imagePath : null,
+            'email' => $this->email,
             'phone' => (string) ($driver?->primary_phone ?? $this->phone),
             'city' => $driver?->residential_address ?? $this->city,
             'licenceNumber' => $driver?->license_number ?? $this->licence_number,

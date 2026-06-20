@@ -18,15 +18,9 @@ class ProfileController extends Controller
         return app(UserProfileController::class)->show($request);
     }
 
-    public function update(Request $request): JsonResponse
+    public function update(UpdateUserProfileRequest $request): JsonResponse
     {
-        $form = UpdateUserProfileRequest::createFrom($request);
-        $form->setUserResolver($request->getUserResolver());
-        $form->setRouteResolver($request->getRouteResolver());
-        $form->setContainer(app());
-        $form->validateResolved();
-
-        return app(UserProfileController::class)->update($form);
+        return app(UserProfileController::class)->update($request);
     }
 
     public function destroy(Request $request): JsonResponse

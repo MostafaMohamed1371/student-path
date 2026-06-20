@@ -19,6 +19,7 @@ use Laravel\Sanctum\HasApiTokens;
     'school_id',
     'guardian_id',
     'image',
+    'email',
     'phone',
     'phone_account_type',
     'city',

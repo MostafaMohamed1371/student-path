@@ -54,6 +54,7 @@ class UserResource extends JsonResource
             'type_user' => $typeUser,
             'name' => $legacyName,
             'nameFromAccount' => $user->name,
+            'email' => $user->email,
             'phone' => $legacyPhone,
             'phoneFromAccount' => $user->phone,
             'image' => $this->publicProfileImageUrl($user->image),

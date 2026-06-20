@@ -83,5 +83,10 @@ class TripHistory extends Model
     {
         return $this->hasMany(TripFeedback::class, 'trip_history_id')->latest('id');
     }
+
+    public function tripDriverRatings(): HasMany
+    {
+        return $this->hasMany(TripDriverRating::class, 'trip_history_id')->latest('id');
+    }
 }
 

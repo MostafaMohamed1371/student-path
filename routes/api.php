@@ -196,6 +196,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('trips/available', [V1TripParentController::class, 'available']);
     Route::get('trips/active', [V1TripParentController::class, 'active']);
     Route::get('trips/{trip}/driver', [V1TripParentController::class, 'driver']);
+    Route::post('trips/{trip}/rate-driver', [V1TripParentController::class, 'rateDriver']);
     Route::get('trips/{trip}/tracking/location', [V1TripTrackingController::class, 'location']);
     Route::get('trips/{trip}/tracking', [V1TripTrackingController::class, 'show']);
     Route::get('trips/{trip}', [V1TripParentController::class, 'show']);
