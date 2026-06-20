@@ -6,7 +6,10 @@
     $rowNeighborhoods = $row['neighborhoods'] ?? collect();
     $selectedNeighborhoodIds = collect($row['neighborhood_ids'] ?? [])
         ->map(fn ($id) => (string) $id)
+        ->filter(fn ($id) => $id !== '')
+        ->values()
         ->all();
+    $selectedNeighborhoodId = $selectedNeighborhoodIds[0] ?? '';
 @endphp
 
 <div class="driver-service-area-row card" data-index="{{ $rowIndex }}" style="padding:14px;margin-bottom:12px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;">
@@ -42,20 +45,18 @@
             <span class="field-label">{{ __('dashboard.iraq_sub_district') }}</span>
             <select
                 class="input driver-service-area-neighborhood"
-                name="service_areas[{{ $rowIndex }}][neighborhood_ids][]"
+                name="service_areas[{{ $rowIndex }}][neighborhood_id]"
                 data-index="{{ $rowIndex }}"
-                multiple
-                size="6"
                 @disabled(empty($row['district_id']))
             >
+                <option value="">{{ __('dashboard.select_sub_district') }}</option>
                 @foreach($rowNeighborhoods as $neighborhood)
                     <option
                         value="{{ $neighborhood->id }}"
-                        @selected(in_array((string) $neighborhood->id, $selectedNeighborhoodIds, true))
+                        @selected($selectedNeighborhoodId === (string) $neighborhood->id)
                     >{{ $neighborhood->name }}</option>
                 @endforeach
             </select>
-            <p style="margin:6px 0 0;font-size:12px;color:#64748b;">{{ __('dashboard.select_sub_districts_help') }}</p>
         </label>
 
         <label>

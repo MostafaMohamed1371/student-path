@@ -3,6 +3,12 @@
 return [
     'places_api_key' => env('GOOGLE_PLACES_API_KEY', ''),
     'directions_api_key' => env('GOOGLE_DIRECTIONS_API_KEY', env('GOOGLE_PLACES_API_KEY', '')),
+    'maps_api_key' => env('GOOGLE_MAPS_API_KEY', env('GOOGLE_PLACES_API_KEY', '')),
+    'geocoding_api_key' => env('GOOGLE_GEOCODING_API_KEY', env('GOOGLE_PLACES_API_KEY', '')),
+    /*
+    | Dashboard map provider: auto (Google when key exists), google, osm
+    */
+    'maps_provider' => env('MAPS_PROVIDER', 'auto'),
 
     /*
     | BCP-47 language for Places (e.g. ar, en). Empty uses primary language from app.locale.

@@ -103,6 +103,7 @@ class StoreDashboardDriverRequest extends FormRequest
             'service_areas' => ['nullable', 'array'],
             'service_areas.*.district_id' => ['nullable', 'integer', 'exists:districts,id'],
             'service_areas.*.area_id' => ['nullable', 'integer', 'exists:areas,id'],
+            'service_areas.*.neighborhood_id' => ['nullable', 'integer', 'exists:neighborhoods,id'],
             'service_areas.*.neighborhood_ids' => ['nullable', 'array'],
             'service_areas.*.neighborhood_ids.*' => ['integer', 'exists:neighborhoods,id'],
             'service_areas.*.monthly_subscription_price' => ['nullable', 'integer', 'min:0', 'max:999999999999'],

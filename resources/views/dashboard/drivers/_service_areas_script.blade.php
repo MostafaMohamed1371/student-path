@@ -11,6 +11,7 @@
     const areasUrl = @json(route('dashboard.locations.areas'));
     const neighborhoodsUrl = @json(route('dashboard.locations.neighborhoods'));
     const selectDistrictLabel = @json(__('dashboard.select_district'));
+    const selectSubDistrictLabel = @json(__('dashboard.select_sub_district'));
     const addressEntryLabel = @json(__('dashboard.address_entry'));
     const activeRowClass = 'driver-service-area-row--active';
 
@@ -51,14 +52,6 @@
         });
     }
 
-    function selectedNeighborhoodValues(select) {
-        return Array.from(select.selectedOptions).map(function (option) {
-            return String(option.value);
-        }).filter(function (value) {
-            return value !== '';
-        });
-    }
-
     function setSingleOptions(select, items, emptyLabel, selectedValue) {
         const prev = String(selectedValue ?? select.value ?? '');
         select.innerHTML = '';
@@ -77,26 +70,6 @@
         });
     }
 
-    function setMultiNeighborhoodOptions(select, items, selectedValues) {
-        const selectedSet = new Set((selectedValues || selectedNeighborhoodValues(select)).map(String));
-        select.innerHTML = '';
-        items.forEach(function (row) {
-            const opt = document.createElement('option');
-            opt.value = String(row.id);
-            opt.textContent = row.name;
-            if (selectedSet.has(opt.value)) {
-                opt.selected = true;
-            }
-            select.appendChild(opt);
-        });
-    }
-
-    function notifyFilterChange(row) {
-        if (typeof filterChangeHandler === 'function') {
-            filterChangeHandler(row || activeRow);
-        }
-    }
-
     async function loadAreas(row, districtId, keepArea, keepNeighborhood) {
         const areaSelect = row.querySelector('.driver-service-area-area');
         const neighborhoodSelect = row.querySelector('.driver-service-area-neighborhood');
@@ -106,7 +79,7 @@
 
         if (!districtId) {
             setSingleOptions(areaSelect, [], selectDistrictLabel, '');
-            setMultiNeighborhoodOptions(neighborhoodSelect, [], []);
+            setSingleOptions(neighborhoodSelect, [], selectSubDistrictLabel, '');
             areaSelect.disabled = true;
             neighborhoodSelect.disabled = true;
             notifyFilterChange(row);
@@ -130,7 +103,7 @@
         }
 
         if (!districtId) {
-            setMultiNeighborhoodOptions(neighborhoodSelect, [], []);
+            setSingleOptions(neighborhoodSelect, [], selectSubDistrictLabel, '');
             neighborhoodSelect.disabled = true;
             notifyFilterChange(row);
             return;
@@ -144,10 +117,11 @@
             headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
         });
         const data = res.ok ? await res.json() : { neighborhoods: [] };
-        setMultiNeighborhoodOptions(
+        setSingleOptions(
             neighborhoodSelect,
             data.neighborhoods || [],
-            keepNeighborhood ? selectedNeighborhoodValues(neighborhoodSelect) : [],
+            selectSubDistrictLabel,
+            keepNeighborhood ? neighborhoodSelect.value : '',
         );
         neighborhoodSelect.disabled = false;
         notifyFilterChange(row);
@@ -186,28 +160,25 @@
         const districtId = String(payload.district_id || '');
         const areaId = String(payload.area_id || '');
         const neighborhoodId = String(payload.neighborhood_id || '');
-        const preserveSelection = payload.preserve_selection !== false;
 
         if (!districtId || !areaId || !neighborhoodId) {
             return false;
         }
 
-        const previousSelection = preserveSelection ? selectedNeighborhoodValues(neighborhoodSelect) : [];
         districtSelect.value = districtId;
         await loadAreas(row, districtId, false, false);
         areaSelect.value = areaId;
         await loadNeighborhoods(row, districtId, areaId, false);
-
-        const selectedSet = new Set(previousSelection);
-        selectedSet.add(neighborhoodId);
-        Array.from(neighborhoodSelect.options).forEach(function (option) {
-            if (selectedSet.has(String(option.value))) {
-                option.selected = true;
-            }
-        });
+        neighborhoodSelect.value = neighborhoodId;
 
         notifyFilterChange(row);
         return true;
+    }
+
+    function notifyFilterChange(row) {
+        if (typeof filterChangeHandler === 'function') {
+            filterChangeHandler(row || activeRow);
+        }
     }
 
     function bindRow(row) {

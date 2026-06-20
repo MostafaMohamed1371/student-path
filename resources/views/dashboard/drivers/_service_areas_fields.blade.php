@@ -13,6 +13,8 @@
     <h4 style="margin:0 0 6px;font-size:15px;">{{ __('dashboard.driver_service_area_map_title') }}</h4>
     <p style="margin:0 0 8px;font-size:12px;color:#64748b;">{{ __('dashboard.driver_service_area_map_help') }}</p>
     <div id="driver_service_area_map" style="height:320px;border:1px solid #cbd5e1;border-radius:10px;"></div>
+    <input type="hidden" id="driver_service_area_latitude" value="">
+    <input type="hidden" id="driver_service_area_longitude" value="">
     <p id="driver_service_area_map_notice" style="display:none;margin:8px 0 0;font-size:12px;color:#b45309;"></p>
 </div>
 

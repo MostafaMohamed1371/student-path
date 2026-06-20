@@ -143,6 +143,10 @@
         refreshNeighborhoodMarkers({ fitMap: detail.fitMap === true });
     });
 
+    document.addEventListener('google-maps-auth-failure', function () {
+        showNotice(@json(__('dashboard.google_maps_auth_failed')));
+    });
+
     document.addEventListener('iraq-location-map-not-found', function (event) {
         const detail = event.detail || {};
         if (detail.prefix !== prefix) {
