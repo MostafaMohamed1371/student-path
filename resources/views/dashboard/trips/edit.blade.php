@@ -66,7 +66,16 @@
                     'returnRoutePathSeed' => $returnRoutePathSeed ?? null,
                 ])
 
-                <label><span>{{ __('dashboard.students_count') }}</span><input id="trip_form_students_count" type="number" min="0" name="students_count" value="{{ old('students_count', $trip->students_count) }}" required></label>
+                <label>
+                    <span>{{ __('dashboard.students_count') }}</span>
+                    <input
+                        id="trip_form_students_count"
+                        type="number"
+                        min="0"
+                        value="{{ old('students_count', $trip->trip_history_students_count ?? $trip->students_count) }}"
+                        readonly
+                    >
+                </label>
                 <label><span>{{ __('dashboard.trip_start_time') }}</span><input type="datetime-local" name="start_time" value="{{ old('start_time', optional($trip->start_time)->format('Y-m-d\TH:i')) }}" required></label>
                 <label><span>{{ __('dashboard.trip_end_time') }}</span><input type="datetime-local" name="end_time" value="{{ old('end_time', optional($trip->end_time)->format('Y-m-d\TH:i')) }}"></label>
                 @php

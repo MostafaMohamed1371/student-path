@@ -26,7 +26,7 @@ final class RecurringTripSpawner
     {
         $trip->loadMissing(['school', 'tripHistoryStudents']);
 
-        if ((int) ($trip->students_count ?? 0) <= 0 && $trip->tripHistoryStudents->isEmpty()) {
+        if ($trip->tripHistoryStudents->isEmpty()) {
             if ($trip->is_recurring_template) {
                 $trip->update(['is_recurring_template' => false]);
             }
@@ -174,7 +174,7 @@ final class RecurringTripSpawner
             'start_address' => $template->start_address,
             'start_latitude' => $template->start_latitude,
             'start_longitude' => $template->start_longitude,
-            'students_count' => $template->students_count,
+            'students_count' => $template->tripHistoryStudents->count(),
             'distance_km' => $template->distance_km,
             'start_time' => $startTime,
             'end_time' => $endTime,

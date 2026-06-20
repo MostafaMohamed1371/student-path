@@ -34,8 +34,7 @@ final class TripRecurringScheduleService
         $this->syncAutoScheduleFlagOnPairedTrip($freshTrip);
         $freshTrip = $freshTrip->fresh(['school', 'tripHistoryStudents']);
 
-        $hasStudents = $freshTrip->tripHistoryStudents->isNotEmpty()
-            || (int) ($freshTrip->students_count ?? 0) > 0;
+        $hasStudents = $freshTrip->tripHistoryStudents->isNotEmpty();
 
         if (! $hasStudents || ! $freshTrip->auto_schedule_work_days) {
             $this->spawner->unregisterTemplate($freshTrip);

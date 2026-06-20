@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const driversUrl = @json($formOptionsUrl ?? '');
     const autoFillUrl = @json($driverAutoFillUrl ?? '');
     const exceptTripId = @json(isset($exceptTripId) && $exceptTripId ? (int) $exceptTripId : null);
+    const isEditMode = exceptTripId !== null;
     const oldServiceAreaIds = @json(collect(old('driver_service_area_ids', []))->map(fn ($id) => (string) $id)->values()->all());
 
     const schoolSelect = document.getElementById('trip_form_school_id');
@@ -38,6 +39,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const locationEndOnly = @json(__('dashboard.trip_location_end_only', ['end' => '__END__']));
 
     let lastAutoFill = null;
+    let driverAutoFillFullApply = !isEditMode;
 
     function haversineKm(lat1, lon1, lat2, lon2) {
         const earthKm = 6371.0;
@@ -326,6 +328,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 : '';
         }
 
+        if (!driverAutoFillFullApply) {
+            const serviceAreas = row.service_areas || [];
+            const preselected = oldServiceAreaIds.length > 0
+                ? oldServiceAreaIds
+                : serviceAreas.map(function (item) { return String(item.id); });
+            setMultiServiceAreaOptions(serviceAreas, preselected);
+
+            return;
+        }
+
         if (studentsCountInput && row.students_count != null) {
             studentsCountInput.value = String(row.students_count);
         }
@@ -435,7 +447,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 clearAutoFields();
                 return;
             }
-            if (driverSelect.value) {
+            if (driverSelect.value && driverAutoFillFullApply) {
                 await loadDriverAutoFill();
             }
         } catch (e) {
@@ -471,7 +483,10 @@ document.addEventListener('DOMContentLoaded', function () {
         refreshDriverList();
     });
 
-    driverSelect.addEventListener('change', loadDriverAutoFill);
+    driverSelect.addEventListener('change', function () {
+        driverAutoFillFullApply = true;
+        loadDriverAutoFill();
+    });
 
     async function initTripForm() {
         if (!schoolSelect.value || !tripTypeSelect.value) {
@@ -479,7 +494,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         await refreshDriverList();
-        if (driverSelect.value) {
+        if (driverSelect.value && driverAutoFillFullApply) {
             await loadDriverAutoFill();
         }
     }

@@ -263,6 +263,7 @@ class DashboardTripController extends Controller
         $selectableStatus = in_array($tripStatus, ['ACTIVE', 'PRESENT'], true) ? $tripStatus : 'PRESENT';
         $returnRoutePathSeed = $this->resolveReturnRoutePathSeed($trip);
         $isReturnTrip = TripType::isReturn(trim((string) old('trip_type', $trip->trip_type ?? '')));
+        $trip->loadCount('tripHistoryStudents');
         $replacementService = app(TripDriverReplacementService::class);
 
         return view('dashboard.trips.edit', [
@@ -724,16 +725,33 @@ class DashboardTripController extends Controller
             (int) ($validated['school_id'] ?? $trip->school_id),
         );
 
+        $wasAutoSchedule = (bool) $trip->auto_schedule_work_days;
+        $schedulingSnapshot = $this->tripSchedulingSnapshot($trip);
+
+        unset($validated['students_count']);
+
         $validated = $this->applyTripRouteFieldsFromRequest(
             $request,
             $validated,
             (int) ($validated['school_id'] ?? $trip->school_id),
+            $trip,
         );
         $validated['auto_schedule_work_days'] = $request->boolean('auto_schedule_work_days');
 
         $trip->update($validated);
 
-        app(TripRecurringScheduleService::class)->syncTrip($trip->fresh(['school', 'tripHistoryStudents']));
+        $assignedCount = $trip->tripHistoryStudents()->count();
+        if ((int) $trip->students_count !== $assignedCount) {
+            $trip->update(['students_count' => $assignedCount]);
+        }
+
+        $trip->refresh();
+        $willAutoSchedule = (bool) $trip->auto_schedule_work_days;
+        $schedulingChanged = $this->tripSchedulingSnapshot($trip) !== $schedulingSnapshot;
+
+        if ($willAutoSchedule !== $wasAutoSchedule || ($willAutoSchedule && $schedulingChanged)) {
+            app(TripRecurringScheduleService::class)->syncTrip($trip->fresh(['school', 'tripHistoryStudents']));
+        }
 
         $replacementService = app(TripDriverReplacementService::class);
         if ($replacementService->canManageReplacements($trip)) {
@@ -808,8 +826,12 @@ class DashboardTripController extends Controller
      * @param  array<string, mixed>  $validated
      * @return array<string, mixed>
      */
-    private function applyTripRouteFieldsFromRequest(Request $request, array $validated, int $schoolId): array
-    {
+    private function applyTripRouteFieldsFromRequest(
+        Request $request,
+        array $validated,
+        int $schoolId,
+        ?TripHistory $existingTrip = null,
+    ): array {
         unset($validated['student_ids'], $validated['driver_service_area_ids']);
 
         $resolved = app(\App\Services\Locations\IraqLocationAttributeResolver::class)->resolve($validated, 'start_');
@@ -817,12 +839,20 @@ class DashboardTripController extends Controller
         $validated['start_area_id'] = $resolved['area_id'];
         $validated['start_neighborhood_id'] = $resolved['neighborhood_id'];
 
+        $driverChanged = $existingTrip instanceof TripHistory
+            && array_key_exists('driver_id', $validated)
+            && (int) ($validated['driver_id'] ?? 0) !== (int) ($existingTrip->driver_id ?? 0);
+
         $serviceAreaIds = array_values(array_unique(array_filter(array_map(
             static fn ($v): int => (int) $v,
             $request->input('driver_service_area_ids', []),
         ), static fn (int $id): bool => $id > 0)));
 
-        if ($serviceAreaIds !== [] && isset($validated['driver_id'])) {
+        if (
+            $serviceAreaIds !== []
+            && isset($validated['driver_id'])
+            && ($existingTrip === null || $driverChanged)
+        ) {
             $this->assertDriverServiceAreasBelongToDriver($serviceAreaIds, (int) $validated['driver_id']);
             $combined = $this->driverServiceAreaTripFormatter->combineForTrip($serviceAreaIds, null);
             if (trim($combined['route_title']) !== '') {
@@ -890,7 +920,7 @@ class DashboardTripController extends Controller
         ) {
             $validated = $this->tripTransportRouteApplier->applyRouteToTripAttributes(
                 $validated,
-                overwrite: $serviceAreaIds === [],
+                overwrite: $serviceAreaIds === [] && ($existingTrip === null || $driverChanged),
             );
         }
 
@@ -908,6 +938,27 @@ class DashboardTripController extends Controller
         }
 
         return $validated;
+    }
+
+    /**
+     * @return array<string, string|null>
+     */
+    private function tripSchedulingSnapshot(TripHistory $trip): array
+    {
+        return [
+            'school_id' => (string) (int) $trip->school_id,
+            'driver_id' => (string) (int) ($trip->driver_id ?? 0),
+            'trip_type' => trim((string) ($trip->trip_type ?? '')),
+            'bus_number' => trim((string) ($trip->bus_number ?? '')),
+            'route_title' => trim((string) ($trip->route_title ?? '')),
+            'location' => trim((string) ($trip->location ?? '')),
+            'start_address' => trim((string) ($trip->start_address ?? '')),
+            'start_latitude' => $trip->start_latitude !== null ? (string) $trip->start_latitude : '',
+            'start_longitude' => $trip->start_longitude !== null ? (string) $trip->start_longitude : '',
+            'distance_km' => $trip->distance_km !== null ? (string) $trip->distance_km : '',
+            'start_time' => $trip->start_time?->format('Y-m-d H:i:s') ?? '',
+            'end_time' => $trip->end_time?->format('Y-m-d H:i:s') ?? '',
+        ];
     }
 
     private function tripLocationLabel(string $start, string $end): ?string
