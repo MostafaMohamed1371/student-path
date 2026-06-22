@@ -72,6 +72,13 @@ class StoreDashboardDriverRequest extends FormRequest
                         $row['neighborhood_ids'] = [];
                     }
 
+                    $neighborhoodId = (int) ($row['neighborhood_id'] ?? 0);
+                    if ($neighborhoodId > 0 && $row['neighborhood_ids'] === []) {
+                        $row['neighborhood_ids'] = [$neighborhoodId];
+                    }
+
+                    unset($row['neighborhood_id']);
+
                     return $row;
                 })
                 ->all();

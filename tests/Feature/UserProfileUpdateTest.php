@@ -26,7 +26,50 @@ class UserProfileUpdateTest extends TestCase
         $this->getJson('/api/profile')
             ->assertOk()
             ->assertJsonPath('data.email', 'parent@example.com')
-            ->assertJsonPath('data.phone', '9647701234567');
+            ->assertJsonPath('data.phone', '9647701234567')
+            ->assertJsonPath('data.phoneFromAccount', '9647701234567')
+            ->assertJsonStructure([
+                'data' => [
+                    'userId',
+                    'type_user',
+                    'nameFromAccount',
+                    'driver',
+                    'school',
+                    'guardian',
+                    'preferredLanguage',
+                    'isActive',
+                ],
+            ]);
+    }
+
+    public function test_profile_get_returns_type_user_for_guardian(): void
+    {
+        $school = School::query()->create([
+            'name_en' => 'School',
+            'name_ar' => 'مدرسة',
+            'province' => 'Baghdad',
+            'district' => 'Karrada',
+            'address' => 'Street 1',
+            'status' => 'active',
+        ]);
+        $guardian = Guardian::query()->create([
+            'school_id' => $school->id,
+            'full_name' => 'Parent One',
+            'phone' => '7701234567',
+            'status' => 'active',
+        ]);
+        $user = User::factory()->create([
+            'guardian_id' => $guardian->id,
+            'school_id' => $school->id,
+            'phone' => '9647701234567',
+        ]);
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/profile')
+            ->assertOk()
+            ->assertJsonPath('data.type_user', 'guardian')
+            ->assertJsonPath('data.guardian.id', $guardian->id)
+            ->assertJsonPath('data.school.id', $school->id);
     }
 
     public function test_profile_update_persists_email_and_phone(): void

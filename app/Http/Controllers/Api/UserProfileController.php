@@ -5,8 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\ChangeLanguageRequest;
 use App\Http\Requests\Api\UpdateUserProfileRequest;
-use App\Http\Resources\UserProfileResource;
+use App\Http\Resources\UserResource;
 use App\Models\Student;
+use App\Models\User;
 use App\Services\Phone\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,11 +16,9 @@ class UserProfileController extends Controller
 {
     public function show(Request $request): JsonResponse
     {
-        $user = $request->user()->load('driver');
-
         return response()->json([
             'success' => true,
-            'data' => (new UserProfileResource($user))->toArray($request),
+            'data' => $this->profileUserPayload($request, $request->user()),
             'msg' => 'success',
         ]);
     }
@@ -57,7 +56,7 @@ class UserProfileController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => (new UserProfileResource($user->fresh()->load('driver')))->toArray($request),
+            'data' => $this->profileUserPayload($request, $user->fresh()),
             'msg' => 'profile updated successfully',
         ]);
     }
@@ -88,7 +87,7 @@ class UserProfileController extends Controller
         ]);
     }
 
-    private function syncLinkedGuardianPhone(\App\Models\User $user): void
+    private function syncLinkedGuardianPhone(User $user): void
     {
         if (! $user->wasChanged('phone') || $user->guardian_id === null) {
             return;
@@ -109,5 +108,17 @@ class UserProfileController extends Controller
         Student::query()
             ->where('guardian_id', $guardian->id)
             ->update(['guardian_primary_phone' => $nationalPhone]);
+    }
+
+    /**
+     * Same user payload as POST /api/auth/verify-otp (data.user).
+     *
+     * @return array<string, mixed>
+     */
+    private function profileUserPayload(Request $request, User $user): array
+    {
+        $user->loadMissing(['driver', 'school', 'guardian']);
+
+        return (new UserResource($user))->toArray($request);
     }
 }

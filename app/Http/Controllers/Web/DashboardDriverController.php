@@ -169,8 +169,9 @@ class DashboardDriverController extends Controller
     public function update(UpdateDashboardDriverRequest $request, Driver $driver, PhoneNormalizer $phoneNormalizer): RedirectResponse
     {
         $validated = $this->enforceRosterSchoolIdForStaff($request->validated());
-        $serviceAreas = $validated['service_areas'] ?? [];
-        $busId = isset($validated['bus_id']) ? (int) $validated['bus_id'] : null;
+        $shouldSyncServiceAreas = $request->has('service_areas');
+        $serviceAreas = $shouldSyncServiceAreas ? ($validated['service_areas'] ?? []) : [];
+        $busId = $request->has('bus_id') ? (isset($validated['bus_id']) ? (int) $validated['bus_id'] : null) : null;
         unset($validated['service_areas'], $validated['district_id'], $validated['area_id'], $validated['neighborhood_ids'], $validated['neighborhood_id'], $validated['monthly_subscription_price'], $validated['bus_id']);
         $this->abortUnlessCanMutateSchoolRosterForSchool((int) ($validated['school_id'] ?? $driver->school_id));
         $ratingAvg = Arr::pull($validated, 'rating_avg');
@@ -181,7 +182,7 @@ class DashboardDriverController extends Controller
             app(DashboardPhoneUserProvisioner::class),
             $ratingAvg,
             $ratingCount,
-            true,
+            $request->filled('rating_avg') || $request->filled('rating_count'),
             false,
         );
         $this->syncDriverProfileImage($user, $request->file('profile_image'));
@@ -193,8 +194,12 @@ class DashboardDriverController extends Controller
         $payload['non_conviction_certificate'] = $this->replaceFile($request->file('non_conviction_certificate'), $driver->non_conviction_certificate, 'drivers');
 
         $driver->update($payload);
-        $this->syncDriverServiceAreas($driver, $serviceAreas);
-        $this->syncDriverBusAssignment($driver, $busId);
+        if ($shouldSyncServiceAreas) {
+            $this->syncDriverServiceAreas($driver, $serviceAreas);
+        }
+        if ($request->has('bus_id')) {
+            $this->syncDriverBusAssignment($driver, $busId);
+        }
         app(DriverTripAutoProvisioner::class)->syncForDriver($driver->fresh(['school', 'bus', 'serviceAreas']));
 
         return redirect()->route('dashboard.drivers.index')->with('success', __('dashboard.driver_updated'));

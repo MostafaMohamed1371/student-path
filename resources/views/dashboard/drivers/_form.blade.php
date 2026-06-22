@@ -180,5 +180,20 @@
 
 <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
     <a class="btn-muted" href="{{ route('dashboard.drivers.index') }}">{{ __('dashboard.cancel') }}</a>
-    <button class="btn-primary" type="submit" style="width:auto;padding-inline:16px;">{{ $submitLabel ?? __('dashboard.save') }}</button>
+    <button class="btn-primary" type="submit" style="width:auto;padding-inline:16px;" id="driver_form_submit">{{ $submitLabel ?? __('dashboard.save') }}</button>
 </div>
+
+<script>
+(function () {
+    const form = document.getElementById('driver_form_submit')?.closest('form');
+    if (!form) {
+        return;
+    }
+
+    form.addEventListener('submit', function () {
+        form.querySelectorAll('.driver-service-area-row select:disabled').forEach(function (select) {
+            select.disabled = false;
+        });
+    });
+})();
+</script>

@@ -46,13 +46,11 @@ class UpdateDashboardDriverRequest extends FormRequest
             }
         }
 
-        if (! is_array($this->input('neighborhood_ids'))) {
+        if ($this->has('neighborhood_ids') && ! is_array($this->input('neighborhood_ids'))) {
             $this->merge(['neighborhood_ids' => []]);
         }
 
-        if (! is_array($this->input('service_areas'))) {
-            $this->merge(['service_areas' => []]);
-        } else {
+        if ($this->has('service_areas') && is_array($this->input('service_areas'))) {
             $rows = collect($this->input('service_areas'))
                 ->map(function ($row): array {
                     if (! is_array($row)) {
@@ -68,6 +66,13 @@ class UpdateDashboardDriverRequest extends FormRequest
                     if (! is_array($row['neighborhood_ids'] ?? null)) {
                         $row['neighborhood_ids'] = [];
                     }
+
+                    $neighborhoodId = (int) ($row['neighborhood_id'] ?? 0);
+                    if ($neighborhoodId > 0 && $row['neighborhood_ids'] === []) {
+                        $row['neighborhood_ids'] = [$neighborhoodId];
+                    }
+
+                    unset($row['neighborhood_id']);
 
                     return $row;
                 })
