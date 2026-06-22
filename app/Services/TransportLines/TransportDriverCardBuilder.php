@@ -81,6 +81,31 @@ final class TransportDriverCardBuilder
     }
 
     /**
+     * Pickup coordinates for route/service-area matching (same priority as neighborhood resolution).
+     *
+     * @return array{0: float, 1: float}|null
+     */
+    public function resolvePickupLatLng(
+        ?float $queryLat,
+        ?float $queryLng,
+        ?Student $student,
+        ?User $user,
+    ): ?array {
+        if ($queryLat !== null && $queryLng !== null) {
+            return [$queryLat, $queryLng];
+        }
+
+        if ($student !== null
+            && $student->latitude !== null
+            && $student->longitude !== null
+            && ! ((float) $student->latitude === 0.0 && (float) $student->longitude === 0.0)) {
+            return [(float) $student->latitude, (float) $student->longitude];
+        }
+
+        return $this->resolveViewerLatLng(null, null, $user);
+    }
+
+    /**
      * @param  Collection<int, Driver>  $drivers
      * @return Collection<int|string, int>
      */
@@ -442,6 +467,8 @@ final class TransportDriverCardBuilder
         ?Student $studentForRouteMatch = null,
         ?array $addressInformationByDriver = null,
         ?int $pickupNeighborhoodId = null,
+        ?float $pickupLat = null,
+        ?float $pickupLng = null,
     ): array {
         $driver->loadMissing(['user', 'bus']);
         $user = $driver->user;
@@ -464,7 +491,26 @@ final class TransportDriverCardBuilder
 
         $matchesStudentRoute = null;
         if ($studentForRouteMatch !== null) {
-            if ($school instanceof School
+            if ($pickupLat !== null && $pickupLng !== null) {
+                if ($school instanceof School
+                    && $this->serviceAreaStudentMatcher->coordinatesMatchDriverServiceAreas(
+                        $pickupLat,
+                        $pickupLng,
+                        $driver,
+                    )) {
+                    $matchesStudentRoute = true;
+                } elseif ($transportRoute !== null) {
+                    $matchesStudentRoute = $this->routeAssignmentPlanner->pointMatchesRouteCorridor(
+                        $pickupLat,
+                        $pickupLng,
+                        $transportRoute,
+                    );
+                } elseif ($latestTripRoute !== null) {
+                    $matchesStudentRoute = true;
+                } else {
+                    $matchesStudentRoute = false;
+                }
+            } elseif ($school instanceof School
                 && $this->serviceAreaStudentMatcher->studentMatchesDriverServiceAreas(
                     $studentForRouteMatch,
                     $driver,

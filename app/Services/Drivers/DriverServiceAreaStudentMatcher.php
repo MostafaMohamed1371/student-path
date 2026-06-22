@@ -22,13 +22,20 @@ final class DriverServiceAreaStudentMatcher
             return false;
         }
 
+        return $this->coordinatesMatchDriverServiceAreas(
+            (float) $student->latitude,
+            (float) $student->longitude,
+            $driver,
+        );
+    }
+
+    public function coordinatesMatchDriverServiceAreas(float $latitude, float $longitude, Driver $driver): bool
+    {
         $driver->loadMissing(['serviceAreas.neighborhoods']);
         if ($driver->serviceAreas->isEmpty()) {
             return false;
         }
 
-        $studentLat = (float) $student->latitude;
-        $studentLng = (float) $student->longitude;
         $maxMeters = (float) config('routes.corridor_max_meters', 3000);
 
         foreach ($driver->serviceAreas as $serviceArea) {
@@ -38,8 +45,8 @@ final class DriverServiceAreaStudentMatcher
                 }
 
                 $meters = Haversine::metersBetween(
-                    $studentLat,
-                    $studentLng,
+                    $latitude,
+                    $longitude,
                     (float) $neighborhood->latitude,
                     (float) $neighborhood->longitude,
                 );
@@ -62,6 +69,18 @@ final class DriverServiceAreaStudentMatcher
             return [];
         }
 
+        return $this->matchingDriverIdsForCoordinates(
+            (float) $student->latitude,
+            (float) $student->longitude,
+            $school,
+        );
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function matchingDriverIdsForCoordinates(float $latitude, float $longitude, School $school): array
+    {
         return Driver::query()
             ->where('school_id', $school->id)
             ->where('status', 'active')
@@ -70,7 +89,7 @@ final class DriverServiceAreaStudentMatcher
             })
             ->with(['serviceAreas.neighborhoods'])
             ->get()
-            ->filter(fn (Driver $driver): bool => $this->studentMatchesDriverServiceAreas($student, $driver))
+            ->filter(fn (Driver $driver): bool => $this->coordinatesMatchDriverServiceAreas($latitude, $longitude, $driver))
             ->pluck('id')
             ->map(fn ($id): int => (int) $id)
             ->values()
