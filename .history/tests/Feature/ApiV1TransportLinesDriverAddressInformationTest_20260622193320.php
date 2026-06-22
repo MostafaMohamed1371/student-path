@@ -338,8 +338,8 @@ class ApiV1TransportLinesDriverAddressInformationTest extends TestCase
             'district_id' => $governorate->id,
             'area_id' => $area->id,
             'neighborhood_id' => $parentNeighborhood->id,
-            'latitude' => 33.312,
-            'longitude' => 44.362,
+            'latitude' => 33.201,
+            'longitude' => 44.201,
             'status' => 'active',
             'shift_period' => 'MORNING',
         ]);
@@ -539,7 +539,7 @@ class ApiV1TransportLinesDriverAddressInformationTest extends TestCase
             ->assertJsonCount(0, 'data.drivers');
     }
 
-    public function test_transport_lines_drivers_hide_driver_when_parent_far_from_trip_route_corridor(): void
+    public function test_transport_lines_drivers_hide_driver_when_parent_far_from_service_area_neighborhood(): void
     {
         $school = School::query()->create([
             'name_ar' => 'S',
@@ -554,7 +554,7 @@ class ApiV1TransportLinesDriverAddressInformationTest extends TestCase
 
         $governorate = District::query()->create(['name' => 'Baghdad', 'sort_order' => 1]);
         $area = Area::query()->create(['district_id' => $governorate->id, 'name' => 'Karkh', 'sort_order' => 0]);
-        Neighborhood::query()->create([
+        $driverNeighborhood = Neighborhood::query()->create([
             'area_id' => $area->id,
             'name' => 'Driver stop',
             'sort_order' => 0,
@@ -582,6 +582,9 @@ class ApiV1TransportLinesDriverAddressInformationTest extends TestCase
             'relationship' => 'father',
             'district_area' => 'D',
             'nearest_landmark' => 'L',
+            'district_id' => $governorate->id,
+            'area_id' => $area->id,
+            'neighborhood_id' => $driverNeighborhood->id,
             'latitude' => 33.20,
             'longitude' => 44.20,
             'status' => 'active',
@@ -597,8 +600,8 @@ class ApiV1TransportLinesDriverAddressInformationTest extends TestCase
             'grandfather_name' => 'Omar',
             'last_name' => 'Karim',
             'age' => 35,
-            'id_card_number' => 'IDC-LINES-ROUTE',
-            'license_number' => 'LIC-LINES-ROUTE',
+            'id_card_number' => 'IDC-LINES-3KM',
+            'license_number' => 'LIC-LINES-3KM',
             'primary_phone' => '7770000800',
             'emergency_phone' => '7770001800',
             'residential_address' => 'Driver home',
@@ -612,12 +615,21 @@ class ApiV1TransportLinesDriverAddressInformationTest extends TestCase
             'name' => 'Bus 1',
             'type' => 'Coach',
             'city' => 'Baghdad',
-            'number' => 'B-ROUTE',
+            'number' => 'B-3KM',
             'color' => 'Yellow',
             'capacity' => 40,
             'fuel_type' => 'diesel',
             'status' => 'active',
         ]);
+
+        $serviceArea = DriverServiceArea::query()->create([
+            'driver_id' => $driver->id,
+            'district_id' => $governorate->id,
+            'area_id' => $area->id,
+            'monthly_subscription_price' => 75000,
+            'sort_order' => 0,
+        ]);
+        $serviceArea->neighborhoods()->attach($driverNeighborhood->id);
 
         TransportRoute::query()->create([
             'school_id' => $school->id,
@@ -636,10 +648,5 @@ class ApiV1TransportLinesDriverAddressInformationTest extends TestCase
         $this->getJson('/api/transport-lines/drivers?student_id='.$student->id)
             ->assertOk()
             ->assertJsonCount(0, 'data.drivers');
-
-        $this->getJson('/api/transport-lines/drivers?student_id='.$student->id.'&latitude=33.311&longitude=44.361')
-            ->assertOk()
-            ->assertJsonPath('data.drivers.0.driverId', (string) $driver->id)
-            ->assertJsonPath('data.drivers.0.matchesStudentRoute', true);
     }
 }

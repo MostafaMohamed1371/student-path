@@ -13,6 +13,8 @@ use App\Models\Student;
 use App\Models\TransportRoute;
 use App\Models\TripHistory;
 use App\Models\User;
+use App\Services\Drivers\DriverServiceAreaStudentMatcher;
+use App\Services\Routes\RouteAssignmentPlanner;
 use App\Services\TransportLines\TransportDriverCardBuilder;
 use App\Services\Trips\DriverShiftResolver;
 use App\Support\ParentContext;
@@ -27,6 +29,8 @@ class TransportLinesDriverController extends Controller
 
     public function __construct(
         private readonly TransportDriverCardBuilder $cardBuilder,
+        private readonly RouteAssignmentPlanner $routeAssignmentPlanner,
+        private readonly DriverServiceAreaStudentMatcher $serviceAreaStudentMatcher,
         private readonly DriverShiftResolver $driverShiftResolver,
     ) {}
 
@@ -188,9 +192,10 @@ class TransportLinesDriverController extends Controller
                 $filterStudent,
                 $schoolIds,
                 $tripType !== '' ? $tripType : null,
+                $request->user(),
                 $pickupNeighborhoodId,
-                $pickupLat,
-                $pickupLng,
+                $queryLat,
+                $queryLng,
             );
             if ($matchingDriverIds === []) {
                 $driversQuery->whereRaw('1 = 0');
@@ -458,9 +463,34 @@ class TransportLinesDriverController extends Controller
         };
     }
 
+    private function pickupMatchesRouteCorridor(
+        Student $student,
+        TransportRoute $route,
+        User $user,
+        ?float $queryLat = null,
+        ?float $queryLng = null,
+    ): bool {
+        if ($queryLat !== null && $queryLng !== null) {
+            return $this->routeAssignmentPlanner->pointMatchesRouteCorridor($queryLat, $queryLng, $route);
+        }
+
+        if ($this->routeAssignmentPlanner->studentMatchesRouteCorridor($student, $route)) {
+            return true;
+        }
+
+        $parentLatLng = $this->cardBuilder->resolveViewerLatLng(null, null, $user);
+        if ($parentLatLng === null) {
+            return false;
+        }
+
+        return $this->routeAssignmentPlanner->pointMatchesRouteCorridor(
+            $parentLatLng[0],
+            $parentLatLng[1],
+            $route,
+        );
+    }
+
     /**
-     * Drivers whose trip route (start → school) passes within 3 km of the parent pickup point.
-     *
      * @param  list<int>  $schoolIds
      * @return list<int>
      */
@@ -468,22 +498,12 @@ class TransportLinesDriverController extends Controller
         Student $student,
         array $schoolIds,
         ?string $tripType,
+        User $user,
         ?int $pickupNeighborhoodId = null,
-        ?float $pickupLat = null,
-        ?float $pickupLng = null,
+        ?float $queryLat = null,
+        ?float $queryLng = null,
     ): array {
-        $corridorLatLng = $this->cardBuilder->resolveCorridorCheckLatLng(
-            $pickupLat,
-            $pickupLng,
-            $pickupNeighborhoodId,
-        );
-        if ($corridorLatLng === null) {
-            return [];
-        }
-
-        [$latitude, $longitude] = $corridorLatLng;
-
-        $routeQuery = TransportRoute::query()
+        $query = TransportRoute::query()
             ->with('school')
             ->whereIn('school_id', $schoolIds)
             ->where('school_id', (int) $student->school_id)
@@ -492,37 +512,59 @@ class TransportLinesDriverController extends Controller
             ->whereNotNull('start_longitude');
 
         if ($tripType !== null && $tripType !== '') {
-            $routeQuery->where('trip_type', $tripType);
+            $query->where('trip_type', $tripType);
         } else {
             $shiftTripTypes = $this->tripTypesForStudentShift($student);
             if ($shiftTripTypes !== []) {
-                $routeQuery->whereIn('trip_type', $shiftTripTypes);
+                $query->whereIn('trip_type', $shiftTripTypes);
             }
         }
 
-        $transportRouteDriverIds = $routeQuery->get()
-            ->filter(fn (TransportRoute $route): bool => $this->cardBuilder->transportRouteMatchesPickupCorridor(
+        $transportRouteDriverIds = $query->get()
+            ->filter(fn (TransportRoute $route): bool => $this->pickupMatchesRouteCorridor(
+                $student,
                 $route,
-                $latitude,
-                $longitude,
+                $user,
+                $queryLat,
+                $queryLng,
             ))
             ->pluck('driver_id')
             ->map(fn ($id): int => (int) $id)
             ->all();
 
         $shiftTripTypes = $this->tripTypesForStudentShift($student);
-        $scheduledTripDriverIds = $this->cardBuilder->scheduledTripDriverIdsMatchingCorridor(
+        $scheduledTripDriverIds = $this->cardBuilder->scheduledTripDriverIds(
             [(int) $student->school_id],
-            $latitude,
-            $longitude,
             ($tripType !== null && $tripType !== '') ? $tripType : null,
             ($tripType !== null && $tripType !== '')
                 ? null
                 : ($shiftTripTypes !== [] ? $shiftTripTypes : null),
         );
 
+        $school = School::query()->find((int) $student->school_id);
+        if ($queryLat !== null && $queryLng !== null && $school instanceof School) {
+            $serviceAreaDriverIds = $this->serviceAreaStudentMatcher->matchingDriverIdsForCoordinates(
+                $queryLat,
+                $queryLng,
+                $school,
+            );
+        } else {
+            $serviceAreaDriverIds = $school instanceof School
+                ? $this->serviceAreaStudentMatcher->matchingDriverIdsForStudent($student, $school)
+                : [];
+        }
+
+        $neighborhoodDriverIds = ($pickupNeighborhoodId !== null && $pickupNeighborhoodId > 0)
+            ? $this->serviceAreaStudentMatcher->matchingDriverIdsForNeighborhood(
+                $pickupNeighborhoodId,
+                (int) $student->school_id,
+            )
+            : [];
+
         return collect($transportRouteDriverIds)
             ->merge($scheduledTripDriverIds)
+            ->merge($serviceAreaDriverIds)
+            ->merge($neighborhoodDriverIds)
             ->unique()
             ->values()
             ->all();

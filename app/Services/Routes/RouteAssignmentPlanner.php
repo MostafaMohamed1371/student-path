@@ -104,6 +104,55 @@ final class RouteAssignmentPlanner
         return $corridor['distance_meters'] <= $endpoints['max_meters'];
     }
 
+    public function pointMatchesSchoolTripCorridor(
+        float $latitude,
+        float $longitude,
+        float $startLatitude,
+        float $startLongitude,
+        School $school,
+    ): bool {
+        if ($school->latitude === null || $school->longitude === null) {
+            return false;
+        }
+
+        $corridor = RouteCorridor::pointToSegment(
+            $latitude,
+            $longitude,
+            $startLatitude,
+            $startLongitude,
+            (float) $school->latitude,
+            (float) $school->longitude,
+        );
+
+        return $corridor['distance_meters'] <= (float) config('routes.corridor_max_meters', 3000);
+    }
+
+    /**
+     * Return trips run from school toward the paired pickup route start.
+     */
+    public function pointMatchesReturnTripCorridor(
+        float $latitude,
+        float $longitude,
+        School $school,
+        float $endLatitude,
+        float $endLongitude,
+    ): bool {
+        if ($school->latitude === null || $school->longitude === null) {
+            return false;
+        }
+
+        $corridor = RouteCorridor::pointToSegment(
+            $latitude,
+            $longitude,
+            (float) $school->latitude,
+            (float) $school->longitude,
+            $endLatitude,
+            $endLongitude,
+        );
+
+        return $corridor['distance_meters'] <= (float) config('routes.corridor_max_meters', 3000);
+    }
+
     public function studentAssignedToRoute(Student $student, TransportRoute $route): bool
     {
         return TransportRouteStudent::query()

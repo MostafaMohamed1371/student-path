@@ -5,6 +5,7 @@ namespace App\Services\TransportLines;
 use App\Enums\TripType;
 use App\Models\Bus;
 use App\Models\Driver;
+use App\Models\Neighborhood;
 use App\Models\School;
 use App\Models\Student;
 use App\Models\TransportRoute;
@@ -15,6 +16,7 @@ use App\Services\Drivers\DriverServiceAreaStudentMatcher;
 use App\Services\Drivers\DriverServiceAreaTripFormatter;
 use App\Services\Geo\NearestNeighborhoodResolver;
 use App\Services\Routes\RouteAssignmentPlanner;
+use App\Services\Trips\TripTransportRouteApplier;
 use Illuminate\Support\Collection;
 
 final class TransportDriverCardBuilder
@@ -24,6 +26,7 @@ final class TransportDriverCardBuilder
         private readonly DriverServiceAreaStudentMatcher $serviceAreaStudentMatcher,
         private readonly DriverServiceAreaTripFormatter $serviceAreaTripFormatter,
         private readonly NearestNeighborhoodResolver $nearestNeighborhoodResolver,
+        private readonly TripTransportRouteApplier $tripTransportRouteApplier,
     ) {}
 
     /**
@@ -103,6 +106,30 @@ final class TransportDriverCardBuilder
         }
 
         return $this->resolveViewerLatLng(null, null, $user);
+    }
+
+    /**
+     * Coordinates used for route-corridor matching (start trip → school).
+     *
+     * @return array{0: float, 1: float}|null
+     */
+    public function resolveCorridorCheckLatLng(
+        ?float $pickupLat,
+        ?float $pickupLng,
+        ?int $pickupNeighborhoodId,
+    ): ?array {
+        if ($pickupLat !== null && $pickupLng !== null) {
+            return [$pickupLat, $pickupLng];
+        }
+
+        if ($pickupNeighborhoodId !== null && $pickupNeighborhoodId > 0) {
+            $neighborhood = Neighborhood::query()->find($pickupNeighborhoodId);
+            if ($neighborhood?->latitude !== null && $neighborhood->longitude !== null) {
+                return [(float) $neighborhood->latitude, (float) $neighborhood->longitude];
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -492,37 +519,89 @@ final class TransportDriverCardBuilder
         $matchesStudentRoute = null;
         if ($studentForRouteMatch !== null) {
             if ($pickupLat !== null && $pickupLng !== null) {
-                if ($school instanceof School
-                    && $this->serviceAreaStudentMatcher->coordinatesMatchDriverServiceAreas(
-                        $pickupLat,
-                        $pickupLng,
-                        $driver,
-                    )) {
-                    $matchesStudentRoute = true;
-                } elseif ($transportRoute !== null) {
-                    $matchesStudentRoute = $this->routeAssignmentPlanner->pointMatchesRouteCorridor(
-                        $pickupLat,
-                        $pickupLng,
-                        $transportRoute,
-                    );
-                } elseif ($latestTripRoute !== null) {
-                    $matchesStudentRoute = true;
+                if ($transportRoute !== null) {
+                    if (TripType::isReturn((string) ($transportRoute->trip_type ?? ''))) {
+                        $pickupStart = $this->tripTransportRouteApplier->pickupStartPointForReturnTrip([
+                            'school_id' => $transportRoute->school_id,
+                            'driver_id' => $transportRoute->driver_id,
+                            'trip_type' => $transportRoute->trip_type,
+                        ]);
+                        $matchesStudentRoute = $pickupStart !== null
+                            && $pickupStart['latitude'] !== null
+                            && $pickupStart['longitude'] !== null
+                            && $school instanceof School
+                            && $this->routeAssignmentPlanner->pointMatchesReturnTripCorridor(
+                                $pickupLat,
+                                $pickupLng,
+                                $school,
+                                $pickupStart['latitude'],
+                                $pickupStart['longitude'],
+                            );
+                    } else {
+                        $matchesStudentRoute = $this->routeAssignmentPlanner->pointMatchesRouteCorridor(
+                            $pickupLat,
+                            $pickupLng,
+                            $transportRoute,
+                        );
+                    }
+                } elseif (
+                    $latestTripRoute !== null
+                    && $school instanceof School
+                ) {
+                    $tripTypeValue = (string) ($latestTripRoute['trip_type'] ?? '');
+                    if (TripType::isReturn($tripTypeValue)) {
+                        $pickupStart = $this->tripTransportRouteApplier->pickupStartPointForReturnTrip([
+                            'school_id' => $driver->school_id,
+                            'driver_id' => $driver->id,
+                            'trip_type' => $tripTypeValue,
+                        ]);
+                        $matchesStudentRoute = $pickupStart !== null
+                            && $pickupStart['latitude'] !== null
+                            && $pickupStart['longitude'] !== null
+                            && $this->routeAssignmentPlanner->pointMatchesReturnTripCorridor(
+                                $pickupLat,
+                                $pickupLng,
+                                $school,
+                                $pickupStart['latitude'],
+                                $pickupStart['longitude'],
+                            );
+                    } elseif (
+                        ($latestTripRoute['start_latitude'] ?? null) !== null
+                        && ($latestTripRoute['start_longitude'] ?? null) !== null
+                    ) {
+                        $matchesStudentRoute = $this->routeAssignmentPlanner->pointMatchesSchoolTripCorridor(
+                            $pickupLat,
+                            $pickupLng,
+                            (float) $latestTripRoute['start_latitude'],
+                            (float) $latestTripRoute['start_longitude'],
+                            $school,
+                        );
+                    } else {
+                        $matchesStudentRoute = false;
+                    }
                 } else {
                     $matchesStudentRoute = false;
                 }
-            } elseif ($school instanceof School
-                && $this->serviceAreaStudentMatcher->studentMatchesDriverServiceAreas(
-                    $studentForRouteMatch,
-                    $driver,
-                )) {
-                $matchesStudentRoute = true;
             } elseif ($transportRoute !== null) {
                 $matchesStudentRoute = $this->routeAssignmentPlanner->studentMatchesRouteCorridor(
                     $studentForRouteMatch,
                     $transportRoute,
                 );
-            } elseif ($latestTripRoute !== null) {
-                $matchesStudentRoute = true;
+            } elseif (
+                $latestTripRoute !== null
+                && $school instanceof School
+                && ($latestTripRoute['start_latitude'] ?? null) !== null
+                && ($latestTripRoute['start_longitude'] ?? null) !== null
+                && $studentForRouteMatch->latitude !== null
+                && $studentForRouteMatch->longitude !== null
+            ) {
+                $matchesStudentRoute = $this->routeAssignmentPlanner->pointMatchesSchoolTripCorridor(
+                    (float) $studentForRouteMatch->latitude,
+                    (float) $studentForRouteMatch->longitude,
+                    (float) $latestTripRoute['start_latitude'],
+                    (float) $latestTripRoute['start_longitude'],
+                    $school,
+                );
             } else {
                 $matchesStudentRoute = false;
             }
@@ -773,6 +852,133 @@ final class TransportDriverCardBuilder
             + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLon / 2) ** 2;
 
         return round($earthKm * 2 * atan2(sqrt($a), sqrt(1 - $a)), 2);
+    }
+
+    /**
+     * Drivers with a scheduled trip whose start→school corridor is within range of the pickup point.
+     *
+     * @param  list<int>  $schoolIds
+     * @param  list<string>|null  $tripTypes
+     * @return list<int>
+     */
+    public function scheduledTripDriverIdsMatchingCorridor(
+        array $schoolIds,
+        float $latitude,
+        float $longitude,
+        ?string $tripType = null,
+        ?array $tripTypes = null,
+    ): array {
+        if ($schoolIds === []) {
+            return [];
+        }
+
+        $query = TripHistory::query()
+            ->with('school')
+            ->whereIn('school_id', $schoolIds)
+            ->whereNotNull('driver_id')
+            ->whereNotNull('route_title')
+            ->where('route_title', '!=', '')
+            ->whereNotNull('start_latitude')
+            ->whereNotNull('start_longitude')
+            ->whereNotIn('status', ['CANCELLED', 'COMPLETED', 'DONE'])
+            ->where('start_time', '>=', now()->startOfDay());
+
+        $tripType = trim((string) ($tripType ?? ''));
+        if ($tripType !== '') {
+            $query->where('trip_type', $tripType);
+        } elseif ($tripTypes !== null && $tripTypes !== []) {
+            $query->whereIn('trip_type', $tripTypes);
+        }
+
+        $driverIds = [];
+        foreach ($query->get() as $trip) {
+            $school = $trip->school;
+            if (! $school instanceof School) {
+                continue;
+            }
+
+            $tripTypeValue = (string) ($trip->trip_type ?? '');
+            if (TripType::isReturn($tripTypeValue)) {
+                $pickupStart = $this->tripTransportRouteApplier->pickupStartPointForReturnTrip([
+                    'school_id' => $trip->school_id,
+                    'driver_id' => $trip->driver_id,
+                    'trip_type' => $tripTypeValue,
+                ]);
+                if (
+                    $pickupStart === null
+                    || $pickupStart['latitude'] === null
+                    || $pickupStart['longitude'] === null
+                ) {
+                    continue;
+                }
+
+                $matches = $this->routeAssignmentPlanner->pointMatchesReturnTripCorridor(
+                    $latitude,
+                    $longitude,
+                    $school,
+                    $pickupStart['latitude'],
+                    $pickupStart['longitude'],
+                );
+            } elseif ($trip->start_latitude !== null && $trip->start_longitude !== null) {
+                $matches = $this->routeAssignmentPlanner->pointMatchesSchoolTripCorridor(
+                    $latitude,
+                    $longitude,
+                    (float) $trip->start_latitude,
+                    (float) $trip->start_longitude,
+                    $school,
+                );
+            } else {
+                continue;
+            }
+
+            if (! $matches) {
+                continue;
+            }
+
+            $driverId = (int) $trip->driver_id;
+            if ($driverId > 0) {
+                $driverIds[$driverId] = $driverId;
+            }
+        }
+
+        return array_values($driverIds);
+    }
+
+    public function transportRouteMatchesPickupCorridor(
+        TransportRoute $route,
+        float $latitude,
+        float $longitude,
+    ): bool {
+        $route->loadMissing('school');
+        $school = $route->school;
+        if (! $school instanceof School) {
+            return false;
+        }
+
+        if (TripType::isReturn((string) ($route->trip_type ?? ''))) {
+            $pickupStart = $this->tripTransportRouteApplier->pickupStartPointForReturnTrip([
+                'school_id' => $route->school_id,
+                'driver_id' => $route->driver_id,
+                'trip_type' => $route->trip_type,
+            ]);
+            if (
+                $pickupStart === null
+                || $pickupStart['latitude'] === null
+                || $pickupStart['longitude'] === null
+            ) {
+                return false;
+            }
+
+            return $this->routeAssignmentPlanner->pointMatchesReturnTripCorridor(
+                $latitude,
+                $longitude,
+                $school,
+                $pickupStart['latitude'],
+                $pickupStart['longitude'],
+            );
+        }
+
+        return $this->routeAssignmentPlanner->pointMatchesRouteCorridor($latitude, $longitude, $route);
     }
 
     /**
